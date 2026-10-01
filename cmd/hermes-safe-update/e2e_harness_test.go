@@ -827,10 +827,24 @@ func (w *e2eWorld) shown(s string) string {
 			}
 			pat.WriteString(regexp.QuoteMeta(string(c)))
 		}
-		s = regexp.MustCompile(`(?i)`+pat.String()).ReplaceAllString(s, `C:\Users\you`)
+		re := regexp.MustCompile(`(?i)` + pat.String() + `((?:` + sgrRe + `|[^\s\x1b"'<>|*?])*)`)
+		s = re.ReplaceAllStringFunc(s, func(m string) string {
+			// The harness fakes a Windows home. On Unix the temp root is
+			// followed by "/" separators (filepath.Join), which would read
+			// C:\Users\you/AppData/...: turn the rest of the path into
+			// backslashes so the goldens are the same on every OS.
+			rest := re.FindStringSubmatch(m)[1]
+			if filepath.Separator != '\\' {
+				rest = strings.ReplaceAll(rest, "/", `\`)
+			}
+			return `C:\Users\you` + rest
+		})
 	}
 	return s
 }
+
+// sgrRe is one SGR colour sequence (the VT renderer paints path segments).
+const sgrRe = `\x1b\[[0-9;]*m`
 
 // transcript compares the raw run output (escape sequences kept) with
 // testdata/replay/<name>.ansi; -update rewrites it. Plain runs use .txt.

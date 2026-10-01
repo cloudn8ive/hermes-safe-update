@@ -1,0 +1,20 @@
+Hermes Safe Update
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: 3 new commit(s) on main (GitHub API)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+== 2/5 Close Hermes
+Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 30s).
+== Close
+closing desktop app (pid 4242)
+desktop pid 4242 did not close gracefully; forcing
+STOP desktop app did not exit
+
+Update cancelled. Nothing was changed; Hermes was left running.
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+hermes-safe-update: cancelled; nothing was changed: the desktop app did not exit

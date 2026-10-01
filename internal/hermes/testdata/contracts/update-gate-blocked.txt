@@ -1,0 +1,2 @@
+Traceback (most recent call last):
+RuntimeError: Could not map Windows gateway PIDs to profiles: active gateway lock has no PID metadata

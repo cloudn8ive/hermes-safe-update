@@ -1,0 +1,40 @@
+Hermes Safe Update
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: 3 new commit(s) on main (GitHub API)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+== 2/5 Close Hermes
+Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 30s).
+== Close
+closing desktop app (pid 4242)
+stopping leftover backend pid 5310
+== 3/5 Update
+command: hermes update --yes --keep-stash --branch main
+  | → Update channel: main
+  | → Stopping Windows gateway (pid 8211) so files can be replaced…
+  | → Fetching updates...
+  | → Pulling updates...
+  |   Fast-forward 5d41402..7f9c2ba (3 files changed)
+  | → Updating Python dependencies (uv sync)…
+STOP update exceeded 90 min; it was stopped
+hermes update exit code: 124
+== 5/5 Finish
+== Verify
+gateway not running; starting it
+gateway start: ok
+gateway: running the new code 7f9c2ba4e8
+desktop app: build verified
+RESULT: PROBLEM (update rc=124, gateway on new code=true, desktop verify rc=0). Full log: C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+relaunched Hermes desktop
+post-update cleanup and cua-driver refresh skipped: update not verified
+
+The update needs attention: see RESULT above.
+  Time         94:24 until Hermes reopened  (estimate was 7:44)
+  Source       GitHub (checked via the API)
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+hermes-safe-update: update needs attention: RESULT: PROBLEM (update rc=124, gateway on new code=true, desktop verify rc=0)

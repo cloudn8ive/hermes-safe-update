@@ -1,0 +1,4 @@
+    1 /sbin/launchd
+  501 /Applications/Hermes.app/Contents/MacOS/Hermes
+  502 /Applications/Hermes.app/Contents/Frameworks/Hermes Helper (Renderer).app/Contents/MacOS/Hermes Helper (Renderer) --type=renderer --lang=en-US
+  777 /Users/u/Library/Application Support/Hermes/x y --flag

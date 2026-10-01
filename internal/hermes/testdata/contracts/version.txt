@@ -1,0 +1,5 @@
+Hermes Agent v0.21.5+5279.g4e74031 (2026.9.24) · upstream 234badf4
+Install directory: C:\Users\you\AppData\Local\hermes\hermes-agent
+Install method: git
+Python: 3.14.7
+Update available: 58 commits behind — run 'hermes update'

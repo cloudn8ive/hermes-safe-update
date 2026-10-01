@@ -1,0 +1,4638 @@
+{
+ "home": "C:\\Users\\you\\AppData\\Local\\hermes",
+ "classify": [
+  {
+   "name": "desktop main",
+   "proc": "Hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe\"",
+   "want": "desktop"
+  },
+  {
+   "name": "desktop renderer",
+   "proc": "Hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe\" --type=renderer --lang=en",
+   "want": ""
+  },
+  {
+   "name": "desktop gpu",
+   "proc": "Hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe\" --type=gpu-process",
+   "want": ""
+  },
+  {
+   "name": "electron name not hermes.exe",
+   "proc": "electron.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe\"",
+   "want": ""
+  },
+  {
+   "name": "desktop name upper",
+   "proc": "HERMES.EXE",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe\"",
+   "want": "desktop"
+  },
+  {
+   "name": "desktop arm64 dir",
+   "proc": "Hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-arm64-unpacked\\Hermes.exe\"",
+   "want": ""
+  },
+  {
+   "name": "kernel",
+   "proc": "python.exe",
+   "cmd": "python.exe C:\\somewhere\\hermes_kernel_runner.py --port 5",
+   "want": "kernel"
+  },
+  {
+   "name": "kernel upper",
+   "proc": "python.exe",
+   "cmd": "PYTHON.EXE C:\\X\\HERMES_KERNEL_RUNNER.PY",
+   "want": "kernel"
+  },
+  {
+   "name": "gateway",
+   "proc": "hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\bin\\hermes.exe\" gateway run --replace",
+   "want": "gateway"
+  },
+  {
+   "name": "gateway upper path",
+   "proc": "hermes.exe",
+   "cmd": "\"C:\\USERS\\YOU\\APPDATA\\LOCAL\\HERMES\\BIN\\HERMES.EXE\" GATEWAY RUN",
+   "want": "gateway"
+  },
+  {
+   "name": "gateway elsewhere",
+   "proc": "hermes.exe",
+   "cmd": "\"D:\\other\\hermes.exe\" gateway run",
+   "want": ""
+  },
+  {
+   "name": "backend exe",
+   "proc": "hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\bin\\hermes.exe\" serve --port 4",
+   "want": "backend"
+  },
+  {
+   "name": "backend module",
+   "proc": "python.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\tools\\python\\python.exe\" -m hermes_cli.main serve",
+   "want": "backend"
+  },
+  {
+   "name": "serve but not hermes",
+   "proc": "node.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\tools\\node\\node.exe\" serve",
+   "want": ""
+  },
+  {
+   "name": "backend elsewhere",
+   "proc": "hermes.exe",
+   "cmd": "\"D:\\other\\hermes.exe\" serve",
+   "want": ""
+  },
+  {
+   "name": "hermes chat",
+   "proc": "hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\bin\\hermes.exe\" chat",
+   "want": ""
+  },
+  {
+   "name": "preserve not serve",
+   "proc": "hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\bin\\hermes.exe\" preserve",
+   "want": ""
+  },
+  {
+   "name": "gateway wins over serve",
+   "proc": "hermes.exe",
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\bin\\hermes.exe\" gateway run serve",
+   "want": "gateway"
+  },
+  {
+   "name": "empty cmd",
+   "proc": "hermes.exe",
+   "cmd": "",
+   "want": ""
+  },
+  {
+   "name": "none cmd",
+   "proc": "hermes.exe",
+   "cmd": null,
+   "want": ""
+  },
+  {
+   "name": "none name",
+   "proc": null,
+   "cmd": "\"C:\\Users\\you\\AppData\\Local\\hermes\\bin\\hermes.exe\" gateway run",
+   "want": "gateway"
+  }
+ ],
+ "busy": {
+  "now": 1790000000.0,
+  "window_s": 180,
+  "rows": [
+   {
+    "id": "s-active",
+    "title": "Active session",
+    "last": -10,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-edge",
+    "title": "Edge exactly at window",
+    "last": -180,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-just-in",
+    "title": "Just inside",
+    "last": -179,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-old",
+    "title": "Old",
+    "last": -4000,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-ended",
+    "title": "Ended",
+    "last": -5,
+    "ended": true,
+    "source": "cli"
+   },
+   {
+    "id": "s-cron",
+    "title": "Cron",
+    "last": -5,
+    "ended": false,
+    "source": "cron"
+   },
+   {
+    "id": "s-nullsrc",
+    "title": "No source",
+    "last": -20,
+    "ended": false,
+    "source": null
+   },
+   {
+    "id": "s-notitle",
+    "title": null,
+    "last": -30,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-long",
+    "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+    "last": -40,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-null-last",
+    "title": "Null last activity",
+    "last": null,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-future",
+    "title": "Future",
+    "last": 30,
+    "ended": false,
+    "source": "cli"
+   },
+   {
+    "id": "s-unicode",
+    "title": "Café – naïve ✓ éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+    "last": -50,
+    "ended": false,
+    "source": "cli"
+   }
+  ],
+  "want": [
+   {
+    "id": "s-active",
+    "title": "Active session",
+    "idle": 10
+   },
+   {
+    "id": "s-just-in",
+    "title": "Just inside",
+    "idle": 179
+   },
+   {
+    "id": "s-nullsrc",
+    "title": "No source",
+    "idle": 20
+   },
+   {
+    "id": "s-notitle",
+    "title": "",
+    "idle": 30
+   },
+   {
+    "id": "s-long",
+    "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+    "idle": 40
+   },
+   {
+    "id": "s-future",
+    "title": "Future",
+    "idle": -30
+   },
+   {
+    "id": "s-unicode",
+    "title": "Café – naïve ✓ ééééééééééééééééééééééééééééééééééé",
+    "idle": 50
+   },
+   {
+    "id": "s-active",
+    "title": "Active session",
+    "idle": 10
+   },
+   {
+    "id": "s-just-in",
+    "title": "Just inside",
+    "idle": 179
+   },
+   {
+    "id": "beta: state.db unreadable",
+    "title": "*",
+    "idle": 0
+   }
+  ]
+ },
+ "update_check": [
+  {
+   "rc": 0,
+   "out": "3 commits behind origin/main.",
+   "drc": 0,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 3,
+   "want_npm": false,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 3 commits behind origin/main.",
+   "want_logs": [
+    "update --check (rc=0): 3 commits behind origin/main.",
+    "Python dependencies: unchanged",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "3 commits behind origin/main.",
+   "drc": 1,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 3,
+   "want_npm": false,
+   "want_pydeps": true,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 3 commits behind origin/main.",
+   "want_logs": [
+    "update --check (rc=0): 3 commits behind origin/main.",
+    "Python dependencies: changed, will be reinstalled",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "3 commits behind origin/main.",
+   "drc": 0,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 3,
+   "want_npm": true,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 3 commits behind origin/main.",
+   "want_logs": [
+    "update --check (rc=0): 3 commits behind origin/main.",
+    "Python dependencies: unchanged",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "3 commits behind origin/main.",
+   "drc": 124,
+   "nrc": 2,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 3,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 3 commits behind origin/main.",
+   "want_logs": [
+    "update --check (rc=0): 3 commits behind origin/main.",
+    "Python dependencies: unknown",
+    "Node packages: unknown"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "3 commits behind origin/main.",
+   "drc": 128,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 3,
+   "want_npm": true,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 3 commits behind origin/main.",
+   "want_logs": [
+    "update --check (rc=0): 3 commits behind origin/main.",
+    "Python dependencies: unknown",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "1 commit behind origin/main",
+   "drc": 0,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 1,
+   "want_npm": false,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 1 commit behind origin/main",
+   "want_logs": [
+    "update --check (rc=0): 1 commit behind origin/main",
+    "Python dependencies: unchanged",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "1 commit behind origin/main",
+   "drc": 1,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 1,
+   "want_npm": false,
+   "want_pydeps": true,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 1 commit behind origin/main",
+   "want_logs": [
+    "update --check (rc=0): 1 commit behind origin/main",
+    "Python dependencies: changed, will be reinstalled",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "1 commit behind origin/main",
+   "drc": 0,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 1,
+   "want_npm": true,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 1 commit behind origin/main",
+   "want_logs": [
+    "update --check (rc=0): 1 commit behind origin/main",
+    "Python dependencies: unchanged",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "1 commit behind origin/main",
+   "drc": 124,
+   "nrc": 2,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 1,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 1 commit behind origin/main",
+   "want_logs": [
+    "update --check (rc=0): 1 commit behind origin/main",
+    "Python dependencies: unknown",
+    "Node packages: unknown"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "1 commit behind origin/main",
+   "drc": 128,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 1,
+   "want_npm": true,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 1 commit behind origin/main",
+   "want_logs": [
+    "update --check (rc=0): 1 commit behind origin/main",
+    "Python dependencies: unknown",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Already up to date.",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": false,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Already up to date.",
+   "want_logs": [
+    "update --check (rc=0): Already up to date."
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Update available: 12 commits behind",
+   "drc": 0,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 12,
+   "want_npm": false,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Update available: 12 commits behind",
+   "want_logs": [
+    "update --check (rc=0): Update available: 12 commits behind",
+    "Python dependencies: unchanged",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Update available: 12 commits behind",
+   "drc": 1,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 12,
+   "want_npm": false,
+   "want_pydeps": true,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Update available: 12 commits behind",
+   "want_logs": [
+    "update --check (rc=0): Update available: 12 commits behind",
+    "Python dependencies: changed, will be reinstalled",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Update available: 12 commits behind",
+   "drc": 0,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 12,
+   "want_npm": true,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Update available: 12 commits behind",
+   "want_logs": [
+    "update --check (rc=0): Update available: 12 commits behind",
+    "Python dependencies: unchanged",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Update available: 12 commits behind",
+   "drc": 124,
+   "nrc": 2,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 12,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Update available: 12 commits behind",
+   "want_logs": [
+    "update --check (rc=0): Update available: 12 commits behind",
+    "Python dependencies: unknown",
+    "Node packages: unknown"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Update available: 12 commits behind",
+   "drc": 128,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 12,
+   "want_npm": true,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Update available: 12 commits behind",
+   "want_logs": [
+    "update --check (rc=0): Update available: 12 commits behind",
+    "Python dependencies: unknown",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "behind but up to date?",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": false,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): behind but up to date?",
+   "want_logs": [
+    "update --check (rc=0): behind but up to date?"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "Hermes is up to date, nothing behind",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": false,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): Hermes is up to date, nothing behind",
+   "want_logs": [
+    "update --check (rc=0): Hermes is up to date, nothing behind"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "updates available",
+   "drc": null,
+   "nrc": null,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): updates available",
+   "want_logs": [
+    "update --check (rc=0): updates available",
+    "Python dependencies: unknown",
+    "Node packages: unknown"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": false,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): ",
+   "want_logs": [
+    "update --check (rc=0): "
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "something unrelated",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": false,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): something unrelated",
+   "want_logs": [
+    "update --check (rc=0): something unrelated"
+   ]
+  },
+  {
+   "rc": 1,
+   "out": "3 commits behind origin/main",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": null,
+   "want_commits": 3,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=1): 3 commits behind origin/main",
+   "want_logs": [
+    "update --check (rc=1): 3 commits behind origin/main"
+   ]
+  },
+  {
+   "rc": 124,
+   "out": "timed out after 300s",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": null,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=124): timed out after 300s",
+   "want_logs": [
+    "update --check (rc=124): timed out after 300s"
+   ]
+  },
+  {
+   "rc": 127,
+   "out": "not found",
+   "drc": null,
+   "nrc": null,
+   "want_return": false,
+   "want_behind": null,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=127): not found",
+   "want_logs": [
+    "update --check (rc=127): not found"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "BEHIND by 2",
+   "drc": 0,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": null,
+   "want_npm": false,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): BEHIND by 2",
+   "want_logs": [
+    "update --check (rc=0): BEHIND by 2",
+    "Python dependencies: unchanged",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "BEHIND by 2",
+   "drc": 1,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": null,
+   "want_npm": false,
+   "want_pydeps": true,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): BEHIND by 2",
+   "want_logs": [
+    "update --check (rc=0): BEHIND by 2",
+    "Python dependencies: changed, will be reinstalled",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "BEHIND by 2",
+   "drc": 0,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": null,
+   "want_npm": true,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): BEHIND by 2",
+   "want_logs": [
+    "update --check (rc=0): BEHIND by 2",
+    "Python dependencies: unchanged",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "BEHIND by 2",
+   "drc": 124,
+   "nrc": 2,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": null,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): BEHIND by 2",
+   "want_logs": [
+    "update --check (rc=0): BEHIND by 2",
+    "Python dependencies: unknown",
+    "Node packages: unknown"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "BEHIND by 2",
+   "drc": 128,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": null,
+   "want_npm": true,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): BEHIND by 2",
+   "want_logs": [
+    "update --check (rc=0): BEHIND by 2",
+    "Python dependencies: unknown",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "  \n\n 5 commits behind  \n   x\n",
+   "drc": 0,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 5,
+   "want_npm": false,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 5 commits behind | x",
+   "want_logs": [
+    "update --check (rc=0): 5 commits behind | x",
+    "Python dependencies: unchanged",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "  \n\n 5 commits behind  \n   x\n",
+   "drc": 1,
+   "nrc": 0,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 5,
+   "want_npm": false,
+   "want_pydeps": true,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 5 commits behind | x",
+   "want_logs": [
+    "update --check (rc=0): 5 commits behind | x",
+    "Python dependencies: changed, will be reinstalled",
+    "Node packages: unchanged"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "  \n\n 5 commits behind  \n   x\n",
+   "drc": 0,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 5,
+   "want_npm": true,
+   "want_pydeps": false,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 5 commits behind | x",
+   "want_logs": [
+    "update --check (rc=0): 5 commits behind | x",
+    "Python dependencies: unchanged",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "  \n\n 5 commits behind  \n   x\n",
+   "drc": 124,
+   "nrc": 2,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 5,
+   "want_npm": null,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 5 commits behind | x",
+   "want_logs": [
+    "update --check (rc=0): 5 commits behind | x",
+    "Python dependencies: unknown",
+    "Node packages: unknown"
+   ]
+  },
+  {
+   "rc": 0,
+   "out": "  \n\n 5 commits behind  \n   x\n",
+   "drc": 128,
+   "nrc": 1,
+   "want_return": true,
+   "want_behind": true,
+   "want_commits": 5,
+   "want_npm": true,
+   "want_pydeps": null,
+   "want_source": "git",
+   "want_log0": "update --check (rc=0): 5 commits behind | x",
+   "want_logs": [
+    "update --check (rc=0): 5 commits behind | x",
+    "Python dependencies: unknown",
+    "Node packages: changed, will be reinstalled (slower build)"
+   ]
+  }
+ ],
+ "kinds": [
+  {
+   "files": [],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [],
+   "complete": false,
+   "npm": null,
+   "pydeps": null
+  },
+  {
+   "files": [
+    "README.md"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "README.md"
+   ],
+   "complete": false,
+   "npm": null,
+   "pydeps": null
+  },
+  {
+   "files": [
+    "package.json"
+   ],
+   "complete": true,
+   "npm": true,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "apps/desktop/package.json"
+   ],
+   "complete": false,
+   "npm": true,
+   "pydeps": null
+  },
+  {
+   "files": [
+    "package-lock.json"
+   ],
+   "complete": false,
+   "npm": true,
+   "pydeps": null
+  },
+  {
+   "files": [
+    "uv.lock"
+   ],
+   "complete": false,
+   "npm": null,
+   "pydeps": true
+  },
+  {
+   "files": [
+    "pyproject.toml"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": true
+  },
+  {
+   "files": [
+    "sub/pyproject.toml"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "sub/uv.lock"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "apps/desktop/package-lock.json",
+    "uv.lock"
+   ],
+   "complete": false,
+   "npm": true,
+   "pydeps": true
+  },
+  {
+   "files": [
+    "my-package.json"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "package.json.bak"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "xpackage.json"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  },
+  {
+   "files": [
+    "a\\package.json"
+   ],
+   "complete": true,
+   "npm": false,
+   "pydeps": false
+  }
+ ],
+ "verify": [
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": true,
+   "want_line": "RESULT: OK"
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": true,
+   "want_line": "RESULT: OK"
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": true,
+   "want_line": "RESULT: OK"
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 0,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=0, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": true,
+   "want_line": "RESULT: OK (updater exited 1 on the known false fleet warning #93406; gateway verified on new code)"
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 1,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=1, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 2,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=2, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "Fleet version check returned no rows. verification incomplete",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=True, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=True, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "4e7403130e",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": true,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 0,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=0)."
+  },
+  {
+   "rc": 124,
+   "out": "boom",
+   "head": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "sha": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+   "alive": false,
+   "vrc": 1,
+   "want_ok": false,
+   "want_line": "RESULT: PROBLEM (update rc=124, gateway on new code=False, desktop verify rc=1)."
+  }
+ ],
+ "gate": [
+  {
+   "out": "noise\nSAFE-UPDATE-GATE {\"ok\": true, \"gateways\": [[\"default\", 8756]], \"running_pids\": [8756]}\ntrailer",
+   "rc": 0,
+   "want_gate": true,
+   "want_info": "default (pid 8756)"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": true, \"gateways\": [[\"default\", 1], [\"work\", 2]], \"running_pids\": [1, 2]}",
+   "rc": 0,
+   "want_gate": true,
+   "want_info": "default (pid 1), work (pid 2)"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": true, \"gateways\": [], \"running_pids\": []}",
+   "rc": 0,
+   "want_gate": true,
+   "want_info": "none running"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": true}",
+   "rc": 0,
+   "want_gate": true,
+   "want_info": "none running"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"error\": \"RuntimeError: Could not map Windows gateway PIDs to profiles\", \"chain\": [\"RuntimeError: Could not map Windows gateway PIDs to profiles\", \"RuntimeError: active gateway lock has no PID metadata\"]}",
+   "rc": 0,
+   "want_gate": false,
+   "want_info": "active gateway lock has no PID metadata"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"error\": \"RuntimeError: Could not determine Windows gateway service ownership\", \"chain\": [\"RuntimeError: Could not determine Windows gateway service ownership\"]}",
+   "rc": 0,
+   "want_gate": false,
+   "want_info": "Could not determine Windows gateway service ownership"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"error\": \"RuntimeError: Could not prepare Windows gateway pause for update\", \"chain\": [\"RuntimeError: Could not prepare Windows gateway pause for update\", \"OSError: boom: with colon\"]}",
+   "rc": 0,
+   "want_gate": false,
+   "want_info": "boom: with colon"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"error\": \"ValueError: odd\", \"chain\": [\"ValueError: odd\"]}",
+   "rc": 0,
+   "want_gate": null,
+   "want_info": "probe error: ValueError: odd"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"error\": \"ValueError: odd\"}",
+   "rc": 0,
+   "want_gate": null,
+   "want_info": "probe error: ValueError: odd"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"error\": \"RuntimeError: Could not discover Windows gateway PIDs before update\"}",
+   "rc": 0,
+   "want_gate": false,
+   "want_info": "Could not discover Windows gateway PIDs before update"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"chain\": [\"RuntimeError: Could not map Windows gateway PIDs to profiles\", \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"]}}",
+   "rc": 0,
+   "want_gate": null,
+   "want_info": "probe output unreadable"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE {\"ok\": false, \"chain\": [\"Other: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\"]}}",
+   "rc": 0,
+   "want_gate": null,
+   "want_info": "probe output unreadable"
+  },
+  {
+   "out": "SAFE-UPDATE-GATE not json",
+   "rc": 0,
+   "want_gate": null,
+   "want_info": "probe output unreadable"
+  },
+  {
+   "out": "Traceback (most recent call last):\n  File x\nImportError: no module named psutil",
+   "rc": 1,
+   "want_gate": null,
+   "want_info": "probe did not run (rc=1): Traceback (most recent call last):\n  File x\nImportError: no module named psutil"
+  },
+  {
+   "out": "",
+   "rc": 3,
+   "want_gate": null,
+   "want_info": "probe did not run (rc=3): "
+  },
+  {
+   "out": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+   "rc": 1,
+   "want_gate": null,
+   "want_info": "probe did not run (rc=1): zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+  },
+  {
+   "out": "first\nSAFE-UPDATE-GATE {\"ok\": true, \"gateways\": [[\"a\", 1]]}\nSAFE-UPDATE-GATE {\"ok\": false, \"error\": \"x\"}",
+   "rc": 0,
+   "want_gate": true,
+   "want_info": "a (pid 1)"
+  }
+ ],
+ "triggers_table": [
+  [
+   "Stopping Windows gateway",
+   "gateway_stop"
+  ],
+  [
+   "→ Fetching updates",
+   "fetch"
+  ],
+  [
+   "→ Pulling updates",
+   "pull"
+  ],
+  [
+   "Installing Python dependencies…",
+   "pydeps"
+  ],
+  [
+   "Updating Python dependencies",
+   "pydeps"
+  ],
+  [
+   "Preparing Node dependencies…",
+   "frontend"
+  ],
+  [
+   "Building the TUI…",
+   "frontend"
+  ],
+  [
+   "Building desktop packaged app…",
+   "desktop"
+  ],
+  [
+   "Packaging the desktop app…",
+   "package"
+  ],
+  [
+   "Code updated!",
+   "finalize"
+  ],
+  [
+   "Update complete!",
+   "restart"
+  ]
+ ],
+ "triggers": [
+  {
+   "line": "Stopping Windows gateway(s)...",
+   "want": "gateway_stop"
+  },
+  {
+   "line": "→ Fetching updates",
+   "want": "fetch"
+  },
+  {
+   "line": "→ Pulling updates",
+   "want": "pull"
+  },
+  {
+   "line": "→ Fetching updates → Pulling updates",
+   "want": "fetch"
+  },
+  {
+   "line": "Installing Python dependencies…",
+   "want": "pydeps"
+  },
+  {
+   "line": "Installing Python dependencies...",
+   "want": ""
+  },
+  {
+   "line": "Updating Python dependencies",
+   "want": "pydeps"
+  },
+  {
+   "line": "Preparing Node dependencies…",
+   "want": "frontend"
+  },
+  {
+   "line": "Building the TUI…",
+   "want": "frontend"
+  },
+  {
+   "line": "Building desktop packaged app…",
+   "want": "desktop"
+  },
+  {
+   "line": "Packaging the desktop app…",
+   "want": "package"
+  },
+  {
+   "line": "Code updated!",
+   "want": "finalize"
+  },
+  {
+   "line": "Update complete! (v0.21.5 → v0.21.6)",
+   "want": "restart"
+  },
+  {
+   "line": "Code updated! Update complete!",
+   "want": "finalize"
+  },
+  {
+   "line": "  nothing relevant",
+   "want": ""
+  },
+  {
+   "line": "",
+   "want": ""
+  },
+  {
+   "line": "fetching updates",
+   "want": ""
+  },
+  {
+   "line": "Stopping Windows gateway; Code updated!",
+   "want": "gateway_stop"
+  },
+  {
+   "line": "Fetching updates",
+   "want": ""
+  }
+ ],
+ "display": [
+  {
+   "line": "→ cua-driver refresh deferred: run hermes computer-use install --upgrade",
+   "want": "→ cua-driver (Computer Use) refresh: handled by the safe updater after verification",
+   "hidden_tips": false
+  },
+  {
+   "line": "  Run: hermes computer-use install --upgrade",
+   "want": null,
+   "hidden_tips": false
+  },
+  {
+   "line": "plain line",
+   "want": "plain line",
+   "hidden_tips": false
+  },
+  {
+   "line": "",
+   "want": "",
+   "hidden_tips": false
+  },
+  {
+   "line": "Tip: You can now select a provider and model",
+   "want": "Tip: You can now select a provider and model",
+   "hidden_tips": false
+  },
+  {
+   "line": "hermes model              # Select provider and model",
+   "want": "hermes model              # Select provider and model",
+   "hidden_tips": false
+  },
+  {
+   "line": "cua-driver refresh deferred",
+   "want": "→ cua-driver (Computer Use) refresh: handled by the safe updater after verification",
+   "hidden_tips": false
+  },
+  {
+   "line": "computer-use install --upgrade",
+   "want": null,
+   "hidden_tips": false
+  }
+ ],
+ "ui_hide": [
+  "Tip: You can now select a provider and model",
+  "hermes model              # Select provider and model"
+ ],
+ "pause_re": [
+  {
+   "out": "RuntimeError: Could not map Windows gateway PIDs to profiles: lock has no PID",
+   "want": "Could not map Windows gateway PIDs to profiles: lock has no PID"
+  },
+  {
+   "out": "x\nRuntimeError: Could not prepare Windows gateway pause for update\nmore",
+   "want": "Could not prepare Windows gateway pause for update"
+  },
+  {
+   "out": "RuntimeError: Something else",
+   "want": null
+  },
+  {
+   "out": "Could not map Windows gateway PIDs to profiles",
+   "want": null
+  },
+  {
+   "out": "RuntimeError: Could not discover Windows gateway PIDs before update: a: b",
+   "want": "Could not discover Windows gateway PIDs before update: a: b"
+  }
+ ],
+ "versions_re": [
+  {
+   "out": "Update complete! (v0.21.5 → v0.21.6)",
+   "want": [
+    "v0.21.5",
+    "v0.21.6"
+   ]
+  },
+  {
+   "out": "Update complete! (a → b) Update complete! (c → d)",
+   "want": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "out": "Update complete!",
+   "want": null
+  },
+  {
+   "out": "Update complete! (1.0.0+5.gabc (2026.9.24) → 1.0.1)",
+   "want": [
+    "1.0.0+5.gabc (2026.9.24)",
+    "1.0.1"
+   ]
+  }
+ ],
+ "commits_re": [
+  {
+   "out": "3 commits behind",
+   "want": 3
+  },
+  {
+   "out": "1 commit behind origin",
+   "want": 1
+  },
+  {
+   "out": "12 Commits behind",
+   "want": null
+  },
+  {
+   "out": "no count",
+   "want": null
+  },
+  {
+   "out": "x 7 commits behind y 9 commits behind",
+   "want": 7
+  }
+ ],
+ "nothing_changed": [
+  {
+   "head_now": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "start": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "out": "",
+   "want": true
+  },
+  {
+   "head_now": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "start": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "out": "→ Fetching updates",
+   "want": false
+  },
+  {
+   "head_now": "other",
+   "start": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "out": "",
+   "want": false
+  },
+  {
+   "head_now": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "start": "",
+   "out": "",
+   "want": false
+  },
+  {
+   "head_now": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "start": "4e7403130ee278bd99c450fcd9f73c6b32135c9",
+   "out": "",
+   "want": false
+  },
+  {
+   "head_now": "  4e7403130ee278bd99c450fcd9f73c6b32135c95\n",
+   "start": "4e7403130ee278bd99c450fcd9f73c6b32135c95",
+   "out": "stopped",
+   "want": true
+  }
+ ],
+ "est_minutes": [
+  {
+   "s": 0,
+   "want": "about 1 min"
+  },
+  {
+   "s": 1,
+   "want": "about 1 min"
+  },
+  {
+   "s": 29,
+   "want": "about 1 min"
+  },
+  {
+   "s": 30,
+   "want": "about 1 min"
+  },
+  {
+   "s": 31,
+   "want": "about 1 min"
+  },
+  {
+   "s": 59,
+   "want": "about 1 min"
+  },
+  {
+   "s": 60,
+   "want": "about 1 min"
+  },
+  {
+   "s": 89,
+   "want": "about 1 min"
+  },
+  {
+   "s": 90,
+   "want": "about 2 min"
+  },
+  {
+   "s": 91,
+   "want": "about 2 min"
+  },
+  {
+   "s": 150,
+   "want": "about 2 min"
+  },
+  {
+   "s": 151,
+   "want": "about 3 min"
+  },
+  {
+   "s": 210,
+   "want": "about 4 min"
+  },
+  {
+   "s": 300,
+   "want": "about 5 min"
+  },
+  {
+   "s": 449,
+   "want": "about 7 min"
+  },
+  {
+   "s": 450,
+   "want": "about 8 min"
+  },
+  {
+   "s": 451,
+   "want": "about 8 min"
+  },
+  {
+   "s": 629.9,
+   "want": "about 10 min"
+  },
+  {
+   "s": 630,
+   "want": "about 10 min"
+  }
+ ],
+ "fmt_duration": [
+  {
+   "s": 0,
+   "want": "0:00"
+  },
+  {
+   "s": 0.4,
+   "want": "0:00"
+  },
+  {
+   "s": 0.5,
+   "want": "0:00"
+  },
+  {
+   "s": 1.5,
+   "want": "0:02"
+  },
+  {
+   "s": 2.5,
+   "want": "0:02"
+  },
+  {
+   "s": 3.5,
+   "want": "0:04"
+  },
+  {
+   "s": 59.4,
+   "want": "0:59"
+  },
+  {
+   "s": 59.5,
+   "want": "1:00"
+  },
+  {
+   "s": 60,
+   "want": "1:00"
+  },
+  {
+   "s": 61,
+   "want": "1:01"
+  },
+  {
+   "s": 125.5,
+   "want": "2:06"
+  },
+  {
+   "s": 600,
+   "want": "10:00"
+  },
+  {
+   "s": 3599.6,
+   "want": "60:00"
+  },
+  {
+   "s": 3600,
+   "want": "60:00"
+  },
+  {
+   "s": 3661,
+   "want": "61:01"
+  },
+  {
+   "s": 7322,
+   "want": "122:02"
+  }
+ ],
+ "fmt_dur": [
+  {
+   "s": 0,
+   "want": "0:00"
+  },
+  {
+   "s": 0.4,
+   "want": "0:00"
+  },
+  {
+   "s": 0.5,
+   "want": "0:00"
+  },
+  {
+   "s": 1.5,
+   "want": "0:02"
+  },
+  {
+   "s": 2.5,
+   "want": "0:02"
+  },
+  {
+   "s": 3.5,
+   "want": "0:04"
+  },
+  {
+   "s": 59.4,
+   "want": "0:59"
+  },
+  {
+   "s": 59.5,
+   "want": "1:00"
+  },
+  {
+   "s": 60,
+   "want": "1:00"
+  },
+  {
+   "s": 61,
+   "want": "1:01"
+  },
+  {
+   "s": 125.5,
+   "want": "2:06"
+  },
+  {
+   "s": 600,
+   "want": "10:00"
+  },
+  {
+   "s": 3599.6,
+   "want": "1:00:00"
+  },
+  {
+   "s": 3600,
+   "want": "1:00:00"
+  },
+  {
+   "s": 3661,
+   "want": "1:01:01"
+  },
+  {
+   "s": 7322,
+   "want": "2:02:02"
+  },
+  {
+   "s": -5,
+   "want": "0:00"
+  }
+ ],
+ "fmt_left": [
+  {
+   "s": 0,
+   "want": "under a minute left"
+  },
+  {
+   "s": 10,
+   "want": "under a minute left"
+  },
+  {
+   "s": 44.9,
+   "want": "under a minute left"
+  },
+  {
+   "s": 45,
+   "want": "about 1 min left"
+  },
+  {
+   "s": 59,
+   "want": "about 1 min left"
+  },
+  {
+   "s": 60,
+   "want": "about 1 min left"
+  },
+  {
+   "s": 89.9,
+   "want": "about 1 min left"
+  },
+  {
+   "s": 90,
+   "want": "about 2 min left"
+  },
+  {
+   "s": 91,
+   "want": "about 2 min left"
+  },
+  {
+   "s": 150,
+   "want": "about 2 min left"
+  },
+  {
+   "s": 151,
+   "want": "about 3 min left"
+  },
+  {
+   "s": 449,
+   "want": "about 7 min left"
+  },
+  {
+   "s": 450,
+   "want": "about 8 min left"
+  },
+  {
+   "s": 3600,
+   "want": "about 60 min left"
+  }
+ ],
+ "age_text": [
+  {
+   "ago_s": null,
+   "want": "never refreshed"
+  },
+  {
+   "ago_s": 0,
+   "want": "refreshed just now"
+  },
+  {
+   "ago_s": 1,
+   "want": "refreshed just now"
+  },
+  {
+   "ago_s": 29,
+   "want": "refreshed just now"
+  },
+  {
+   "ago_s": 30,
+   "want": "refreshed just now"
+  },
+  {
+   "ago_s": 59,
+   "want": "refreshed just now"
+  },
+  {
+   "ago_s": 60,
+   "want": "refreshed 1 min ago"
+  },
+  {
+   "ago_s": 61,
+   "want": "refreshed 1 min ago"
+  },
+  {
+   "ago_s": 3599,
+   "want": "refreshed 59 min ago"
+  },
+  {
+   "ago_s": 7199,
+   "want": "refreshed 119 min ago"
+  },
+  {
+   "ago_s": 7200,
+   "want": "refreshed 2 h ago"
+  },
+  {
+   "ago_s": 7259,
+   "want": "refreshed 2 h ago"
+  },
+  {
+   "ago_s": 7260,
+   "want": "refreshed 2 h ago"
+  },
+  {
+   "ago_s": 86400,
+   "want": "refreshed 24 h ago"
+  },
+  {
+   "ago_s": 90000,
+   "want": "refreshed 25 h ago"
+  }
+ ],
+ "cua_status": [
+  {
+   "out": "cua-driver: installed at C:\\hermes\\tools\\cua-driver-0.21.0-win32-x64\\cua-driver.exe (0.21.0)\r\n  second line\r\n",
+   "want": "C:\\hermes\\tools\\cua-driver-0.21.0-win32-x64\\cua-driver.exe"
+  },
+  {
+   "out": "cua-driver installed at C:\\hermes\\tools\\cua-driver-0.21.0-win32-x64\\cua-driver.exe\n",
+   "want": "C:\\hermes\\tools\\cua-driver-0.21.0-win32-x64\\cua-driver.exe"
+  },
+  {
+   "out": "CUA-DRIVER: INSTALLED AT D:\\X Y\\CUA-DRIVER.EXE (1.0)\n",
+   "want": "D:\\X Y\\CUA-DRIVER.EXE"
+  },
+  {
+   "out": "cua-driver: not installed\n",
+   "want": ""
+  },
+  {
+   "out": "",
+   "want": ""
+  },
+  {
+   "out": "installed at C:\\a\\cua-driver.exe and C:\\b\\cua-driver.exe\n",
+   "want": "C:\\a\\cua-driver.exe"
+  },
+  {
+   "out": "line1\ninstalled at C:\\q\\cua-driver.exe  \n",
+   "want": "C:\\q\\cua-driver.exe"
+  }
+ ],
+ "cua_task": [
+  {
+   "name": "utf16 bom",
+   "b64": "//48AD8AeABtAGwAIAB2AGUAcgBzAGkAbwBuAD0AIgAxAC4AMAAiACAAZQBuAGMAbwBkAGkAbgBnAD0AIgBVAFQARgAtADEANgAiAD8APgA8AFQAYQBzAGsAPgA8AEEAYwB0AGkAbwBuAHMAPgA8AEUAeABlAGMAPgA8AEMAbwBtAG0AYQBuAGQAPgBwAG8AdwBlAHIAcwBoAGUAbABsAC4AZQB4AGUAPAAvAEMAbwBtAG0AYQBuAGQAPgA8AEEAcgBnAHUAbQBlAG4AdABzAD4ALQBOAG8AUAByAG8AZgBpAGwAZQAgAC0AQwBvAG0AbQBhAG4AZAAgACIAUwB0AGEAcgB0AC0AUAByAG8AYwBlAHMAcwAgAC0ARgBpAGwAZQBQAGEAdABoACAAJwBDADoAXABoAGUAcgBtAGUAcwBcAHQAbwBvAGwAcwBcAGMAdQBhAC0AZAByAGkAdgBlAHIALQAwAC4AMgAxAC4AMAAtAHcAaQBuADMAMgAtAHgANgA0AFwAYwB1AGEALQBkAHIAaQB2AGUAcgAuAGUAeABlACcAIAAtAEEAcgBnAHUAbQBlAG4AdABMAGkAcwB0ACAAcwBlAHIAdgBlACIAPAAvAEEAcgBnAHUAbQBlAG4AdABzAD4APAAvAEUAeABlAGMAPgA8AC8AQQBjAHQAaQBvAG4AcwA+ADwALwBUAGEAcwBrAD4A",
+   "want": "C:\\hermes\\tools\\cua-driver-0.21.0-win32-x64\\cua-driver.exe"
+  },
+  {
+   "name": "utf16 nobom",
+   "b64": "PAA/AHgAbQBsACAAdgBlAHIAcwBpAG8AbgA9ACIAMQAuADAAIgAgAGUAbgBjAG8AZABpAG4AZwA9ACIAVQBUAEYALQAxADYAIgA/AD4APABUAGEAcwBrAD4APABBAGMAdABpAG8AbgBzAD4APABFAHgAZQBjAD4APABDAG8AbQBtAGEAbgBkAD4AcABvAHcAZQByAHMAaABlAGwAbAAuAGUAeABlADwALwBDAG8AbQBtAGEAbgBkAD4APABBAHIAZwB1AG0AZQBuAHQAcwA+AC0ATgBvAFAAcgBvAGYAaQBsAGUAIAAtAEMAbwBtAG0AYQBuAGQAIAAiAFMAdABhAHIAdAAtAFAAcgBvAGMAZQBzAHMAIAAtAEYAaQBsAGUAUABhAHQAaAAgACcAQwA6AFwAaABlAHIAbQBlAHMAXAB0AG8AbwBsAHMAXABjAHUAYQAtAGQAcgBpAHYAZQByAC0AMAAuADIAMQAuADAALQB3AGkAbgAzADIALQB4ADYANABcAGMAdQBhAC0AZAByAGkAdgBlAHIALgBlAHgAZQAnACAALQBBAHIAZwB1AG0AZQBuAHQATABpAHMAdAAgAHMAZQByAHYAZQAiADwALwBBAHIAZwB1AG0AZQBuAHQAcwA+ADwALwBFAHgAZQBjAD4APAAvAEEAYwB0AGkAbwBuAHMAPgA8AC8AVABhAHMAawA+AA==",
+   "want": "C:\\hermes\\tools\\cua-driver-0.21.0-win32-x64\\cua-driver.exe"
+  },
+  {
+   "name": "utf8",
+   "b64": "PFRhc2s+PEFjdGlvbnM+PEV4ZWM+PENvbW1hbmQ+QzpcVG9vbHNcQ1VBLURyaXZlci5FWEU8L0NvbW1hbmQ+PC9FeGVjPjwvQWN0aW9ucz48L1Rhc2s+",
+   "want": "C:\\Tools\\CUA-Driver.EXE"
+  },
+  {
+   "name": "none",
+   "b64": "PFRhc2s+PEFjdGlvbnM+PEV4ZWM+PENvbW1hbmQ+cG93ZXJzaGVsbC5leGU8L0NvbW1hbmQ+PEFyZ3VtZW50cz4tRmlsZSB4LnBzMTwvQXJndW1lbnRzPjwvRXhlYz48L0FjdGlvbnM+PC9UYXNrPg==",
+   "want": ""
+  },
+  {
+   "name": "utf16 none",
+   "b64": "//48AFQAYQBzAGsAPgA8AEEAYwB0AGkAbwBuAHMAPgA8AEUAeABlAGMAPgA8AEMAbwBtAG0AYQBuAGQAPgBwAG8AdwBlAHIAcwBoAGUAbABsAC4AZQB4AGUAPAAvAEMAbwBtAG0AYQBuAGQAPgA8AEEAcgBnAHUAbQBlAG4AdABzAD4ALQBGAGkAbABlACAAeAAuAHAAcwAxADwALwBBAHIAZwB1AG0AZQBuAHQAcwA+ADwALwBFAHgAZQBjAD4APAAvAEEAYwB0AGkAbwBuAHMAPgA8AC8AVABhAHMAawA+AA==",
+   "want": ""
+  },
+  {
+   "name": "quoted spaces",
+   "b64": "PFRhc2s+PEV4ZWM+PENvbW1hbmQ+IkM6XFByb2dyYW0gRmlsZXNcY3VhLWRyaXZlclxjdWEtZHJpdmVyLmV4ZSI8L0NvbW1hbmQ+PC9FeGVjPjwvVGFzaz4=",
+   "want": "C:\\Program Files\\cua-driver\\cua-driver.exe"
+  },
+  {
+   "name": "empty",
+   "b64": "",
+   "want": ""
+  }
+ ],
+ "same_path": [
+  {
+   "a": "C:\\a\\b.exe",
+   "b": "c:\\A\\B.exe",
+   "want": true
+  },
+  {
+   "a": "C:\\a\\b.exe",
+   "b": "C:/a/b.exe",
+   "want": true
+  },
+  {
+   "a": "C:\\a\\.\\b.exe",
+   "b": "C:\\a\\b.exe",
+   "want": true
+  },
+  {
+   "a": "",
+   "b": "C:\\a",
+   "want": false
+  },
+  {
+   "a": "C:\\a",
+   "b": "",
+   "want": false
+  },
+  {
+   "a": "",
+   "b": "C:\\a",
+   "want": false
+  },
+  {
+   "a": "C:\\a\\",
+   "b": "C:\\a",
+   "want": true
+  },
+  {
+   "a": "C:\\a\\x\\..\\b.exe",
+   "b": "C:\\a\\b.exe",
+   "want": true
+  }
+ ],
+ "estimator": {
+  "history": [
+   {
+    "started": "2026-09-20T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 571,
+    "steps": {
+     "local": 1,
+     "remote": 70,
+     "procs": 3,
+     "close": 9,
+     "gateway_stop": 20,
+     "fetch": 12,
+     "pull": 95,
+     "pydeps": 60,
+     "frontend": 24,
+     "desktop": 200,
+     "package": 20,
+     "finalize": 14,
+     "restart": 28,
+     "verify": 5,
+     "relaunch": 1,
+     "cleanup": 3,
+     "cua": 6
+    }
+   },
+   {
+    "started": "2026-09-21T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 588,
+    "steps": {
+     "local": 2,
+     "remote": 71,
+     "procs": 4,
+     "close": 10,
+     "gateway_stop": 21,
+     "fetch": 13,
+     "pull": 96,
+     "pydeps": 61,
+     "frontend": 25,
+     "desktop": 201,
+     "package": 21,
+     "finalize": 15,
+     "restart": 29,
+     "verify": 6,
+     "relaunch": 2,
+     "cleanup": 4,
+     "cua": 7
+    }
+   },
+   {
+    "started": "2026-09-22T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 605,
+    "steps": {
+     "local": 3,
+     "remote": 72,
+     "procs": 5,
+     "close": 11,
+     "gateway_stop": 22,
+     "fetch": 14,
+     "pull": 97,
+     "pydeps": 62,
+     "frontend": 26,
+     "desktop": 202,
+     "package": 22,
+     "finalize": 16,
+     "restart": 30,
+     "verify": 7,
+     "relaunch": 3,
+     "cleanup": 5,
+     "cua": 8
+    }
+   },
+   {
+    "started": "2026-09-23T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 622,
+    "steps": {
+     "local": 4,
+     "remote": 73,
+     "procs": 6,
+     "close": 12,
+     "gateway_stop": 23,
+     "fetch": 15,
+     "pull": 98,
+     "pydeps": 63,
+     "frontend": 27,
+     "desktop": 203,
+     "package": 23,
+     "finalize": 17,
+     "restart": 31,
+     "verify": 8,
+     "relaunch": 4,
+     "cleanup": 6,
+     "cua": 9
+    }
+   },
+   {
+    "started": "2026-09-24T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 639,
+    "steps": {
+     "local": 5,
+     "remote": 74,
+     "procs": 7,
+     "close": 13,
+     "gateway_stop": 24,
+     "fetch": 16,
+     "pull": 99,
+     "pydeps": 64,
+     "frontend": 28,
+     "desktop": 204,
+     "package": 24,
+     "finalize": 18,
+     "restart": 32,
+     "verify": 9,
+     "relaunch": 5,
+     "cleanup": 7,
+     "cua": 10
+    }
+   },
+   {
+    "started": "2026-09-25T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 656,
+    "steps": {
+     "local": 6,
+     "remote": 75,
+     "procs": 8,
+     "close": 14,
+     "gateway_stop": 25,
+     "fetch": 17,
+     "pull": 100,
+     "pydeps": 65,
+     "frontend": 29,
+     "desktop": 205,
+     "package": 25,
+     "finalize": 19,
+     "restart": 33,
+     "verify": 10,
+     "relaunch": 6,
+     "cleanup": 8,
+     "cua": 11
+    }
+   },
+   {
+    "started": "2026-09-26T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 673,
+    "steps": {
+     "local": 7,
+     "remote": 76,
+     "procs": 9,
+     "close": 15,
+     "gateway_stop": 26,
+     "fetch": 18,
+     "pull": 101,
+     "pydeps": 66,
+     "frontend": 30,
+     "desktop": 206,
+     "package": 26,
+     "finalize": 20,
+     "restart": 34,
+     "verify": 11,
+     "relaunch": 7,
+     "cleanup": 9,
+     "cua": 12
+    }
+   },
+   {
+    "started": "2026-09-27T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 690,
+    "steps": {
+     "local": 8,
+     "remote": 77,
+     "procs": 10,
+     "close": 16,
+     "gateway_stop": 27,
+     "fetch": 19,
+     "pull": 102,
+     "pydeps": 67,
+     "frontend": 31,
+     "desktop": 207,
+     "package": 27,
+     "finalize": 21,
+     "restart": 35,
+     "verify": 12,
+     "relaunch": 8,
+     "cleanup": 10,
+     "cua": 13
+    }
+   },
+   {
+    "started": "2026-09-29T10:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 228.4,
+    "steps": {
+     "local": 0.4,
+     "remote": 28.0,
+     "procs": 1.2000000000000002,
+     "close": 3.6,
+     "gateway_stop": 8.0,
+     "fetch": 4.800000000000001,
+     "pull": 38.0,
+     "pydeps": 24.0,
+     "frontend": 9.600000000000001,
+     "desktop": 80.0,
+     "package": 8.0,
+     "finalize": 5.6000000000000005,
+     "restart": 11.200000000000001,
+     "verify": 2.0,
+     "relaunch": 0.4,
+     "cleanup": 1.2000000000000002,
+     "cua": 2.4000000000000004
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true,
+     "npm": false,
+     "pydeps": false,
+     "commits": 5
+    }
+   },
+   {
+    "started": "2026-09-29T11:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 199.85,
+    "steps": {
+     "local": 0.35,
+     "remote": 24.5,
+     "procs": 1.0499999999999998,
+     "close": 3.15,
+     "gateway_stop": 7.0,
+     "fetch": 4.199999999999999,
+     "pull": 33.25,
+     "pydeps": 21.0,
+     "frontend": 8.399999999999999,
+     "desktop": 70.0,
+     "package": 7.0,
+     "finalize": 4.8999999999999995,
+     "restart": 9.799999999999999,
+     "verify": 1.75,
+     "relaunch": 0.35,
+     "cleanup": 1.0499999999999998,
+     "cua": 2.0999999999999996
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true,
+     "npm": false,
+     "pydeps": false,
+     "commits": 6
+    }
+   },
+   {
+    "started": "2026-09-29T12:00:00",
+    "kind": "update",
+    "ok": true,
+    "total": 5,
+    "steps": {
+     "local": 1,
+     "remote": 3,
+     "procs": 1
+    }
+   },
+   {
+    "started": "2026-09-29T13:00:00",
+    "kind": "update",
+    "ok": false,
+    "total": 434,
+    "steps": {
+     "local": 1,
+     "remote": 5,
+     "procs": 1,
+     "close": 7,
+     "gateway_stop": 20,
+     "fetch": 400
+    }
+   },
+   {
+    "started": "2026-09-30T09:00:00",
+    "kind": "check",
+    "ok": true,
+    "total": 12.1,
+    "steps": {
+     "local": 1,
+     "remote": 4,
+     "procs": 0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    }
+   },
+   {
+    "started": "2026-10-01T09:00:00",
+    "kind": "check",
+    "ok": true,
+    "total": 13.1,
+    "steps": {
+     "local": 1,
+     "remote": 5,
+     "procs": 0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    }
+   },
+   {
+    "started": "2026-10-02T09:00:00",
+    "kind": "check",
+    "ok": true,
+    "total": 14.1,
+    "steps": {
+     "local": 1,
+     "remote": 6,
+     "procs": 0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    }
+   },
+   {
+    "started": "2026-10-03T09:00:00",
+    "kind": "check",
+    "ok": true,
+    "total": 15.1,
+    "steps": {
+     "local": 1,
+     "remote": 7,
+     "procs": 0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    }
+   },
+   {
+    "started": "2026-10-04T09:00:00",
+    "kind": "check",
+    "ok": true,
+    "total": 16.1,
+    "steps": {
+     "local": 1,
+     "remote": 8,
+     "procs": 0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    }
+   },
+   {
+    "started": "2026-10-05T09:00:00",
+    "kind": "check",
+    "ok": true,
+    "total": 17.1,
+    "steps": {
+     "local": 1,
+     "remote": 9,
+     "procs": 0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    }
+   }
+  ],
+  "scenarios": [
+   {
+    "name": "update, no conditions",
+    "kind": "update",
+    "cond": {},
+    "est": {
+     "local": 2.15,
+     "remote": 27.5,
+     "procs": 2.85,
+     "wait": 0.0,
+     "close": 10.35,
+     "gateway_stop": 18.6,
+     "fetch": 12.6,
+     "pull": 74.85,
+     "pydeps": 48.6,
+     "frontend": 21.6,
+     "desktop": 153.6,
+     "package": 18.6,
+     "finalize": 14.1,
+     "restart": 24.6,
+     "verify": 7.35,
+     "relaunch": 4.35,
+     "cleanup": 5.85,
+     "cua": 8.1,
+     "tile": 8.0
+    },
+    "planned_close": 431.15,
+    "planned_all": 463.65,
+    "minutes_text": "about 7 min"
+   },
+   {
+    "name": "update, mirror, pydeps unchanged",
+    "kind": "update",
+    "cond": {
+     "source": "mirror",
+     "mirror": true,
+     "npm": false,
+     "pydeps": false,
+     "commits": 81
+    },
+    "est": {
+     "local": 2.15,
+     "remote": 26.25,
+     "procs": 2.85,
+     "wait": 0.0,
+     "close": 10.35,
+     "gateway_stop": 18.6,
+     "fetch": 4.5,
+     "pull": 35.625,
+     "pydeps": 22.5,
+     "frontend": 9.0,
+     "desktop": 153.6,
+     "package": 18.6,
+     "finalize": 5.25,
+     "restart": 24.6,
+     "verify": 7.35,
+     "relaunch": 4.35,
+     "cleanup": 5.85,
+     "cua": 8.1,
+     "tile": 8.0
+    },
+    "planned_close": 313.775,
+    "planned_all": 345.025,
+    "minutes_text": "about 5 min"
+   },
+   {
+    "name": "update, git, npm changed",
+    "kind": "update",
+    "cond": {
+     "source": "git",
+     "mirror": false,
+     "npm": true,
+     "pydeps": true,
+     "commits": 9
+    },
+    "est": {
+     "local": 2.15,
+     "remote": 47.2,
+     "procs": 2.85,
+     "wait": 0.0,
+     "close": 10.35,
+     "gateway_stop": 18.6,
+     "fetch": 17.0,
+     "pull": 100.0,
+     "pydeps": 65.0,
+     "frontend": 29.0,
+     "desktop": 153.6,
+     "package": 18.6,
+     "finalize": 19.0,
+     "restart": 24.6,
+     "verify": 7.35,
+     "relaunch": 4.35,
+     "cleanup": 5.85,
+     "cua": 8.1,
+     "tile": 8.0
+    },
+    "planned_close": 489.4,
+    "planned_all": 541.6,
+    "minutes_text": "about 8 min"
+   },
+   {
+    "name": "update, api",
+    "kind": "update",
+    "cond": {
+     "source": "api",
+     "mirror": false,
+     "npm": false,
+     "pydeps": false
+    },
+    "est": {
+     "local": 2.15,
+     "remote": 10.833333,
+     "procs": 2.85,
+     "wait": 0.0,
+     "close": 10.35,
+     "gateway_stop": 18.6,
+     "fetch": 17.0,
+     "pull": 100.0,
+     "pydeps": 22.5,
+     "frontend": 9.0,
+     "desktop": 153.6,
+     "package": 18.6,
+     "finalize": 19.0,
+     "restart": 24.6,
+     "verify": 7.35,
+     "relaunch": 4.35,
+     "cleanup": 5.85,
+     "cua": 8.1,
+     "tile": 8.0
+    },
+    "planned_close": 404.4,
+    "planned_all": 420.233333,
+    "minutes_text": "about 7 min"
+   },
+   {
+    "name": "check, mirror",
+    "kind": "check",
+    "cond": {
+     "source": "mirror",
+     "mirror": true
+    },
+    "est": {
+     "local": 1.0,
+     "remote": 7.0,
+     "procs": 0.0,
+     "sessions": 0.1,
+     "gc_preview": 2.5,
+     "cua_status": 4.5
+    },
+    "planned_close": 15.1,
+    "planned_all": 15.1,
+    "minutes_text": "about 1 min"
+   }
+  ],
+  "python_steps": {
+   "update": [
+    [
+     "local",
+     "Check",
+     "Checking disk, checkout and gateway",
+     1
+    ],
+    [
+     "remote",
+     "Check",
+     "Checking for updates",
+     75
+    ],
+    [
+     "procs",
+     "Check",
+     "Looking for running Hermes processes",
+     3
+    ],
+    [
+     "wait",
+     "Close Hermes",
+     "Waiting for idle sessions / your OK",
+     0
+    ],
+    [
+     "close",
+     "Close Hermes",
+     "Closing the desktop app",
+     8
+    ],
+    [
+     "gateway_stop",
+     "Update",
+     "Pausing the gateway",
+     23
+    ],
+    [
+     "fetch",
+     "Update",
+     "Fetching the new commits",
+     10
+    ],
+    [
+     "pull",
+     "Update",
+     "Pulling code, clearing caches",
+     90
+    ],
+    [
+     "pydeps",
+     "Update",
+     "Installing Python dependencies",
+     64
+    ],
+    [
+     "frontend",
+     "Build",
+     "Building the TUI and web UI",
+     25
+    ],
+    [
+     "desktop",
+     "Build",
+     "Building the desktop app",
+     210
+    ],
+    [
+     "package",
+     "Build",
+     "Packaging the desktop app",
+     22
+    ],
+    [
+     "finalize",
+     "Finish",
+     "Syncing skills and config",
+     12
+    ],
+    [
+     "restart",
+     "Finish",
+     "Restarting the gateway",
+     30
+    ],
+    [
+     "verify",
+     "Finish",
+     "Verifying the new version",
+     5
+    ],
+    [
+     "relaunch",
+     "Finish",
+     "Reopening Hermes",
+     1
+    ],
+    [
+     "cleanup",
+     "Finish",
+     "Removing old dependency sets",
+     3
+    ],
+    [
+     "cua",
+     "Finish",
+     "Refreshing cua-driver",
+     7
+    ],
+    [
+     "tile",
+     "Finish",
+     "Restoring the Start menu tile",
+     8
+    ]
+   ],
+   "check": [
+    [
+     "local",
+     "Local",
+     "Checking disk, checkout and gateway",
+     1
+    ],
+    [
+     "remote",
+     "Updates",
+     "Checking for updates",
+     75
+    ],
+    [
+     "procs",
+     "Hermes",
+     "Looking for running Hermes processes",
+     3
+    ],
+    [
+     "sessions",
+     "Hermes",
+     "Checking for active sessions",
+     1
+    ],
+    [
+     "gc_preview",
+     "Housekeeping",
+     "Previewing dependency cleanup",
+     9
+    ],
+    [
+     "cua_status",
+     "Housekeeping",
+     "Checking the cua-driver logon task",
+     5
+    ]
+   ]
+  },
+  "timeline": {
+   "events": [
+    {
+     "stage": "local"
+    },
+    {
+     "advance": 1
+    },
+    {
+     "stage": "remote"
+    },
+    {
+     "advance": 12
+    },
+    {
+     "stage": "procs"
+    },
+    {
+     "advance": 2
+    },
+    {
+     "stage": "wait"
+    },
+    {
+     "advance": 5
+    },
+    {
+     "stage": "close"
+    },
+    {
+     "advance": 30
+    },
+    {
+     "stage": "gateway_stop"
+    },
+    {
+     "advance": 40
+    },
+    {
+     "stage": "fetch"
+    },
+    {
+     "advance": 30
+    },
+    {
+     "stage": "pull"
+    },
+    {
+     "advance": 400
+    },
+    {
+     "stage": "frontend"
+    },
+    {
+     "advance": 90
+    }
+   ],
+   "snaps": [
+    {
+     "label": "start",
+     "remaining": 345.025,
+     "fraction": 0.0,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage local",
+     "remaining": 345.025,
+     "fraction": 0.0,
+     "planned_close": 313.775
+    },
+    {
+     "label": "local +1s",
+     "remaining": 344.025,
+     "fraction": 0.002898,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage remote",
+     "remaining": 342.875,
+     "fraction": 0.006231,
+     "planned_close": 313.775
+    },
+    {
+     "label": "remote +12s",
+     "remaining": 330.875,
+     "fraction": 0.041012,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage procs",
+     "remaining": 312.930179,
+     "fraction": 0.083204,
+     "planned_close": 313.775
+    },
+    {
+     "label": "procs +2s",
+     "remaining": 310.930179,
+     "fraction": 0.089063,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage wait",
+     "remaining": 310.080179,
+     "fraction": 0.091554,
+     "planned_close": 313.775
+    },
+    {
+     "label": "wait +5s",
+     "remaining": 310.080179,
+     "fraction": 0.091554,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage close",
+     "remaining": 310.080179,
+     "fraction": 0.091554,
+     "planned_close": 313.775
+    },
+    {
+     "label": "close +30s",
+     "remaining": 314.730179,
+     "fraction": 0.12036,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage gateway_stop",
+     "remaining": 299.730179,
+     "fraction": 0.121876,
+     "planned_close": 313.775
+    },
+    {
+     "label": "gateway_stop +40s",
+     "remaining": 301.130179,
+     "fraction": 0.173644,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage fetch",
+     "remaining": 281.496607,
+     "fraction": 0.17618,
+     "planned_close": 313.775
+    },
+    {
+     "label": "fetch +30s",
+     "remaining": 291.996607,
+     "fraction": 0.188691,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage pull",
+     "remaining": 279.8975,
+     "fraction": 0.188691,
+     "planned_close": 313.775
+    },
+    {
+     "label": "pull +400s",
+     "remaining": 449.156136,
+     "fraction": 0.281972,
+     "planned_close": 313.775
+    },
+    {
+     "label": "after stage frontend",
+     "remaining": 249.156136,
+     "fraction": 0.287068,
+     "planned_close": 313.775
+    },
+    {
+     "label": "frontend +90s",
+     "remaining": 517.626136,
+     "fraction": 0.287068,
+     "planned_close": 313.775
+    },
+    {
+     "label": "complete",
+     "remaining": 0.0,
+     "fraction": 1.0,
+     "planned_close": 313.775
+    }
+   ],
+   "start_unix": 1790000000.0
+  }
+ }
+}

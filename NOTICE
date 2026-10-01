@@ -1,0 +1,40 @@
+hermes-safe-update
+Copyright (c) 2026 cloudn8ive. Licensed under the MIT License (see LICENSE).
+
+This project is independent. It is not made, endorsed or supported by
+Nous Research, and it is not part of Hermes Agent.
+
+"Hermes", "Hermes Agent" and "Nous Research" are names and marks of their
+respective owners. They are used here only to say which software this tool
+works with.
+
+Hermes Agent (https://github.com/NousResearch/hermes-agent) is released
+under the MIT License by Nous Research. hermes-safe-update does not include
+Hermes Agent source code. It runs the user's own installed copy of Hermes
+(its launcher, its bundled Python and its bundled Electron) and reads files
+that Hermes writes. Small pieces of text that Hermes prints (progress lines,
+a few error messages) are matched as data and listed in
+internal/hermes/contracts.go.
+
+Third-party Go modules. The binaries contain the modules below; each keeps
+its own license. The full copyright and license text of every one is in
+docs/third-party.md, which must be shipped beside the binaries or attached
+to each release.
+
+  github.com/dustin/go-humanize v1.0.1        MIT
+  github.com/google/uuid v1.6.0               BSD-3-Clause
+  github.com/mattn/go-isatty v0.0.24          MIT (darwin and windows builds)
+  github.com/ncruces/go-strftime v1.0.0       MIT
+  github.com/remyoudompheng/bigfft            BSD-3-Clause
+    v0.0.0-20230129092748-24d4a6f8daec
+  go.yaml.in/yaml/v3 v3.0.5                   MIT and Apache-2.0
+  golang.org/x/sys v0.48.0                    BSD-3-Clause
+  golang.org/x/term v0.46.0                   BSD-3-Clause
+  modernc.org/libc v1.77.1                    BSD-3-Clause
+  modernc.org/mathutil v1.7.1                 BSD-3-Clause
+  modernc.org/memory v1.12.1                  BSD-3-Clause
+  modernc.org/sqlite v1.60.1                  BSD-3-Clause; bundles SQLite
+                                              (public domain) and other
+                                              third-party code
+
+Run `go list -m all` for the exact versions in a given build.

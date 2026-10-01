@@ -1,0 +1,20 @@
+# local-only working notes (never published)
+.work/
+
+# build output
+/dist/
+/bin/
+/tmp/
+*.exe
+*.test
+coverage.out
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# python bytecode (the embedded GC script gets compiled when run by hand)
+__pycache__/
+*.pyc

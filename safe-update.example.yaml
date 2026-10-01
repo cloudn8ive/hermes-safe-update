@@ -1,0 +1,186 @@
+# hermes-safe-update configuration (example)
+#
+# Copy this file to:
+#   Windows: %LOCALAPPDATA%\hermes\safe-update.yaml
+#   macOS / Linux: ~/.hermes/safe-update.yaml
+# or pass --config <path>. Every value below is the built-in default, so you
+# only need to keep the keys you change; delete the rest.
+#
+# YAML pitfalls:
+#   * Indent with spaces. Tab characters are an error.
+#   * Quote strings. Unquoted no / yes / on / off / 1.10 can be read as
+#     booleans or numbers by some YAML tools; this file quotes all strings.
+#   * Unknown or misspelled keys are an error that names the line, so a typo
+#     never silently does nothing.
+#   * Maps (step_seconds, hues, section_icons) merge with the defaults key by
+#     key; lists (keep_new, union, hooks) replace the default list.
+#
+# Machine-specific facts (the mirror location, "never offer the mirror")
+# live in safe-update.json next to this file. The tool writes that file;
+# do not sync it between machines.
+
+paths:
+  # Empty = detect. ~, $VAR, ${VAR} and %VAR% are expanded in these three
+  # fields only.
+  hermes_home: ""   # default: %LOCALAPPDATA%\hermes (Windows), ~/.hermes (macOS, Linux)
+  checkout: ""      # default: <hermes_home>/hermes-agent
+  user_data: ""     # desktop userData; default: %APPDATA%\Hermes, ~/Library/Application Support/Hermes, ~/.config/Hermes
+
+tunables:
+  min_free_gb: 5             # pre-flight stops below this much free disk (decimal GB) on the Hermes drive
+  idle_window_s: 180         # a session active within this many seconds counts as busy
+  idle_poll_s: 60            # re-check busy sessions this often while waiting
+  idle_wait_max_s: 1800      # give up (nothing changed) after waiting this long for idle sessions
+  confirm_timeout_s: 30      # the final "Press Y" prompt auto-aborts after this (--delay overrides)
+  graceful_close_s: 30       # wait this long for the desktop app to close before forcing it
+  update_timeout_s: 5400     # hard cap for `hermes update` (90 min)
+  silent_warn_s: 600         # note once when the update prints nothing for this long
+  verify_wait_s: 120         # wait this long for the gateway to report the new code
+  marker_refresh_s: 120      # rewrite the update-in-progress marker this often
+  # Time estimates (progress bar and "about N min left"):
+  estimate_window: 5         # mean of the last N matching runs
+  estimate_overrun_k: 0.5    # once a step runs over its estimate, expect k x elapsed more
+  estimate_class_damp: 0.15  # how strongly a slow network/machine today scales later steps
+  estimate_class_min: 0.8    # lower clamp of that scale factor
+  estimate_class_max: 2.5    # upper clamp of that scale factor
+  history_keep: 40           # timing records kept (full updates and other runs separately)
+  step_seconds:              # seed estimates per step, used until timing history exists
+    local: 1
+    remote: 75
+    procs: 3
+    wait: 0
+    close: 8
+    gateway_stop: 23
+    fetch: 10
+    pull: 90
+    pydeps: 64
+    frontend: 25
+    desktop: 210
+    package: 22
+    finalize: 12
+    restart: 30
+    verify: 5
+    settings: 10
+    relaunch: 1
+    cleanup: 3
+    cua: 7
+    hooks: 8
+    sessions: 1
+    gc_preview: 9
+    cua_status: 5
+
+theme:
+  margin: 2                  # columns of left margin
+  label_width: 15            # width of the key column in key/value rows
+  status_width: 50           # fixed width of the status text right of the progress bar
+  max_width: 400             # never draw wider than this
+  bar_band: 6                # gradient bar colour bands, in cells
+  bar_from: [95, 175, 255]   # gradient start (RGB)
+  bar_to: [95, 215, 135]     # gradient end (RGB)
+  date_top_right: true       # show only the date at the top right
+  taskbar: true              # taskbar / terminal progress where supported
+  flash: true                # flash the taskbar button when input is needed or the run ends
+  title_update: "Hermes Safe Update"
+  title_check: "Hermes Update Check"
+  colors:                    # SGR parameters (xterm-256: "38;5;N")
+    accent: "38;5;80"
+    ok: "38;5;78"
+    warn: "38;5;221"
+    err: "38;5;203"
+    dim: "38;5;245"
+    faint: "38;5;240"
+    soft: "38;5;250"
+    label: "38;5;110"
+    token: "38;5;183"
+    neutral: "38;5;242"
+    track: "38;5;236"
+    prompt: "38;5;221;1"
+  glyphs:                    # defaults are characters the Windows Consolas font has
+    ok: "√"
+    err: "×"
+    warn: "!"
+    info: "i"
+    command: "»"
+    active: "►"
+    pending: "○"
+    dot: "●"
+    bar: "█"
+    rule: "━"
+    rule_thin: "─"
+    sep: "·"
+    gutter: "│"
+    arrow: "→"
+    title: "♦"
+    section: "▸"
+  hues:                      # per stage group: bright and dark xterm-256 colour, icon
+    "Check": {bright: 80, dark: 30, icon: "◊"}
+    "Close Hermes": {bright: 215, dark: 130, icon: "■"}
+    "Update": {bright: 75, dark: 25, icon: "↓"}
+    "Build": {bright: 141, dark: 97, icon: "≡"}
+    "Finish": {bright: 78, dark: 29, icon: "♦"}
+    "Local": {bright: 80, dark: 30, icon: "⌂"}
+    "Updates": {bright: 75, dark: 25, icon: "↓"}
+    "Hermes": {bright: 141, dark: 97, icon: "♦"}
+    "Housekeeping": {bright: 78, dark: 29, icon: "♣"}
+  section_icons:             # section title prefix -> icon
+    "Dependency generation cleanup": "♣"
+    "Verify": "√"
+    "cua-driver": "►"
+    "Close": "■"
+    "Relaunch": "↑"
+    "Pre-flight": "◊"
+    "Settings": "≡"
+
+mirror:
+  path: ""                   # fallback only; the mirror set up by `mirror setup` is recorded in safe-update.json
+  offer: true                # offer to set up a mirror after a run (never in --unattended)
+  offer_timeout_s: 45
+  cron_schedule: "every 4h"  # Hermes cron schedule of the background refresh job
+  job_name: "Hermes update mirror refresh"
+  keep_free_gb: 5            # a mirror location needs repo size x (1 + growth) + keep_free_gb free
+  growth: 0.5
+
+settings:
+  auto_migrate: true         # back up and migrate desktop settings after every verified update
+  backup_retention: 3        # keep the newest N settings backups
+  backup_dir: ""             # default: <hermes_home>/backups
+  origin: ""                 # target renderer origin; default: detected from the installed build
+  # Key lists use * as the only wildcard. Keys in neither list are plain
+  # preferences: the old origin's value wins on the first migration after an
+  # origin change, the new origin's value on later runs.
+  keep_new:                  # live-state keys: the new origin's value always stays
+    - "hermes.desktop.lastRoute.profile.*"
+    - "hermes.desktop.lastSessionId.profile.*"
+    - "hermes.desktop.freshDraftKey"
+    - "hermes.updates.last-passive-check"
+    - "hermes.desktop.tips.next.v1"
+  union:                     # session-keyed maps / pair lists: union, new wins per entry
+    - "hermes.desktop.threadScroll.v1.profile.*"
+    - "hermes.desktop.sessionSeenCounts"
+    - "hermes.desktop.unreadFinishedSessions"
+    - "hermes.desktop.sessionOwnerHints.v1"
+    - "hermes.desktop.toolDisclosure.v1"
+
+# Hooks: your own commands at fixed points of the flow.
+#   when: "pre-close"      before Hermes is closed (after the confirmation)
+#         "post-update"    after a verified update, before Hermes reopens
+#         "post-relaunch"  after Hermes reopened
+#   run:  argv list; no shell is involved unless you name one as argv[0].
+#   The hook's last output line becomes its row on the summary card. A
+#   non-zero exit or a timeout is a warning only; it never turns a verified
+#   update into a failure. Each hook gets HERMES_SAFE_UPDATE_STAGE (the
+#   `when` value) and HERMES_SAFE_UPDATE_RESULT in its environment.
+hooks: []
+# BEGIN HOOK EXAMPLE
+# hooks:
+#   - name: "restore-start-tile"
+#     when: "post-update"
+#     run: ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\you\\scripts\\restore-tile.ps1"]
+#     timeout_s: 120
+#     dir: ""                # working directory; default the Hermes home
+# END HOOK EXAMPLE
+
+logging:
+  level: "info"              # debug | info | warn | error (--log-level overrides)
+  max_size_mb: 5             # rotate the log file at this size
+  keep: 3                    # rotated log files kept

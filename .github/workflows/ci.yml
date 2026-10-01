@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -s -l . | tee /dev/stderr)"
+      - name: go mod tidy is clean
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+      - name: vet (every OS)
+        run: |
+          for os in windows darwin linux; do GOOS=$os go vet ./...; done
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - name: no skeleton stubs left in release paths
+        if: startsWith(github.ref, 'refs/tags/')
+        run: "! grep -rn 'ErrNotImplemented' --include='*.go' cmd internal | grep -v '_test.go' | grep -v 'internal/apperr/' | grep -v 'internal/platform/stub.go'"
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: go test ./... -count=1 -shuffle=on
+      - name: race (Linux only; needs cgo)
+        if: runner.os == 'Linux'
+        run: CGO_ENABLED=1 go test -race ./... -count=1
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: bash scripts/build-all.sh "${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
+      - run: cd dist && sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/

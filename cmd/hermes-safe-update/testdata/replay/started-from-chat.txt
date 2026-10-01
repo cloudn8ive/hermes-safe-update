@@ -1,0 +1,10 @@
+Hermes Safe Update
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: 3 new commit(s) on main (GitHub API)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+STOP Run this from a normal terminal or the Start menu, not from inside a Hermes chat: updating would stop the process that runs it.
+hermes-safe-update: pre-flight stopped the update; nothing was changed: started from inside a Hermes chat (ancestor pid 8211)

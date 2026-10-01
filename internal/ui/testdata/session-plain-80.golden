@@ -1,0 +1,33 @@
+Hermes Safe Update
+== 1/5 Check
+disk free: 120.4 GB (enough)
+checkout: clean
+gateway: running the new code 1b8569f41f
+updates: 3 new commits on main
+version: v0.21.5+4156.g34e09bf
+running: desktop, gateway ×2
+sessions: 2 active
+   20260101_000000_aaaaaa  Drafting the weekly project summary
+   20260101_000001_bbbbbb  Fix the nightly build
+== 2/5 Close Hermes
+Hermes will be closed and updated: about 8 min. Nothing is lost, but the desktop app and the gateway are stopped meanwhile. Press Y to go on, N to cancel.
+note: closing the desktop app (graceful)
+== 3/5 Update
+command: hermes update --yes --keep-stash --branch main
+  | → Fetching updates...
+  |   ✓ Configuration is up to date
+  | ☤ Pulling 3 commits
+  |   ⚠ skills sync skipped for 1 profile
+WARN the first sync is slow
+== 4/5 Build
+== 5/5 Finish
+== Verify
+  | ✓ Update complete! (v0.21.5+4156.g34e09bf → v0.21.5+4160.g1b8569f)
+RESULT: OK
+
+Hermes is updated and verified.
+  Version      v0.21.5+4156.g34e09bf → v0.21.5+4160.g1b8569f  (3 commits)
+  Time         5:19 until Hermes reopened  (estimate was 6:26)
+  Source       local mirror, refreshed 10 min ago
+  Warnings     1 (see above)
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

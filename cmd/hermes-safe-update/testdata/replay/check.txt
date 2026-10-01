@@ -1,0 +1,30 @@
+Hermes Update Check
+== Pre-flight
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: 3 new commit(s) on main (GitHub API)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+sessions: 1 active
+   20260101_000000_aaaaaa  Planning the week  (last activity 42s ago)
+== Dependency generation cleanup (dry run)
+  REMOVE (~310 MB) environments/1f2e3d4c
+  REMOVE (~302 MB) environments/9a8b7c6d
+cua-driver: logon task current
+Pre-flight passed; check mode, nothing changed.
+
+Update available. Nothing was changed.
+  Available    3 new commit(s)
+  Python deps  unchanged
+  Node packages changed, will be reinstalled (slower build)
+  Checked via  GitHub (checked via the API)
+  Update time  about 8 min once Hermes closes (rough: no earlier runs like this; uses defaults)
+  Running      desktop, gateway, backend
+  Gateway      update can pause it
+  Sessions     1 active in the last 3 min (the update waits for them)
+  Cleanup      2 old dependency set(s), ~612 MB to free
+  cua-driver   current
+  Mirror       none (optional; updates check GitHub directly)

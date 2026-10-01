@@ -1,0 +1,185 @@
+
+    ♦ <ESC>[1mHermes Safe Update<ESC>[0m                                            Thu 1 Oct
+<ESC>[?25l<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m    0%<ESC>[0m  0:00 elapsed · about 10 min left (rough) · 9:10 AM<ESC>[K
+   ○ Starting…<ESC>[K
+   ○ Check ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish<ESC>[K<CR><ESC>[4A<ESC>[J  
+  <ESC>[1m 1/5  <ESC>[0m<ESC>[1m◊ Check<ESC>[0m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9:00:00 AM
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m    0%<ESC>[0m  0:00 elapsed · about 10 min left (rough) · 9:10 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mChecking disk, checkout and gateway<ESC>[0m  0:00                   step 1 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     ● disk free      <ESC>[1m120.4 GB<ESC>[0m (enough)
+     ● checkout       clean
+     ● gateway        running the new code 1b8569f41f
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m    0%<ESC>[0m  0:00 elapsed · about 10 min left (rough) · 9:10 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mChecking disk, checkout and gateway<ESC>[0m  0:00                   step 1 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m    0%<ESC>[0m  0:01 elapsed · about 10 min left (rough) · 9:10 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mChecking for updates<ESC>[0m  0:00  (usually 1:15)                  step 2 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m    6%<ESC>[0m   0:41 elapsed · about 9 min left (rough) · 9:10 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mChecking for updates<ESC>[0m  0:40  (usually 1:15)                  step 2 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     ● updates        <ESC>[1m3<ESC>[0m new commits on main
+     ● version        v0.21.5+4156.g34e09bf
+     ● running        desktop, gateway ×<ESC>[1m2<ESC>[0m
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m    6%<ESC>[0m   0:41 elapsed · about 9 min left (rough) · 9:10 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mChecking for updates<ESC>[0m  0:40  (usually 1:15)                  step 2 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   12%<ESC>[0m   0:41 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mLooking for running Hermes processes<ESC>[0m  0:00                  step 3 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     ● sessions       <ESC>[1m2<ESC>[0m active
+                      · 20260101_000000_aaaaaa  Drafting the weekly project summary
+                      · 20260101_000001_bbbbbb  Fix the nightly build
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m   0:44 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mLooking for running Hermes processes<ESC>[0m  0:03                  step 3 of 19<ESC>[K
+   <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  
+  <ESC>[1m 2/5  <ESC>[0m<ESC>[1m■ Close Hermes<ESC>[0m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9:00:44 AM
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m   0:44 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mWaiting for idle sessions / your OK<ESC>[0m  0:00                   step 4 of 20<ESC>[K
+   √ Check ── <ESC>[1m► Close Hermes<ESC>[0m ── ○ Update ── ○ Build ── ○ Finish  stage 2 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  
+     <ESC>[1m? <ESC>[0m<ESC>[1mHermes will be closed and updated: about 8 min. Nothing is lost, but<ESC>[0m
+       <ESC>[1mthe desktop app and the gateway are stopped meanwhile. Press Y to go<ESC>[0m
+       <ESC>[1mon, N to cancel.<ESC>[0m
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m   0:44 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mWaiting for idle sessions / your OK<ESC>[0m  0:00                   step 4 of 20<ESC>[K
+   √ Check ── <ESC>[1m► Close Hermes<ESC>[0m ── ○ Update ── ○ Build ── ○ Finish  stage 2 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m                               0:44 elapsed · paused<ESC>[K
+  <ESC>[1m ► <ESC>[0mWaiting for your answer  auto-cancel in 30s<ESC>[K
+   √ Check ── <ESC>[1m► Close Hermes<ESC>[0m ── ○ Update ── ○ Build ── ○ Finish  stage 2 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m   0:44 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mWaiting for idle sessions / your OK<ESC>[0m  0:00                   step 4 of 20<ESC>[K
+   √ Check ── <ESC>[1m► Close Hermes<ESC>[0m ── ○ Update ── ○ Build ── ○ Finish  stage 2 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m   0:44 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mClosing the desktop app<ESC>[0m  0:00  (usually 0:08)               step 4 of 19<ESC>[K
+   √ Check ── <ESC>[1m► Close Hermes<ESC>[0m ── ○ Update ── ○ Build ── ○ Finish  stage 2 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     <ESC>[1mi <ESC>[0mclosing the desktop app (graceful)
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   13%<ESC>[0m   0:44 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mClosing the desktop app<ESC>[0m  0:00  (usually 0:08)               step 4 of 19<ESC>[K
+   √ Check ── <ESC>[1m► Close Hermes<ESC>[0m ── ○ Update ── ○ Build ── ○ Finish  stage 2 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  
+  <ESC>[1m 3/5  <ESC>[0m<ESC>[1m↓ Update<ESC>[0m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9:00:52 AM
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   14%<ESC>[0m   0:52 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mPausing the gateway<ESC>[0m  0:00  (usually 0:23)                   step 5 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   18%<ESC>[0m   1:12 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mFetching the new commits<ESC>[0m  0:00  (usually 0:10)              step 6 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     <ESC>[1m» <ESC>[0mcommand  hermes update --yes --keep-stash --branch main
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   18%<ESC>[0m   1:12 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mFetching the new commits<ESC>[0m  0:00  (usually 0:10)              step 6 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     │ <ESC>[1m→<ESC>[0m<ESC>[1m Fetching updates...<ESC>[0m
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   18%<ESC>[0m   1:12 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mFetching the new commits<ESC>[0m  0:00  (usually 0:10)              step 6 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     │   <ESC>[1m√<ESC>[0m Configuration is up to date
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   18%<ESC>[0m   1:12 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mFetching the new commits<ESC>[0m  0:00  (usually 0:10)              step 6 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   19%<ESC>[0m   1:22 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mPulling code, clearing caches<ESC>[0m  0:00  (usually 1:30)         step 7 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     │ <ESC>[1m»<ESC>[0m Pulling 3 commits
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   19%<ESC>[0m   1:22 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mPulling code, clearing caches<ESC>[0m  0:00  (usually 1:30)         step 7 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     │   <ESC>[1m!<ESC>[0m skills sync skipped for 1 profile
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   19%<ESC>[0m   1:22 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mPulling code, clearing caches<ESC>[0m  0:00  (usually 1:30)         step 7 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     <ESC>[1m! <ESC>[0mthe first sync is slow
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   19%<ESC>[0m   1:22 elapsed · about 8 min left (rough) · 9:09 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mPulling code, clearing caches<ESC>[0m  0:00  (usually 1:30)         step 7 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   33%<ESC>[0m   2:52 elapsed · about 7 min left (rough) · 9:10 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mPulling code, clearing caches<ESC>[0m  1:30  (usually 1:30)         step 7 of 19<ESC>[K
+   √ Check ── √ Close Hermes ── <ESC>[1m► Update<ESC>[0m ── ○ Build ── ○ Finish  stage 3 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  
+  <ESC>[1m 4/5  <ESC>[0m<ESC>[1m≡ Build<ESC>[0m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9:02:52 AM
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   38%<ESC>[0m   2:52 elapsed · about 6 min left (rough) · 9:08 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mBuilding the TUI and web UI<ESC>[0m  0:00  (usually 0:25)           step 8 of 18<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── <ESC>[1m► Build<ESC>[0m ── ○ Finish  stage 4 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   43%<ESC>[0m   3:17 elapsed · about 5 min left (rough) · 9:08 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mBuilding the desktop app<ESC>[0m  0:00  (usually 3:30)              step 9 of 18<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── <ESC>[1m► Build<ESC>[0m ── ○ Finish  stage 4 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   80%<ESC>[0m   6:37 elapsed · about 2 min left (rough) · 9:08 AM<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mBuilding the desktop app<ESC>[0m  3:20  (usually 3:30)              step 9 of 18<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── <ESC>[1m► Build<ESC>[0m ── ○ Finish  stage 4 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  
+  <ESC>[1m 5/5  <ESC>[0m<ESC>[1m♦ Finish<ESC>[0m ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9:06:37 AM
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   92%<ESC>[0m          6:37 elapsed · under a minute left (rough)<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mVerifying the new version<ESC>[0m  0:00  (usually 0:05)            step 10 of 15<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── <ESC>[1m► Finish<ESC>[0m  stage 5 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  
+  <ESC>[1m √ <ESC>[0m<ESC>[1mVerify<ESC>[0m ────────────────────────────────────────────────────── 9:06:37 AM
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   92%<ESC>[0m          6:37 elapsed · under a minute left (rough)<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mVerifying the new version<ESC>[0m  0:00  (usually 0:05)            step 10 of 15<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── <ESC>[1m► Finish<ESC>[0m  stage 5 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     │ <ESC>[1m<ESC>[1m√<ESC>[0m Update complete! (v0.21.5+4156.g34e09bf → v0.21.5+4160.g1b8569f)<ESC>[0m
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   92%<ESC>[0m          6:37 elapsed · under a minute left (rough)<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mVerifying the new version<ESC>[0m  0:00  (usually 0:05)            step 10 of 15<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── <ESC>[1m► Finish<ESC>[0m  stage 5 of 5<ESC>[K<CR><ESC>[4A<ESC>[J  <ESC>[1m   √ <ESC>[0m<ESC>[1mOK<ESC>[0m
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   92%<ESC>[0m          6:37 elapsed · under a minute left (rough)<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mVerifying the new version<ESC>[0m  0:00  (usually 0:05)            step 10 of 15<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── <ESC>[1m► Finish<ESC>[0m  stage 5 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m   98%<ESC>[0m          6:42 elapsed · under a minute left (rough)<ESC>[K
+  <ESC>[1m ► <ESC>[0m<ESC>[1mRefreshing cua-driver<ESC>[0m  0:00  (usually 0:07)                step 11 of 11<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── <ESC>[1m► Finish<ESC>[0m  stage 5 of 5<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m  100%<ESC>[0m                                        done in 6:45<ESC>[K
+  <ESC>[1m √ <ESC>[0mFinished<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── √ Finish  all stages d<ESC>[K<CR><ESC>[4A<ESC>[J  
+     <ESC>[1m√ Hermes is updated and verified.<ESC>[0m
+     ● Version        v0.21.5+4156.g34e09bf → v0.21.5+4160.g1b8569f  (<ESC>[1m3<ESC>[0m commits)
+     ● Time           <ESC>[1m5<ESC>[0m:<ESC>[1m19<ESC>[0m until Hermes reopened  (estimate was <ESC>[1m6<ESC>[0m:<ESC>[1m26<ESC>[0m)
+     ● Source         local mirror, refreshed <ESC>[1m10 min<ESC>[0m ago
+     ● Warnings       <ESC>[1m1<ESC>[0m (see above)
+     ● Log            C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+<ESC>[?25l  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m  100%<ESC>[0m                                        done in 6:45<ESC>[K
+  <ESC>[1m √ <ESC>[0mFinished<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── √ Finish  all stages d<ESC>[K<ESC>[?25l<CR><ESC>[4A<ESC>[J  <ESC>[K
+   ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
+   ████████████████<ESC>[1m  100%<ESC>[0m                                        done in 6:45<ESC>[K
+  <ESC>[1m √ <ESC>[0mFinished<ESC>[K
+   √ Check ── √ Close Hermes ── √ Update ── √ Build ── √ Finish  all stages d<ESC>[K
+<ESC>[?25h<ESC>[0m

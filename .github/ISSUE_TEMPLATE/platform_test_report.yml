@@ -1,0 +1,72 @@
+name: Platform test report (macOS / Linux)
+description: Tell us what happened when you ran it on an untested platform
+labels: ["platform-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        macOS and Linux are untested. Reports of success or failure both help. Remove personal paths and names first.
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS, version and architecture
+      placeholder: macOS 15 arm64 / Ubuntu 24.04 amd64
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is Hermes installed?
+      options:
+        - Source checkout (managed by Hermes)
+        - Packaged desktop app
+        - Docker
+        - Nix
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: what
+    attributes:
+      label: What did you run?
+      options:
+        - version / --help only
+        - --check
+        - A full update
+        - Settings commands
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: What worked, what did not, and the exit code. Paste the relevant log lines (redacted).
+    validations:
+      required: true
+  - type: dropdown
+    id: ai-assistance
+    attributes:
+      label: AI assistance
+      description: Did an AI tool help you write or investigate this report?
+      options:
+        - No AI used
+        - AI helped me write it
+        - AI helped me investigate, I verified the result
+        - Mostly AI-generated, I verified it
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I ran this myself and the result above is what I saw.
+          required: true
+        - label: I removed personal paths, names and session titles.
+          required: true

@@ -1,0 +1,78 @@
+Hermes Safe Update
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: 3 new commit(s) on main (GitHub API)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+== 2/5 Close Hermes
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 42s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+sessions: 1 active in the last 3 min
+   20260101_000000_aaaaaa  Planning the week  (last activity 0s ago)
+STOP sessions still active after 30 min; nothing was changed. Re-run when idle.
+
+Update cancelled. Nothing was changed; Hermes was left running.
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+hermes-safe-update: cancelled; nothing was changed: sessions still active

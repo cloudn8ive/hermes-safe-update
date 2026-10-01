@@ -1,0 +1,88 @@
+name: Bug report
+description: Something went wrong during an update, a check or a settings command
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Remove personal paths, user names, machine names and session titles** from anything you paste. Do not paste settings values.
+  - type: input
+    id: version
+    attributes:
+      label: Tool version
+      description: Output of `hermes-safe-update version`
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11 (amd64)
+        - Windows 10 (amd64)
+        - Windows (arm64)
+        - macOS (untested platform)
+        - Linux (untested platform)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is Hermes installed?
+      options:
+        - Source checkout (managed by Hermes)
+        - Packaged desktop app (DMG, MSIX, AppImage, deb, rpm)
+        - Docker
+        - Nix
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command you ran
+      placeholder: hermes-safe-update --check
+    validations:
+      required: true
+  - type: input
+    id: exit
+    attributes:
+      label: Exit code
+      description: See the exit code table in the README.
+  - type: textarea
+    id: expected
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt
+      description: |
+        The relevant lines of `logs\safe-update.log` in your Hermes home (about 20 lines around the first WARN, STOP or RESULT line). Home folders are already shortened to `~` and `%LOCALAPPDATA%`; check the rest by eye.
+      render: text
+  - type: dropdown
+    id: ai-assistance
+    attributes:
+      label: AI assistance
+      description: Did an AI tool help you write or investigate this report?
+      options:
+        - No AI used
+        - AI helped me write it
+        - AI helped me investigate, I verified the result
+        - Mostly AI-generated, I verified it
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this myself.
+          required: true
+        - label: I searched existing issues and found no duplicate.
+          required: true
+        - label: I removed personal paths, names and session titles from everything above.
+          required: true

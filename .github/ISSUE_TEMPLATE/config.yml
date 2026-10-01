@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/cloudn8ive/hermes-safe-update/security/advisories/new
+    about: Report vulnerabilities privately, not as an issue.
+  - name: Problem with Hermes Agent itself
+    url: https://github.com/NousResearch/hermes-agent/issues
+    about: This tool is independent of Hermes Agent. Bugs in Hermes belong in its own tracker.

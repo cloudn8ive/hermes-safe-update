@@ -1,0 +1,3 @@
+Hermes Safe Update
+This Hermes install is a msix, not a managed source checkout: the Microsoft Store version updates itself through the Store.
+hermes-safe-update: not a managed source-checkout install (msix): the Microsoft Store version updates itself through the Store

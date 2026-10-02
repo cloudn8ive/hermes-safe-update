@@ -2,7 +2,17 @@
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
-## [0.1.0] - Unreleased
+## [Unreleased]
+
+### Fixed
+
+- Plain output: the prompt countdown goroutine is now stopped and waited for
+  before `Prompt` returns, so a countdown line (`  30s`) can no longer be
+  printed after the prompt was answered, in the middle of the next stage. The
+  `-race` CI step on Linux caught this as an intermittent extra line in the
+  plain session golden; the golden test no longer depends on that timing.
+
+## [0.1.0] - 2026-10-01
 
 First release. Replaces a set of personal Python scripts with one Go binary.
 
@@ -75,4 +85,5 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/cloudn8ive/hermes-safe-update/releases/tag/v0.1.0

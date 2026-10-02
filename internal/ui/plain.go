@@ -154,6 +154,17 @@ func (p *Plain) Output(line string) {
 	p.println("  | " + strings.TrimRight(line, "\r\n"))
 }
 
+// printUnlessDone prints s unless ctx is already cancelled; the check is made
+// under the output lock so it cannot pass and then print after the caller
+// moved on.
+func (p *Plain) printUnlessDone(ctx context.Context, s string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if ctx.Err() == nil {
+		fmt.Fprintln(p.w, s)
+	}
+}
+
 func (p *Plain) Command(argv string) { p.println("command: " + argv) }
 
 func (p *Plain) Waiting(string, time.Time, string) {}
@@ -162,8 +173,17 @@ func (p *Plain) Prompt(ctx context.Context, spec PromptSpec) (Answer, error) {
 	p.println(spec.Text)
 	if spec.Timeout > 0 {
 		cctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		go p.countdown(cctx, p.clk.Now().Add(spec.Timeout))
+		finished := make(chan struct{})
+		// Stop the countdown and wait for it before returning: a late
+		// goroutine must not print a line into the next section.
+		defer func() {
+			cancel()
+			<-finished
+		}()
+		go func(deadline time.Time) {
+			defer close(finished)
+			p.countdown(cctx, deadline)
+		}(p.clk.Now().Add(spec.Timeout))
 	}
 	return readAnswer(ctx, p.con, spec)
 }
@@ -182,7 +202,7 @@ func (p *Plain) countdown(ctx context.Context, deadline time.Time) {
 		left := int(deadline.Sub(p.clk.Now()).Seconds())
 		if left >= 0 && left%every == 0 && left != last {
 			last = left
-			p.println(fmt.Sprintf("  %ds", left))
+			p.printUnlessDone(ctx, fmt.Sprintf("  %ds", left))
 		}
 		select {
 		case <-ctx.Done():

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,4 +151,65 @@ func TestPlainLinesCarryTheirLevelWords(t *testing.T) {
 	if buf.String() != want {
 		t.Errorf("got %q want %q", buf.String(), want)
 	}
+}
+
+// gateClock blocks its second Now call (the countdown goroutine's first read)
+// until released, so a test can hold that goroutine at a known point.
+type gateClock struct {
+	inner   timings.Clock
+	mu      sync.Mutex
+	calls   int
+	blocked chan struct{} // closed when the gated call is waiting
+	release chan struct{}
+}
+
+func (g *gateClock) Now() time.Time {
+	g.mu.Lock()
+	g.calls++
+	n := g.calls
+	g.mu.Unlock()
+	if n == 2 {
+		close(g.blocked)
+		<-g.release
+	}
+	return g.inner.Now()
+}
+
+// The countdown goroutine must be finished when Prompt returns: a countdown
+// line may not appear after the answer, in the middle of the next section.
+func TestPlainPromptCountdownNeverPrintsAfterPromptReturns(t *testing.T) {
+	var buf bytes.Buffer
+	var bufMu sync.Mutex
+	r := NewPlain(&lockedWriter{w: &buf, mu: &bufMu}, &platform.FakeConsole{Keys: []platform.Key{{Rune: 'y'}}})
+	g := &gateClock{inner: testutil.NewClock(time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)), blocked: make(chan struct{}), release: make(chan struct{})}
+	r.SetClock(g)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.Prompt(context.Background(), PromptSpec{Text: "?", Keys: []rune{'y'}, Timeout: 30 * time.Second})
+	}()
+	<-g.blocked
+	select {
+	case <-done: // old behaviour: Prompt returned with the countdown goroutine still running
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(g.release)
+	<-done
+	time.Sleep(100 * time.Millisecond) // a late goroutine would print now
+	bufMu.Lock()
+	defer bufMu.Unlock()
+	if strings.Contains(buf.String(), "30s") {
+		t.Errorf("countdown line after the prompt was answered:\n%s", buf.String())
+	}
+}
+
+type lockedWriter struct {
+	w  *bytes.Buffer
+	mu *sync.Mutex
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }

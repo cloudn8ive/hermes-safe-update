@@ -192,6 +192,11 @@ func TestPlainSessionGoldens(t *testing.T) {
 			var buf bytes.Buffer
 			r := NewPlain(&buf, con)
 			r.SetClock(clk)
+			// The session answers its prompt from queued keys, so whether the
+			// countdown goroutine gets to print "  30s" before the answer is a
+			// scheduling accident. The countdown has its own tests; keep it
+			// out of this golden.
+			r.countEvery = time.Hour
 			tun := config.Defaults().Tunables
 			est := timings.NewEstimator(timings.KindUpdate, timings.UpdateSteps(tun.StepSeconds), nil, tun, clk)
 			runSession(r, est, clk, con)

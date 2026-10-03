@@ -1,7 +1,7 @@
 @echo off
 rem Safe Hermes update: runs hermes-safe-update.exe outside the desktop app.
 rem Wrapper for hermes-safe-update.exe:
-rem   hermes-safe-update.cmd --check      (pre-flight only, changes nothing)
+rem   hermes-safe-update.cmd --check      (pre-flight only: no update; may fetch commits like git fetch)
 rem   hermes-safe-update.cmd              (asks, then closes Hermes and updates)
 rem The exe is looked up next to this file, then in
 rem %LOCALAPPDATA%\Programs\hermes-safe-update, then on PATH.

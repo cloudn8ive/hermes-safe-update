@@ -495,7 +495,7 @@ func TestE2EUntestedPlatformGate(t *testing.T) {
 					t.Errorf("ran %v before the gate", c)
 				}
 			} else {
-				w.wantScreen("Update available. Nothing was changed.")
+				w.wantScreen("Update available. Hermes was not touched.")
 				w.noScreen("only been tested on Windows")
 			}
 			w.nothingChanged(before)
@@ -556,7 +556,7 @@ func TestE2ECheckChangesNothing(t *testing.T) {
 		w.cli("check")
 		w.transcript("check")
 		w.wantCode(apperr.OK)
-		w.wantScreen("Update available. Nothing was changed.", "3 new commit(s)", "Planning the week",
+		w.wantScreen("Update available. Hermes was not touched.", "3 new commit(s)", "Planning the week",
 			"2 old dependency set(s), ~612 MB to free")
 		w.nothingChanged(before)
 		if w.con.prompts != 0 {

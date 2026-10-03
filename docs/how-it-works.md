@@ -4,7 +4,11 @@ This is the user-level description of one `hermes-safe-update` run. The
 package layout, decisions and file formats are in [design.md](design.md).
 
 A run is a list of stages. A stage either continues or stops the run with
-an exit code. `--check` runs only the read-only stages.
+an exit code. `--check` runs only the look-only stages: it never closes,
+stops, updates or reopens anything, and never moves HEAD or touches the index
+or working tree of the checkout. Like `git fetch`, it may refresh the local
+mirror and fetch new commits and `v*` tags into the checkout's git data
+(stage 2), and it writes its own log and timing history.
 
 | # | Stage | What happens | Can stop the run |
 |---|---|---|---|

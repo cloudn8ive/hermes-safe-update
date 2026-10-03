@@ -144,7 +144,9 @@ Usage:
 Commands:
   run (default)        check, wait for idle sessions, close Hermes, update,
                        verify, migrate desktop settings, reopen Hermes
-  check                read-only pre-flight; changes nothing (same as --check)
+  check                look-only pre-flight: closes and updates nothing, but may
+                       fetch commits into the git data, like git fetch (same
+                       as --check)
   migrate-settings     back up, then migrate desktop settings to the current
                        origin (--dry-run shows the plan, --origin URL overrides)
   backup-settings      back up the desktop settings now

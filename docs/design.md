@@ -119,8 +119,20 @@ release the marker if it is ours, relaunch if due, restart a gateway the
 tool stopped on every abort path.
 
 `check` runs stepAside, local, remote, procs, sessions, gc_preview,
-cua_status, summary. It never stops, closes or writes anything except the
-timings history and the log.
+cua_status, summary. It never stops, closes, updates or relaunches anything,
+and never moves HEAD or the branch, or touches the index or the working tree
+of the checkout (`TestCheckLeavesHeadIndexAndWorkingTreeAlone` pins this
+against a sandbox with real git). What it does write (decision F1 in the build notes):
+
+| Where | What | Why |
+|---|---|---|
+| local mirror (bare repo, if set up) | `git fetch --prune --no-tags` from GitHub; `cache/` state file and `logs/update-mirror.log` under HOME | `Seed` refreshes a mirror that is behind or that GitHub's API cannot confirm |
+| checkout `.git` | objects, `refs/remotes/origin/main`, `refs/tags/v*`, `FETCH_HEAD`, reflog of the remote ref; `.promisor` markers on partial clones (git 2.53 workaround) | `Seed` fetches from the mirror (`url.<mirror>.insteadOf`, one-shot `-c`, never saved), exactly what `git fetch` would write; also what `hermes update --check` does on the fallback path |
+| `logs/safe-update.log`, `logs/safe-update-timings.json` | one run's lines; one history record | normal logging (also in plain mode, D5) |
+| `safe-update.json` | only if the user answers "never" to the mirror offer | the offer is shown on a real console only |
+
+The checkout's git calls use `--no-optional-locks`, so `git status` does not
+refresh the index's stat cache on disk.
 
 ### 3.1 Data flow
 

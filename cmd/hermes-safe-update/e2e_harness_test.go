@@ -510,14 +510,14 @@ func (w *e2eWorld) startGateway() {
 }
 
 func (w *e2eWorld) gitCmd(c execx.Cmd, rest []string) (execx.Result, error) {
-	want := []string{"-c", "gc.auto=0", "-C", w.checkout}
-	if len(rest) < len(want) || strings.Join(rest[:4], " ") != strings.Join(want, " ") {
+	want := []string{"-c", "gc.auto=0", "--no-optional-locks", "-C", w.checkout}
+	if len(rest) < len(want) || strings.Join(rest[:len(want)], " ") != strings.Join(want, " ") {
 		return w.unexpected(c)
 	}
 	w.mu.Lock()
 	head := w.head
 	w.mu.Unlock()
-	switch args := strings.Join(rest[4:], " "); {
+	switch args := strings.Join(rest[len(want):], " "); {
 	case args == "rev-parse --short HEAD":
 		return execx.Result{Output: head[:7] + "\n"}, nil
 	case args == "rev-parse HEAD":

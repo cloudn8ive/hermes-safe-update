@@ -209,6 +209,7 @@ type harness struct {
 	sessions  *fakeSessions
 	gw        *fakeGateway
 	repo      *fakeRepo
+	realRepo  hermes.Repo // replaces repo when set (sandbox tests with real git)
 	verifier  fakeVerifier
 	marker    *fakeMarker
 	settings  *fakeSettings
@@ -310,6 +311,10 @@ func (h *harness) run(flags ...string) error {
 			h.cfg.Run.Force = true
 		}
 	}
+	var repo hermes.Repo = h.repo
+	if h.realRepo != nil {
+		repo = h.realRepo
+	}
 	var runner execx.Runner = h.runner
 	if h.wrap != nil {
 		runner = h.wrap
@@ -329,7 +334,7 @@ func (h *harness) run(flags ...string) error {
 		Locator:  fakeLocator{in: h.install, err: h.locErr},
 		Sessions: h.sessions,
 		Gateway:  h.gw,
-		Repo:     h.repo,
+		Repo:     repo,
 		Verifier: h.verifier,
 		Settings: h.settings,
 		GC:       h.gc,
@@ -735,7 +740,7 @@ func TestCheckNeverStopsAnything(t *testing.T) {
 		t.Errorf("gc preview = %v", h.gc.runs)
 	}
 	h.mustContain("  gen-a: REMOVE (~108 MB unique)", "  gen-b: keep (selected)", "  trash batches waiting: 1")
-	h.mustContain("Update available. Nothing was changed.", "3 new commit(s)", "1 active in the last 3 min")
+	h.mustContain("Update available. Hermes was not touched.", "3 new commit(s)", "1 active in the last 3 min")
 	hist, _ := timings.LoadHistory(h.timings)
 	if len(hist) != 1 || hist[0].Kind != timings.KindCheck {
 		t.Errorf("history = %+v", hist)

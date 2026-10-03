@@ -11,7 +11,7 @@ import (
 const sha40 = "4e7403130ee278bd99c450fcd9f73c6b32135c95"
 
 func gitArgv(rest ...string) []string {
-	return append([]string{`G:\git.exe`, "-c", "gc.auto=0", "-C", `C:\ck`}, rest...)
+	return append([]string{`G:\git.exe`, "-c", "gc.auto=0", "--no-optional-locks", "-C", `C:\ck`}, rest...)
 }
 
 func newRepo(f *execx.Fake) *GitRepo {
@@ -101,7 +101,7 @@ func TestRepoAlwaysDisablesAutoGC(t *testing.T) {
 	_, _ = r.DirtyCount(context.Background())
 	r.DiffKinds(context.Background())
 	for _, c := range f.Calls() {
-		if strings.Join(c.Argv[1:5], " ") != `-c gc.auto=0 -C C:\ck` {
+		if strings.Join(c.Argv[1:6], " ") != `-c gc.auto=0 --no-optional-locks -C C:\ck` {
 			t.Errorf("argv = %v", c.Argv)
 		}
 	}

@@ -22,7 +22,9 @@ var ErrNoGit = errors.New("git not found (neither Hermes' bundled git nor PATH)"
 
 // GitRepo implements Repo with the git CLI. Every call is
 // `git -c gc.auto=0 -C <checkout> ...` (auto-gc in the checkout loops on a
-// locked pack and hangs the updater).
+// locked pack and hangs the updater). `--no-optional-locks` keeps the
+// read-only calls (`git status`) from refreshing the index on disk, so a
+// check leaves the checkout's index byte for byte as it was.
 type GitRepo struct {
 	Git      string // absolute git path (Install.Git); "" = unavailable
 	Checkout string
@@ -32,7 +34,7 @@ type GitRepo struct {
 var _ Repo = (*GitRepo)(nil)
 
 func (r *GitRepo) argv(rest ...string) []string {
-	return append([]string{r.Git, "-c", "gc.auto=0", "-C", r.Checkout}, rest...)
+	return append([]string{r.Git, "-c", "gc.auto=0", "--no-optional-locks", "-C", r.Checkout}, rest...)
 }
 
 func (r *GitRepo) run(ctx context.Context, timeout time.Duration, rest ...string) (execx.Result, error) {

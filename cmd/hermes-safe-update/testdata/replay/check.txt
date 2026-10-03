@@ -14,9 +14,9 @@ sessions: 1 active
   REMOVE (~310 MB) environments/1f2e3d4c
   REMOVE (~302 MB) environments/9a8b7c6d
 cua-driver: logon task current
-Pre-flight passed; check mode, nothing changed.
+Pre-flight passed; check mode, Hermes was not touched.
 
-Update available. Nothing was changed.
+Update available. Hermes was not touched.
   Available    3 new commit(s)
   Python deps  unchanged
   Node packages changed, will be reinstalled (slower build)

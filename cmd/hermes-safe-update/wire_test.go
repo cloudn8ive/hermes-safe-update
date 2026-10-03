@@ -52,10 +52,10 @@ func newSynthHome(t *testing.T) *synthHome {
 	fp.Markers = []string{"win-unpacked"}
 	s.run = &execx.Fake{}
 	s.run.On([]string{s.launcher, "--version"}, execx.Result{Output: "Hermes Agent v1.0\nInstall directory: " + s.checkout})
-	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "-C", s.checkout, "rev-parse", "--short"}, execx.Result{Output: "1111111\n"})
-	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "-C", s.checkout, "rev-parse", "HEAD"}, execx.Result{Output: strings.Repeat("1", 40) + "\n"})
-	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "-C", s.checkout, "status"}, execx.Result{Output: ""})
-	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "-C", s.checkout, "diff", "--quiet"}, execx.Result{Code: 0})
+	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "--no-optional-locks", "-C", s.checkout, "rev-parse", "--short"}, execx.Result{Output: "1111111\n"})
+	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "--no-optional-locks", "-C", s.checkout, "rev-parse", "HEAD"}, execx.Result{Output: strings.Repeat("1", 40) + "\n"})
+	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "--no-optional-locks", "-C", s.checkout, "status"}, execx.Result{Output: ""})
+	s.run.OnPrefix([]string{s.git, "-c", "gc.auto=0", "--no-optional-locks", "-C", s.checkout, "diff", "--quiet"}, execx.Result{Code: 0})
 	return s
 }
 
@@ -82,7 +82,7 @@ func TestCheckRunsTheFlowAndChangesNothing(t *testing.T) {
 		t.Fatalf("exit %d\nstderr:\n%s", code, s.errb.String())
 	}
 	all := s.errb.String()
-	for _, want := range []string{"Update available. Nothing was changed.", "2 new commit(s)", "desktop"} {
+	for _, want := range []string{"Update available. Hermes was not touched.", "2 new commit(s)", "desktop"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("output lacks %q:\n%s", want, all)
 		}

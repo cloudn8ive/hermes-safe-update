@@ -17,11 +17,11 @@ affiliated with Nous Research (see [NOTICE](NOTICE)).
 
 ## Demo
 
-[![A full update: check, wait for idle, close, update, verify, settings migration, reopen, summary](docs/demo-poster.png)](docs/demo.mp4)
+https://github.com/user-attachments/assets/6c1dc345-71a6-4174-a7ad-77aa57387dd9
 
-A 75-second narrated walk through a full update (click the picture to play
-[`docs/demo.mp4`](docs/demo.mp4); the picture is a still from the video, not a
-GIF). It replays the program's own recorded screen output from its end-to-end
+A 75-second narrated walk through a full update (press play above; the same
+video is in the repository as [`docs/demo.mp4`](docs/demo.mp4)). It replays
+the program's own recorded screen output from its end-to-end
 tests, sped up: nothing was installed or closed, and every name, path and
 session id in it is made up.
 
@@ -157,7 +157,7 @@ In PowerShell, from the install folder (no PATH needed):
 
 ```
 cd $env:LOCALAPPDATA\Programs\hermes-safe-update
-.\hermes-safe-update.exe --check       # look only; changes nothing
+.\hermes-safe-update.exe --check       # look only: leaves Hermes as it is (may fetch commits, like git fetch)
 .\hermes-safe-update.exe               # update, asking before anything is closed
 .\hermes-safe-update.exe --unattended  # for a scheduled task: never asks
 ```
@@ -172,8 +172,11 @@ hermes-safe-update
 
 `--check` runs the pre-flight checks and tells you whether an update is
 available, what is running and which sessions are active. It never closes Hermes or changes
-it; it writes only its own log and timing history (and may refresh the local
-mirror and fetch commits into the checkout, like any pre-flight).
+it. HEAD, the branch, the index and the working tree of the checkout stay
+exactly as they are. What it does write is like `git fetch`: it may refresh
+the local mirror (if you set one up) and fetch the new commits and `v*` tags
+into the checkout's git data, which makes the check accurate and the later
+update faster. It also writes its own log and timing history.
 
 A normal run shows a progress footer in a real console window. In a pipe, a
 scheduled task, or with `--plain` (also `TERM=dumb`,
@@ -346,7 +349,7 @@ Desktop shortcut:
 
 1. Right-click the desktop, New, Shortcut.
 2. Target: `%LOCALAPPDATA%\Programs\hermes-safe-update\hermes-safe-update.cmd`
-   (or `hermes-update-check.cmd` for the read-only check). Next, name it, Finish.
+   (or `hermes-update-check.cmd` for the look-only check). Next, name it, Finish.
 
 Start menu entry: do the same, but save the shortcut in
 `%APPDATA%\Microsoft\Windows\Start Menu\Programs` (paste that into Explorer's

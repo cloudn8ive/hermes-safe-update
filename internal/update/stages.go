@@ -1199,7 +1199,7 @@ func stageCUAStatus(ctx context.Context, r *Run) error {
 
 func stageCheckSummary(ctx context.Context, r *Run) error {
 	f := r.Facts
-	r.info("Pre-flight passed; check mode, nothing changed.")
+	r.info("Pre-flight passed; check mode, Hermes was not touched.")
 	r.complete(true)
 	var rows []ui.Row
 	avail := "yes"
@@ -1263,7 +1263,7 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 			rows = addRow(rows, "Mirror", "none (optional; updates check GitHub directly)")
 		}
 	}
-	r.summary(ui.Card{OK: nil, Headline: "Update available. Nothing was changed.", Rows: rows})
+	r.summary(ui.Card{OK: nil, Headline: "Update available. Hermes was not touched.", Rows: rows})
 	r.offerMirror(ctx)
 	return nil
 }

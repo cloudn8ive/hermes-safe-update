@@ -4,7 +4,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-03
+
+### Changed
+
+- README demo video now plays inline.
+
 ### Fixed
+
+- `--check` was described as read-only and "changes nothing", but it can
+  refresh the local mirror and fetch new commits and `v*` tags into the
+  checkout's git data (like `git fetch`). That is kept, because it makes the
+  check accurate and the later update faster; the README, how-it-works, design
+  notes, `--help`, the `.cmd` shims and the summary card now say so exactly
+  ("Hermes was not touched"). A new sandbox test pins that `--check` never moves
+  HEAD or the branch and never touches the index or the working tree.
+- The checkout's git calls now pass `--no-optional-locks`, so `git status` in
+  a check no longer rewrites `.git/index` (a stat-cache refresh) when file
+  timestamps differ from the cache.
 
 - Plain output: the prompt countdown goroutine is now stopped and waited for
   before `Prompt` returns, so a countdown line (`  30s`) can no longer be
@@ -85,5 +102,6 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
-[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/cloudn8ive/hermes-safe-update/releases/tag/v0.1.0

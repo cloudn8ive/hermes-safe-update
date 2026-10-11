@@ -110,6 +110,7 @@ type Facts struct {
 	VerifyLine    string
 	Settings      *settings.Report
 	GC            *gc.Result
+	GCLocked      []hermes.GCLocked // old sets `hermes update` could not remove (file in use)
 	CUA           *cua.Result
 	HookRows      []ui.Row
 	Warnings      int

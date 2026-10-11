@@ -162,7 +162,9 @@ func TestParityUpdateCheck(t *testing.T) {
 		// Package kinds via exit codes only.
 		if c.DRC != nil {
 			f := &execx.Fake{}
-			f.On(gitArgv("diff", "--quiet", "HEAD", "origin/main", "--", "uv.lock", "pyproject.toml"), execx.Result{Code: *c.DRC})
+			// Known difference from Python: Go also watches pm/lock.json and plugin
+			// manifests (PyFilesPathspecs), the exit code is read the same way.
+			f.On(gitArgv(append([]string{"diff", "--quiet", "HEAD", "origin/main", "--"}, PyFilesPathspecs...)...), execx.Result{Code: *c.DRC})
 			f.On(gitArgv("diff", "--quiet", "HEAD", "origin/main", "--", ":(glob)**/package.json", ":(glob)**/package-lock.json"), execx.Result{Code: *c.NRC})
 			npm, py := newRepo(f).DiffKinds(context.Background())
 			if !eqBoolPtr(npm, c.WantNPM) || !eqBoolPtr(py, c.WantPy) {
@@ -267,12 +269,21 @@ func TestParityGateProbe(t *testing.T) {
 func TestParityTriggersAndRegexes(t *testing.T) {
 	var table [][2]string
 	testutil.ParityFixture(t, "triggers_table", &table)
-	if len(table) != len(UpdateTriggers) {
-		t.Fatalf("trigger table: Go %d entries, Python %d", len(UpdateTriggers), len(table))
+	// Known difference from Python: Hermes now prints "Resolving Python
+	// dependencies…" before "Installing Python dependencies…"; Go also
+	// triggers the pydeps step on it.
+	var goTriggers []Trigger
+	for _, tr := range UpdateTriggers {
+		if tr.Substr != "Resolving Python dependencies…" {
+			goTriggers = append(goTriggers, tr)
+		}
+	}
+	if len(table) != len(goTriggers) {
+		t.Fatalf("trigger table: Go %d entries, Python %d", len(goTriggers), len(table))
 	}
 	for i, p := range table {
-		if UpdateTriggers[i].Substr != p[0] || UpdateTriggers[i].Step != p[1] {
-			t.Errorf("trigger %d: Go %v, Python %v", i, UpdateTriggers[i], p)
+		if goTriggers[i].Substr != p[0] || goTriggers[i].Step != p[1] {
+			t.Errorf("trigger %d: Go %v, Python %v", i, goTriggers[i], p)
 		}
 	}
 	var lines []struct{ Line, Want string }

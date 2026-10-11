@@ -89,7 +89,7 @@ func (r *GitRepo) DirtyCount(ctx context.Context) (int, error) {
 // 1 = changed, anything else (including a timeout) = unknown.
 func (r *GitRepo) DiffKinds(ctx context.Context) (npm, pydeps *bool) {
 	npm = r.diffQuiet(ctx, ":(glob)**/package.json", ":(glob)**/package-lock.json")
-	pydeps = r.diffQuiet(ctx, "uv.lock", "pyproject.toml")
+	pydeps = r.diffQuiet(ctx, PyFilesPathspecs...)
 	return npm, pydeps
 }
 

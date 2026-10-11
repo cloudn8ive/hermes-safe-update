@@ -176,13 +176,23 @@ func (s *fakeSettings) Migrate(context.Context) (settings.Report, error) {
 	return settings.Report{Line: "nothing to migrate"}, nil
 }
 
-type fakeGC struct{ runs []bool }
+type fakeGC struct {
+	runs []bool
+	res  *gc.Result // the real (non-dry) run returns this when set
+	err  error      // ... and this error
+}
 
 func (g *fakeGC) Run(_ context.Context, dry bool) (gc.Result, error) {
 	g.runs = append(g.runs, dry)
 	if dry {
 		return gc.Result{Count: 2, MB: 300, Line: "2 old dependency set(s), ~300 MB to free",
 			Lines: []string{"gen-a: REMOVE (~108 MB unique)", "gen-b: keep (selected)", "trash batches waiting: 1"}}, nil
+	}
+	if g.res != nil || g.err != nil {
+		if g.res == nil {
+			return gc.Result{}, g.err
+		}
+		return *g.res, g.err
 	}
 	return gc.Result{Count: 2, Line: "removed 2 old dependency set(s), freed 300 MB"}, nil
 }
@@ -230,6 +240,7 @@ type harness struct {
 	logSink   io.Writer         // receives the run's log (default: discarded)
 	env       map[string]string // updater's environment (nil = empty)
 	selfPID   int               // the updater's pid in the fake process table (0 = real)
+	exists    func(string) bool // FileExists (nil = everything exists)
 }
 
 func desktopProc() platform.Process {
@@ -345,7 +356,9 @@ func (h *harness) run(flags ...string) error {
 		Classify: func(p platform.Process) string {
 			return hermes.Classify(p, tHome, tHome+`\hermes-agent`, []string{"win-unpacked"})
 		},
-		FileExists:  func(string) bool { return true },
+		FileExists: func(p string) bool {
+			return h.exists == nil || h.exists(p)
+		},
 		Mode:        h.mode,
 		SelfPID:     h.selfPID,
 		Getenv:      func(k string) string { return h.env[k] },

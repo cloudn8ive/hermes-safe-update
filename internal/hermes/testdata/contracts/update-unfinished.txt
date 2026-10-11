@@ -1,0 +1,21 @@
+→ Fetching updates
+→ Pulling updates…
+  → Building the web UI…
+  ✗ Building the web UI failed; last 3 lines of output:
+      Error: TypeScript build failed (2)
+      src/pages/Example.tsx:5:3 - error TS1484: 'ExampleType' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+          at typecheck (file:///C:/Users/you/AppData/Local/hermes/hermes-agent/scripts/build/web.mjs:27:11)
+  ⚠ web UI build failed: C:\Users\you\AppData\Local\hermes\tools\python\python.exe -I -S -c import ctypes, subprocess, sys, time
+k = ctypes.WinDLL('kernel32', use_last_error=True)
+def refuse(why):
+    note = 'hermes: update custody unavailable (%s); the command was not run' % why
+    sys.exit(87)
+code = p.wait()
+sys.exit(code)
+ 1572 C:\Users\you\AppData\Local\Temp\hermes-custody-abc.txt C:\Users\you\AppData\Local\hermes\tools\node\node.EXE C:\Users\you\AppData\Local\hermes\hermes-agent\scripts\build\web.mjs --out C:\Users\you\AppData\Local\hermes\hermes-agent\hermes_cli\web_dist exited 1
+→ Building desktop packaged app…
+✓ Building desktop packaged app
+  ⚠ Update follow-up 'build' did not finish: web UI build: C:\Users\you\AppData\Local\hermes\tools\python\python.exe -I -S -c import ctypes, subprocess, sys, time k = ctypes.WinDLL('kernel32', use_last_error=True) sys.exit(code)  1572 C:\Users\you\AppData\Local\Temp\hermes-custody-abc.txt node.EXE web.mjs exited 1 (the next launch or `hermes update` retries it)
+
+✓ Code updated!
+✓ Update complete! (v1.0 → v1.1)

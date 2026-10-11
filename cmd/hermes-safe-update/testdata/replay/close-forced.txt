@@ -40,7 +40,7 @@ gateway: running the new code 7f9c2ba4e8
 desktop app: build verified
 RESULT: OK
 == Settings
-settings: settings: migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-095615
+settings: migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-095615
 relaunched Hermes desktop
 == Dependency generation cleanup
 removed: removed 2 old dependency set(s), freed 612 MB
@@ -50,7 +50,7 @@ Hermes is updated and verified.
   Version      v0.21.5 → v0.21.6  (3 commits)
   Time         8:23 until Hermes reopened  (estimate was 7:44)
   Source       GitHub (checked via the API)
-  Settings     settings: migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-095615
+  Settings     migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-095615
   Cleanup      removed 2 old dependency set(s), freed 612 MB
   cua-driver   0.21.0, logon task current
   Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

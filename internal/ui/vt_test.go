@@ -659,19 +659,6 @@ func TestOutputGutterRemarkAndHiding(t *testing.T) {
 	}
 }
 
-func TestOutputGCLockedLineIsRewrittenToGreyNote(t *testing.T) {
-	h := newHarness(t, 100, true)
-	h.startUpdate(true)
-	h.r.Stage("pull")
-	m := h.mark()
-	h.r.Output(`  dependency generation cleanup skipped: [WinError 5] Access is denied: 'C:\x\environments\abcd1234'`)
-	got := h.since(m)
-	want := "\x1b[38;5;25m   │ \x1b[0m  \x1b[38;5;245;1mi \x1b[0m\x1b[38;5;250mold dependency set abcd1234 still in use; cleaned up after verify\x1b[0m\n"
-	if !strings.Contains(got, want) {
-		t.Errorf("gc line = %q", got)
-	}
-}
-
 func TestSummaryCard(t *testing.T) {
 	h := newHarness(t, 100, true)
 	h.startUpdate(true)
@@ -937,5 +924,36 @@ func TestRealTickerRunsAndStops(t *testing.T) {
 	time.Sleep(30 * time.Millisecond)
 	if h.buf.Len() != n {
 		t.Error("ticker kept writing after Close")
+	}
+}
+
+// Hermes builds that run the Python dependency step after the desktop build:
+// the banner must not go back to "3/5 Update" and the stage line must stay on
+// "stage 4 of 5" (Build).
+func TestStageOutOfOrderStaysInBuildGroup(t *testing.T) {
+	h := newHarness(t, 100, true)
+	h.startUpdate(true)
+	for _, k := range []string{"remote", "close", "gateway_stop", "fetch", "pull", "frontend", "desktop", "package"} {
+		h.r.Stage(k)
+	}
+	if got := strip(h.r.footer()[4]); !strings.Contains(got, "stage 4 of 5") {
+		t.Fatalf("before: %q", got)
+	}
+	m := h.mark()
+	h.r.Stage("pydeps")
+	if got := strip(h.since(m)); strings.Contains(got, "3/5") || strings.Contains(got, "━") {
+		t.Errorf("a banner went back to the Update stage: %q", got)
+	}
+	foot := h.r.footer()
+	if got := strip(foot[4]); !strings.Contains(got, "stage 4 of 5") {
+		t.Errorf("stage line = %q, want stage 4 of 5", got)
+	}
+	if got := strip(foot[3]); !strings.Contains(got, "Installing Python dependencies") {
+		t.Errorf("step line = %q", got)
+	}
+	m = h.mark()
+	h.r.Stage("finalize")
+	if p := strip(h.since(m)); !strings.Contains(p, "5/5  ") {
+		t.Errorf("last banner: %q", p)
 	}
 }

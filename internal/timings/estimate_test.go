@@ -2,6 +2,7 @@ package timings_test
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -321,4 +322,87 @@ func TestCheckKindUsesCheckHistoryOnly(t *testing.T) {
 	e := timings.NewEstimator(timings.KindCheck, timings.CheckSteps(tun.StepSeconds), hist, tun, clk)
 	near(t, "remote", e.Estimate("remote"), 11)
 	near(t, "planned", e.PlannedTotal(""), 2+11+4+1+3+1)
+}
+
+// Newer Hermes builds run the Python dependency step after the desktop
+// build. The step list has it before the builds; the display must not jump
+// back to the "Update" group, and the bar must not move backwards.
+func TestStageOutOfOrderMovesBehindTheFurthestStep(t *testing.T) {
+	e, clk := newUpdate(nil)
+	e.ExpectSkip("pydeps", true) // the pre-flight predicted "unchanged"
+	for _, k := range []string{"local", "remote", "procs", "wait", "close", "gateway_stop", "fetch", "pull", "frontend", "desktop", "package"} {
+		clk.Advance(secs(20))
+		e.Stage(k)
+	}
+	before := e.Fraction()
+	clk.Advance(secs(20))
+	e.Stage("pydeps")
+
+	cur, ok := e.Current()
+	if !ok || cur.Key != "pydeps" || cur.Group != "Build" {
+		t.Fatalf("current = %+v (ok=%v), want pydeps in the Build group", cur, ok)
+	}
+	var keys []string
+	for _, s := range e.Steps {
+		keys = append(keys, s.Key)
+	}
+	at := func(k string) int {
+		for i, x := range keys {
+			if x == k {
+				return i
+			}
+		}
+		return -1
+	}
+	if at("pydeps") != at("package")+1 || at("finalize") != at("pydeps")+1 {
+		t.Errorf("order = %v, want pydeps between package and finalize", keys)
+	}
+	if e.State("package") != timings.Done || e.State("desktop") != timings.Done || e.State("frontend") != timings.Done {
+		t.Errorf("earlier builds must stay done: package=%v desktop=%v frontend=%v", e.State("package"), e.State("desktop"), e.State("frontend"))
+	}
+	if e.ExpectedSkip("pydeps") {
+		t.Error("a step that is running is no longer expected to be skipped")
+	}
+	if after := e.Fraction(); after < before {
+		t.Errorf("the bar moved back: %.3f -> %.3f", before, after)
+	}
+	clk.Advance(secs(30))
+	e.Stage("finalize")
+	if e.State("pydeps") != timings.Done {
+		t.Errorf("pydeps = %v after finalize", e.State("pydeps"))
+	}
+	e.Complete(bptr(true))
+	r := e.Record(t0)
+	if r == nil {
+		t.Fatal("no record")
+	}
+	var recKeys []string
+	for _, s := range r.Steps {
+		recKeys = append(recKeys, s.Key)
+	}
+	if got := strings.Join(recKeys, ","); !strings.Contains(got, "package,pydeps,finalize") {
+		t.Errorf("record order = %s", got)
+	}
+}
+
+// the list order of older Hermes builds (Python dependencies before the
+// builds) stays exactly as it is
+func TestStageInListOrderDoesNotMoveSteps(t *testing.T) {
+	e, clk := newUpdate(nil)
+	var want []string
+	for _, s := range e.Steps {
+		want = append(want, s.Key)
+	}
+	for _, k := range []string{"gateway_stop", "fetch", "pull", "pydeps", "frontend", "desktop", "package", "finalize", "restart"} {
+		clk.Advance(secs(10))
+		e.Stage(k)
+	}
+	for i, s := range e.Steps {
+		if s.Key != want[i] {
+			t.Fatalf("step %d is %s, want %s", i, s.Key, want[i])
+		}
+	}
+	if g := e.Steps[8].Group; g != "Update" {
+		t.Errorf("pydeps group = %s, want Update", g)
+	}
 }

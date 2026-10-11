@@ -233,10 +233,19 @@ func (e *Estimator) recompute() {
 func (e *Estimator) now() time.Time { return e.Clock.Now() }
 
 // Stage makes key the active step (earlier active -> done, earlier pending -> skipped).
+//
+// Upstream decides the order in which `hermes update` runs its parts, and
+// that order has changed between Hermes versions (the Python dependency step
+// moved from before the builds to after them). A step that starts after a
+// later one in the list already ran is moved up behind the furthest step
+// reached (see moveBehind), so the display and the bar only ever go forward.
 func (e *Estimator) Stage(key string) {
 	idx := e.index(key)
 	if idx < 0 || e.rt[idx].state == Done || e.rt[idx].state == Active {
 		return
+	}
+	if reached := e.reached(); idx < reached {
+		idx = e.moveBehind(idx, reached)
 	}
 	now := e.now()
 	for i := 0; i < idx; i++ {
@@ -249,6 +258,31 @@ func (e *Estimator) Stage(key string) {
 	}
 	e.rt[idx].state, e.rt[idx].t0 = Active, now
 	e.waiting = false
+}
+
+// reached is the index of the furthest step that is or was active (-1: none).
+func (e *Estimator) reached() int {
+	for i := len(e.rt) - 1; i >= 0; i-- {
+		if e.rt[i].state == Active || e.rt[i].state == Done {
+			return i
+		}
+	}
+	return -1
+}
+
+// moveBehind moves the step at idx to just after position reached (the list
+// shifts in place, so a renderer holding the same slice sees it) and returns
+// its new index. It joins the group of the step it now follows, so the stage
+// banner does not jump back, and it is no longer expected to be skipped: it
+// is running.
+func (e *Estimator) moveBehind(idx, reached int) int {
+	s, r := e.Steps[idx], e.rt[idx]
+	copy(e.Steps[idx:reached], e.Steps[idx+1:reached+1])
+	copy(e.rt[idx:reached], e.rt[idx+1:reached+1])
+	s.Group = e.Steps[reached-1].Group
+	r.expectSkip = false
+	e.Steps[reached], e.rt[reached] = s, r
+	return reached
 }
 
 // ExpectSkip marks a step the run expects to skip (e.g. pydeps unchanged).

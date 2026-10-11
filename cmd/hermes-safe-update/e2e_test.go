@@ -667,3 +667,40 @@ func TestE2ESettingsOriginUnknownStillBacksUp(t *testing.T) {
 		t.Errorf("want exactly one backup, got %v", bs)
 	}
 }
+
+// Newer Hermes builds resolve and install Python dependencies after the
+// desktop build, and may print the "cleanup skipped, file in use" line while
+// doing so. The stage banners count up only, and the screen shows one calm
+// line instead of the Python error; the log keeps the raw one.
+func TestE2EPydepsAfterBuildAndLockedCleanupLine(t *testing.T) {
+	modes(t, func(t *testing.T, vt bool) {
+		w := newWorld(t)
+		w.vt = vt
+		w.update = []updateLine{
+			{0, "→ Update channel: main", nil},
+			{2 * time.Second, fmt.Sprintf("→ Stopping Windows gateway (pid %d) so files can be replaced…", pidGateway), (*e2eWorld).removeGateways},
+			{21 * time.Second, "→ Fetching updates...", nil},
+			{9 * time.Second, "→ Pulling updates...", func(w *e2eWorld) { w.setHead(e2eNew) }},
+			{88 * time.Second, "  Fast-forward " + e2eOld[:7] + ".." + e2eNew[:7] + " (3 files changed)", nil},
+			{time.Second, "  → Preparing Node dependencies…", nil},
+			{24 * time.Second, "  ✓ TUI is up to date", nil},
+			{30 * time.Second, "→ Building desktop packaged app…", nil},
+			{205 * time.Second, "→ Packaging the desktop app…", nil},
+			{21 * time.Second, "  → Resolving Python dependencies…", nil},
+			{3 * time.Second, "  ✓ Resolving Python dependencies", nil},
+			{0, "  → Installing Python dependencies…", nil},
+			{20 * time.Second, `  dependency generation cleanup skipped: [WinError 5] Access is denied: 'C:\Users\you\AppData\Local\hermes\installs\0123456789abcdef\environments\0123456789abcdef0123456789abcdef\venv\Lib\site-packages\pkg\mod.pyd'`, nil},
+			{12 * time.Second, "  ✓ Installing Python dependencies", nil},
+			{time.Second, "✓ Code updated!", nil},
+			{10 * time.Second, "→ Restarting the gateway…", (*e2eWorld).startGateway},
+			{20 * time.Second, "✓ Update complete! (v0.21.5 → v0.21.6)", nil},
+		}
+		w.con.script(conStep{key: 'y'})
+		w.cli()
+		w.transcript("pydeps-after-build")
+		w.wantCode(apperr.OK)
+		w.wantScreen("Hermes left an old dependency set in place (a file was in use); the cleanup step at the end removes it",
+			"Hermes is updated and verified.", "removed 2 old dependency set(s), freed 612 MB")
+		w.noScreen("WinError", "Access is denied", "still in place", "WARN")
+	})
+}

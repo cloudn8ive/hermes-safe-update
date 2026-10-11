@@ -2,6 +2,9 @@ package hermes
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -66,7 +69,7 @@ func TestRepoDirtyCount(t *testing.T) {
 
 func TestRepoDiffKindsUsesExitCodesOnly(t *testing.T) {
 	b := func(v bool) *bool { return &v }
-	pyArgv := gitArgv("diff", "--quiet", "HEAD", "origin/main", "--", "uv.lock", "pyproject.toml")
+	pyArgv := gitArgv(append([]string{"diff", "--quiet", "HEAD", "origin/main", "--"}, PyFilesPathspecs...)...)
 	npmArgv := gitArgv("diff", "--quiet", "HEAD", "origin/main", "--", ":(glob)**/package.json", ":(glob)**/package-lock.json")
 	cases := []struct {
 		name         string
@@ -133,6 +136,15 @@ func TestChangedFilesKinds(t *testing.T) {
 		{"uv.lock at root", []string{"uv.lock"}, false, nil, b(true)},
 		{"pyproject nested does not count", []string{"sub/pyproject.toml"}, true, b(false), b(false)},
 		{"both", []string{"pyproject.toml", "web/package.json"}, false, b(true), b(true)},
+		// Hermes' package manager also re-resolves when pm/lock.json or the manifest of a
+		// plugin that declares Python packages changes (a plugin moving out of core)
+		{"plugin manifest deleted", []string{"plugins/memory/holographic/plugin.yaml"}, true, b(false), b(true)},
+		{"plugin manifest at the top", []string{"plugins/x/plugin.yml"}, false, nil, b(true)},
+		{"plugin pyproject", []string{"plugins/x/y/pyproject.toml"}, true, b(false), b(true)},
+		{"plugin json manifest", []string{"plugins/x/plugin.json"}, true, b(false), b(true)},
+		{"pm lock", []string{"pm/lock.json"}, true, b(false), b(true)},
+		{"plugin code alone", []string{"plugins/x/__init__.py", "plugins/x/README.md", "plugins/x/plugin.yaml.bak"}, true, b(false), b(false)},
+		{"look-alikes elsewhere", []string{"apps/plugins/x/plugin.yaml", "plugin-catalog/x.yaml", "pm/uv.lock", "pm/pyproject.toml"}, true, b(false), b(false)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -180,3 +192,62 @@ func TestInterpretUpdateCheck(t *testing.T) {
 
 func ptrB(v bool) *bool { return &v }
 func ptrI(v int) *int   { return &v }
+
+// The git pathspecs (used by `git diff --quiet`) and the regex (used for the
+// API file list) must agree: run both against a real repository.
+func TestPyFilesPathspecsAgreeWithPattern(t *testing.T) {
+	bin, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command(bin, args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	paths := []string{
+		"uv.lock", "pyproject.toml", "pm/lock.json", "pm/uv.lock", "sub/pyproject.toml", "package.json",
+		"plugins/plugin.yaml", "plugins/a/plugin.yaml", "plugins/a/plugin.yml", "plugins/a/plugin.json",
+		"plugins/memory/b/pyproject.toml", "plugins/memory/b/store.py", "plugins/a/plugin.yaml.bak",
+		"apps/plugins/a/plugin.yaml", "plugin-catalog/a.yaml",
+	}
+	git("init", "-q", "-b", "main")
+	for _, p := range paths {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("one\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("add", "-A")
+	git("commit", "-q", "-m", "base")
+	base := git("rev-parse", "HEAD")
+	repo := &GitRepo{Git: bin, Checkout: dir, Run: execx.New()}
+	for _, p := range paths {
+		git("checkout", "-q", "-f", "--detach", base)
+		if p == "plugins/a/plugin.yaml" { // a deleted manifest counts too
+			git("rm", "-q", p)
+		} else if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(p)), []byte("two\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git("add", "-A")
+		git("commit", "-q", "-m", "change "+p)
+		git("update-ref", "refs/remotes/origin/main", "HEAD")
+		git("checkout", "-q", "-f", "--detach", base)
+		_, py := repo.DiffKinds(context.Background())
+		_, want := ClassifyChanged([]string{p}, true)
+		if py == nil || want == nil || *py != *want {
+			t.Errorf("%s: git pathspecs say %s, PyFilesRe says %s", p, ptrStr(py), ptrStr(want))
+		}
+	}
+}

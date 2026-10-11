@@ -700,9 +700,45 @@ func (r *Run) nothingChanged(ctx context.Context, out string) bool {
 	return err == nil && full == r.Facts.HeadFull
 }
 
+// gcLockedNote replaces Hermes' "dependency generation cleanup skipped:
+// [WinError 5] … <path>.pyd" line on the screen. The log keeps the raw line.
+// The promise in it is checked at the end (leftoverSets): if the set is still
+// there after our own cleanup, the summary says so.
+const gcLockedNote = "Hermes left an old dependency set in place (a file was in use); the cleanup step at the end removes it"
+
+func isGCLockedLine(line string) bool {
+	_, ok := hermes.ParseGCLocked(line)
+	return ok
+}
+
+// leftoverSets lists the old dependency sets named by "cleanup skipped, file
+// in use" lines of this run that are still on disk. A line whose path could
+// not be read counts as still there, because nothing can prove it is gone.
+func (r *Run) leftoverSets() []hermes.GCLocked {
+	var left []hermes.GCLocked
+	seen := map[string]bool{}
+	for _, g := range r.Facts.GCLocked {
+		key := g.Dir
+		if key == "" {
+			key = "?"
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		if g.Dir == "" || r.FileExists(g.Dir) {
+			left = append(left, g)
+		}
+	}
+	return left
+}
+
 // displayLine filters `hermes update` output for the screen ("" = hide).
 func displayLine(line string) string {
 	switch {
+	case isGCLockedLine(line):
+		indent := line[:len(line)-len(strings.TrimLeft(line, " 	"))]
+		return indent + gcLockedNote
 	case strings.Contains(line, hermes.CuaDeferred):
 		return "→ cua-driver (Computer Use) refresh: handled by the safe updater after verification"
 	case strings.Contains(line, hermes.CuaManualHint):
@@ -724,6 +760,7 @@ func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 
 	last := r.Clock.Now()
 	var lastMu = &r.mu
+	filter := &outputFilter{}
 	stopWatch := make(chan struct{})
 	go func() { // silence watchdog: one note per silent stretch
 		t := time.NewTicker(watchdogPoll)
@@ -765,10 +802,11 @@ func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 			r.stage(step)
 		}
 		r.Log.Info("  | " + line)
-		if shown := displayLine(line); shown != "" || line == "" {
-			if strings.TrimSpace(shown) != "" {
-				r.UI.Output(shown)
-			}
+		if g, ok := hermes.ParseGCLocked(line); ok {
+			r.Facts.GCLocked = append(r.Facts.GCLocked, g)
+		}
+		if shown := filter.display(line); strings.TrimSpace(shown) != "" {
+			r.UI.Output(shown)
 		}
 	})
 	if res.TimedOut {
@@ -985,7 +1023,20 @@ func stageCleanup(ctx context.Context, r *Run) error {
 			r.rows(ui.Row{Key: "removed", Value: res.Line})
 		}
 	}
+	// The screen note for Hermes' own skipped cleanup promised that this step
+	// removes the set: say so out loud when it did not.
+	for _, g := range r.leftoverSets() {
+		r.warn("old dependency set %s is still in place after the cleanup (a file in it was in use); the next update retries it", shortGen(g.Gen))
+	}
 	return nil
+}
+
+// shortGen is the first 8 characters of a generation id (all that is shown).
+func shortGen(gen string) string {
+	if gen == "" {
+		return "(unknown)"
+	}
+	return gen[:min(8, len(gen))]
 }
 
 func stageCUA(ctx context.Context, r *Run) error {
@@ -1093,9 +1144,15 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 		r.Facts.TReopen = r.Clock.Now()
 	}
 	r.complete(f.Verified)
+	unfinished := hermes.UnfinishedSteps(f.UpdateOutput)
 	headline := "Hermes is updated and verified."
-	if !f.Verified {
+	switch {
+	case !f.Verified:
 		headline = "The update needs attention: see RESULT above."
+	case len(unfinished) == 1:
+		headline = "Hermes is updated and verified, but 1 step did not finish."
+	case len(unfinished) > 1:
+		headline = fmt.Sprintf("Hermes is updated and verified, but %d steps did not finish.", len(unfinished))
 	}
 	var rows []ui.Row
 	if f.Versions[0] != "" {
@@ -1120,14 +1177,30 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 	if f.Settings != nil {
 		rows = addRow(rows, "Settings", f.Settings.Line)
 	}
+	cleanup := ui.Row{Key: "Cleanup"}
 	if f.GC != nil {
-		rows = addRow(rows, "Cleanup", f.GC.Line)
+		cleanup.Value = f.GC.Line
+	}
+	if n := len(r.leftoverSets()); n > 0 {
+		// Hermes' own cleanup was blocked by a file in use and ours did not
+		// remove the set either (or never ran): never show a clean row.
+		left := fmt.Sprintf("%d old dependency set(s) still in place (a file was in use); the next update retries", n)
+		if cleanup.Value != "" {
+			left = cleanup.Value + "; " + left
+		}
+		cleanup.Value, cleanup.Verdict = left, ptr(ui.VerdictAttention)
+	}
+	if cleanup.Value != "" {
+		rows = append(rows, cleanup)
 	}
 	if f.CUA != nil {
 		rows = addRow(rows, "cua-driver", f.CUA.Line)
 	}
 	rows = addRow(rows, "Gateway", f.GateLine)
 	rows = append(rows, f.HookRows...)
+	for _, u := range unfinished {
+		rows = append(rows, ui.Row{Key: "Not finished", Value: u.String(), Verdict: ptr(ui.VerdictAttention)})
+	}
 	if f.Warnings > 0 {
 		rows = addRow(rows, "Warnings", fmt.Sprintf("%d (see above)", f.Warnings))
 	}
@@ -1142,6 +1215,9 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 
 func (r *Run) summary(c ui.Card) {
 	r.summaryShown = true
+	for i := range c.Rows {
+		c.Rows[i] = cleanRow(c.Rows[i])
+	}
 	r.Log.Info("SUMMARY " + c.Headline)
 	for _, row := range c.Rows {
 		v := row.Value

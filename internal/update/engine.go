@@ -279,6 +279,9 @@ func (r *Run) warn(format string, a ...any) { r.say(ui.LevelWarn, "WARN ", forma
 func (r *Run) stop(format string, a ...any) { r.say(ui.LevelStop, "STOP ", format, a...) }
 
 func (r *Run) rows(rows ...ui.Row) {
+	for i := range rows {
+		rows[i] = cleanRow(rows[i])
+	}
 	r.UI.Rows(rows...)
 	for _, row := range rows {
 		r.Log.Info(row.Key + ": " + row.Value)

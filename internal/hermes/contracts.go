@@ -40,6 +40,7 @@ var UpdateTriggers = []Trigger{
 	{"Stopping Windows gateway", "gateway_stop"},
 	{"→ Fetching updates", "fetch"},
 	{"→ Pulling updates", "pull"},
+	{"Resolving Python dependencies…", "pydeps"},
 	{"Installing Python dependencies…", "pydeps"},
 	{"Updating Python dependencies", "pydeps"},
 	{"Preparing Node dependencies…", "frontend"},
@@ -98,8 +99,43 @@ var CuaInstalledRe = regexp.MustCompile(`(?i)installed at (.+?cua-driver\.exe|.+
 var (
 	GCRemoveRe = regexp.MustCompile(`REMOVE \(~(\d+) MB`)
 	GCDoneRe   = regexp.MustCompile(`(\d+) dependency generation\(s\).*?disk free change ([+-]\d+) MB`)
-	GCLockedRe = regexp.MustCompile(`dependency generation cleanup skipped: \[WinError (?:5|32)\].*environments[\\/]([0-9a-f]{8})`)
 )
+
+// GCSkippedMarker starts the line `hermes update` prints when its own cleanup
+// of old dependency sets stopped early.
+const GCSkippedMarker = "dependency generation cleanup skipped"
+
+// GCLockedRe matches that line when the reason is a file held open by a
+// running process (WinError 5 access denied or 32 sharing violation, e.g. a
+// hardlinked .pyd of an old set). Other reasons do not match: they stay
+// visible as Hermes printed them.
+var GCLockedRe = regexp.MustCompile(GCSkippedMarker + `: \[WinError (?:5|32)\]`)
+
+// GCGenerationRe reads the generation folder from such a line: the path up
+// to and including "environments\<id>" (group 1) and the folder name (group
+// 2). The path is a Python repr, so its backslashes arrive doubled.
+var GCGenerationRe = regexp.MustCompile(`'?([^'"]*environments[\\/]+([0-9a-f]{8,64}))`)
+
+// GCLocked is a skipped-cleanup line: one old dependency set that
+// `hermes update` could not remove because a file in it was in use.
+type GCLocked struct {
+	Gen string // folder name of the set (normally 32 hex digits); "" if the path is unreadable
+	Dir string // the set's folder with single separators; "" if the path is unreadable
+}
+
+// ParseGCLocked reports whether line is the "cleanup skipped, a file was in
+// use" line, and which set it names.
+func ParseGCLocked(line string) (GCLocked, bool) {
+	if !GCLockedRe.MatchString(line) {
+		return GCLocked{}, false
+	}
+	m := GCGenerationRe.FindStringSubmatch(line)
+	if m == nil {
+		return GCLocked{}, true
+	}
+	dir := strings.ReplaceAll(m[1], `\\`, `\`)
+	return GCLocked{Gen: m[2], Dir: dir}, true
+}
 
 // CheckSaysBehind interprets `hermes update --check` output (rc must be 0).
 func CheckSaysBehind(out string) bool {
@@ -110,8 +146,107 @@ func CheckSaysBehind(out string) bool {
 // Changed-file classification for the API/mirror paths (§2.3.1).
 var (
 	NPMFilesRe = regexp.MustCompile(`(^|/)package(-lock)?\.json$`)
-	PyFilesRe  = regexp.MustCompile(`^(uv\.lock|pyproject\.toml)$`)
+	PyFilesRe  = regexp.MustCompile(PyFilesPattern)
 )
+
+// PyFilesPattern lists the files whose change makes `hermes update` lock and
+// install Python dependencies again. Hermes' package manager (pm) compares a
+// stamp of uv.lock, its own pm/lock.json (Python and tool pins) and the
+// manifests of every enabled plugin that declares Python packages
+// (plugin.yaml|yml|json, pyproject.toml): a plugin appearing, moving or
+// changing re-resolves the environment even though uv.lock did not change.
+// Measured: a bundled plugin that moved out of core (its plugin.yaml deleted)
+// was installed into the user's plugins folder during the update and forced a
+// full resolve and install although neither uv.lock nor pyproject.toml changed.
+// A changed manifest of a plugin the user never enabled is a harmless false
+// "changed" (only the estimate is longer); the other way round is not.
+const PyFilesPattern = `^(?:uv\.lock|pyproject\.toml|pm/lock\.json|plugins/(?:.+/)?(?:plugin\.ya?ml|plugin\.json|pyproject\.toml))$`
+
+// PyFilesPathspecs is PyFilesPattern as git pathspecs for `git diff --quiet`
+// (the two lists are tested against each other).
+var PyFilesPathspecs = []string{
+	"uv.lock", "pyproject.toml", "pm/lock.json",
+	":(glob)plugins/**/plugin.yaml", ":(glob)plugins/**/plugin.yml",
+	":(glob)plugins/**/plugin.json", ":(glob)plugins/**/pyproject.toml",
+}
+
+// UnfinishedRe matches Hermes' "⚠ <what> did not finish: <reason>" lines
+// (update_receipt.py follow-ups such as the web UI build, update_completion.py,
+// the gateway migration). `hermes update` still exits 0 after them.
+var UnfinishedRe = regexp.MustCompile(`(?m)^[ \t]*⚠[ \t]*(.+?) did not finish: (.*?)[ \t\r]*$`)
+
+// unfinishedHintRe is the trailing advice in such a line, e.g.
+// "(the next launch or `hermes update` retries it)" or
+// "(run `hermes gateway migrate` later)".
+var unfinishedHintRe = regexp.MustCompile(`\s*\(([^()]*(?:retries it|later)[^()]*)\)$`)
+
+// CommandDumpStartRe matches a failure line that echoes an inline-code
+// command ("⚠ web UI build failed: …python.exe -I -S -c import ctypes, …"):
+// the script follows one output line per source line, and the dump ends with
+// a line matching CommandDumpEndRe ("… exited 1").
+var (
+	CommandDumpStartRe = regexp.MustCompile(`^(\s*\S.*?\bfailed): \S.*\s-c\s`)
+	CommandDumpEndRe   = regexp.MustCompile(`\bexited -?\d+\s*$`)
+)
+
+// Unfinished is one part of `hermes update` that did not finish.
+type Unfinished struct {
+	What   string // "Update follow-up 'build'"
+	Reason string // shortened: "web UI build"
+	Hint   string // "the next launch or `hermes update` retries it" (may be "")
+}
+
+// String is the one-line summary text.
+func (u Unfinished) String() string {
+	s := u.What
+	if u.Reason != "" {
+		s += ": " + u.Reason
+	}
+	if u.Hint != "" {
+		s += "; " + u.Hint
+	}
+	return s
+}
+
+// ParseUnfinished reads one "did not finish" line (ok=false otherwise).
+func ParseUnfinished(line string) (Unfinished, bool) {
+	m := UnfinishedRe.FindStringSubmatch(line)
+	if m == nil {
+		return Unfinished{}, false
+	}
+	reason, hint := m[2], ""
+	if h := unfinishedHintRe.FindStringSubmatchIndex(reason); h != nil {
+		hint, reason = reason[h[2]:h[3]], reason[:h[0]]
+	}
+	return Unfinished{What: strings.TrimSpace(m[1]), Reason: shortReason(reason), Hint: hint}, true
+}
+
+// UnfinishedSteps lists every "did not finish" line in update output, deduplicated.
+func UnfinishedSteps(out string) []Unfinished {
+	var list []Unfinished
+	seen := map[string]bool{}
+	for _, l := range strings.Split(out, "\n") {
+		if u, ok := ParseUnfinished(l); ok && !seen[u.String()] {
+			seen[u.String()] = true
+			list = append(list, u)
+		}
+	}
+	return list
+}
+
+// shortReason keeps "web UI build" from "web UI build: <long command line>"
+// and caps anything else at 120 characters.
+func shortReason(s string) string {
+	s = strings.TrimSpace(s)
+	if head, rest, ok := strings.Cut(s, ": "); ok && len([]rune(rest)) > 60 &&
+		len([]rune(head)) <= 60 && !strings.ContainsAny(head, `\/`) {
+		return head
+	}
+	if r := []rune(s); len(r) > 120 {
+		return string(r[:119]) + "…"
+	}
+	return s
+}
 
 // HiddenUpdateLines are upstream tips dropped from the screen (log keeps them).
 var HiddenUpdateLines = []string{

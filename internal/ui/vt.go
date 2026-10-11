@@ -666,11 +666,6 @@ func (v *VT) Output(line string) {
 	gutter := v.st.sgr("   "+g.Gutter+" ", v.st.hue(grp, true))
 	indent := len(body) - len(strings.TrimLeft(body, " \t"))
 	text := strings.TrimSpace(body)
-	if m := hermes.GCLockedRe.FindStringSubmatch(text); m != nil {
-		v.printLocked(gutter + strings.Repeat(" ", indent) + v.st.sgr(g.Info+" ", c.Dim, bold) +
-			v.st.sgr("old dependency set "+m[1]+" still in use; cleaned up after verify", c.Soft))
-		return
-	}
 	for _, m := range marks {
 		if strings.HasPrefix(text, m.src) {
 			text = v.st.sgr(m.dst, m.colour, bold) + text[len(m.src):]

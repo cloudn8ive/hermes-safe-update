@@ -134,7 +134,7 @@ func TestProbeNotWindowsIsUnknownNotNeeded(t *testing.T) {
 	g, run, _, _ := newGW(t)
 	g.GOOS = "linux"
 	res, info := g.Probe(context.Background())
-	if res != GateUnknown || !strings.Contains(info, "not needed") || len(run.Calls()) != 0 {
+	if res != GateNotApplicable || !strings.Contains(info, "not needed") || len(run.Calls()) != 0 {
 		t.Errorf("got %v %q calls=%d", res, info, len(run.Calls()))
 	}
 }
@@ -251,5 +251,23 @@ func TestGatewayPIDsUsesClassify(t *testing.T) {
 	pids, err := g.PIDs(context.Background())
 	if err != nil || len(pids) != 1 || pids[0] != 10 {
 		t.Fatalf("pids = %v, %v", pids, err)
+	}
+}
+
+// On macOS/Linux `--all` would kill every gateway of every profile first.
+func TestStartNeverUsesAllOnPOSIX(t *testing.T) {
+	for _, goos := range []string{"linux", "darwin"} {
+		t.Run(goos, func(t *testing.T) {
+			g, run, _, _ := newGW(t)
+			g.Home, g.GOOS = `/h`, goos
+			run.OnPrefix([]string{`L:\hermes.exe`, "gateway", "start"}, execx.Result{})
+			if err := g.Start(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			calls := run.Calls()
+			if len(calls) != 1 || strings.Join(calls[0].Argv, " ") != `L:\hermes.exe gateway start` {
+				t.Errorf("calls = %v", calls)
+			}
+		})
 	}
 }

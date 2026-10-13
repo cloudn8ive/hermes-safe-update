@@ -78,8 +78,8 @@ theme:
   bar_from: [95, 175, 255]   # gradient start (RGB)
   bar_to: [95, 215, 135]     # gradient end (RGB)
   date_top_right: true       # show only the date at the top right
-  taskbar: true              # taskbar / terminal progress where supported
-  flash: true                # flash the taskbar button when input is needed or the run ends
+  taskbar: true              # taskbar / terminal progress where supported (macOS/Linux: only with HERMES_SAFE_UPDATE_OSC_PROGRESS=1)
+  flash: true                # flash the taskbar button when input is needed or the run ends (Windows only)
   title_update: "Hermes Safe Update"
   title_check: "Hermes Update Check"
   colors:                    # SGR parameters (xterm-256: "38;5;N")
@@ -95,7 +95,7 @@ theme:
     neutral: "38;5;242"
     track: "38;5;236"
     prompt: "38;5;221;1"
-  glyphs:                    # defaults are characters the Windows Consolas font has
+  glyphs:                    # defaults are single-width characters the Windows console font (Consolas) has
     ok: "√"
     err: "×"
     warn: "!"
@@ -161,6 +161,16 @@ settings:
     - "hermes.desktop.sessionOwnerHints.v1"
     - "hermes.desktop.toolDisclosure.v1"
 
+desktop:
+  # Whether the desktop app is opened again after a run:
+  #   "auto"    only if it was running when the update started (default)
+  #   "always"  also after a verified update when it was already closed at
+  #             the start (you closed it yourself a moment before). Not in
+  #             --unattended runs: those only reopen an app they closed.
+  #   "never"   leave it closed
+  # --no-relaunch overrides all three for one run.
+  relaunch: "auto"
+
 # Hooks: your own commands at fixed points of the flow.
 #   when: "pre-close"      before Hermes is closed (after the confirmation)
 #         "post-update"    after a verified update, before Hermes reopens
@@ -169,8 +179,13 @@ settings:
 #   The hook's last output line becomes its row on the summary card. A
 #   non-zero exit or a timeout is a warning only; it never turns a verified
 #   update into a failure. Each hook gets HERMES_SAFE_UPDATE_STAGE (the
-#   `when` value) and HERMES_SAFE_UPDATE_RESULT in its environment.
+#   `when` value), HERMES_SAFE_UPDATE_RESULT, HERMES_SAFE_UPDATE_HOME (the
+#   Hermes home), HERMES_SAFE_UPDATE_CHECKOUT and HERMES_SAFE_UPDATE_PYTHON
+#   (Hermes' managed Python, looked up when the hook starts) in its
+#   environment; unknown values are empty. See docs/configuration.md.
 hooks: []
+# On macOS/Linux use an argument list too, e.g. run: ["/bin/sh", "/home/you/x.sh"].
+# "~" and "$VAR" are not expanded in run or dir.
 # BEGIN HOOK EXAMPLE
 # hooks:
 #   - name: "restore-start-tile"

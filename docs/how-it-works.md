@@ -19,13 +19,13 @@ mirror and fetch new commits and `v*` tags into the checkout's git data
 | 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`). | exit 3 |
 | 5 | close | `pre-close` hooks, graceful close with `graceful_close_s` to finish, force only after that, stop leftover backends and kernels, then claim the update-in-progress marker. | exit 3 if the app will not exit |
 | 6 | update | `hermes update --yes --keep-stash --branch main`, capped at `update_timeout_s`. Progress follows Hermes' own output lines. | |
-| 7 | verify | Gateway `code_sha` equals the checkout commit and the gateway is alive; `desktop_update_verify` passes. | result "problem": exit 1 |
+| 7 | verify | If a gateway ran before the update: its `code_sha` equals the checkout commit and it is alive (restarted if not). No gateway before: none required, none started. `desktop_update_verify` passes. | result "problem": exit 1 |
 | 8 | settings | Back up and copy desktop settings to the origin the app uses now if it changed (workaround for settings lost when the renderer moved; see settings-migration.md). | warning only |
 | 9 | hooks | `post-update` hooks (verified only), while Hermes is still closed. | warning only |
-| 10 | relaunch | Reopen the desktop app if it was running (not with `--no-relaunch`), then run the `post-relaunch` hooks. | warning only |
+| 10 | relaunch | Reopen the desktop app as `desktop.relaunch` says: `auto` if it was running, `always` also if it was already closed (verified, attended runs), `never` not at all; `--no-relaunch` beats all three. Then run the `post-relaunch` hooks. | warning only |
 | 11 | cleanup | Remove old dependency sets (Windows, verified updates only). | warning only |
 | 12 | cua | Refresh cua-driver if the update deferred it (verified updates only). | warning only |
-| 13 | summary | Summary card, timing history saved, optional mirror offer. | exit 0 verified, 1 problem |
+| 13 | summary | Summary card, timing history saved, optional mirror offer. The `Version` row counts the commits really installed (git on the old and new HEAD). After a verified update, a quick best-effort look (API, then `git ls-remote`, a few seconds) adds a `Newer` row if `main` moved meanwhile; an app that was not reopened gets a `Hermes app` row. | exit 0 verified, 1 problem |
 
 ## Nothing changes before the point of no return
 

@@ -18,6 +18,7 @@ import (
 // It still drives the estimator so timings are recorded in plain mode (D5).
 type Plain struct {
 	mu       sync.Mutex
+	version  string // tool version shown in the header (SetVersion)
 	w        io.Writer
 	con      platform.Console
 	clk      timings.Clock
@@ -48,6 +49,13 @@ func (p *Plain) println(s string) {
 	fmt.Fprintln(p.w, s)
 }
 
+// SetVersion records the tool version for the header (before Start).
+func (p *Plain) SetVersion(version string) {
+	p.mu.Lock()
+	p.version = strings.TrimSpace(version)
+	p.mu.Unlock()
+}
+
 func (p *Plain) Start(title string, steps []timings.Step, est *timings.Estimator, banners bool) {
 	p.mu.Lock()
 	p.est, p.banners = est, banners
@@ -63,8 +71,12 @@ func (p *Plain) Start(title string, steps []timings.Step, est *timings.Estimator
 			p.groups = append(p.groups, s.Group)
 		}
 	}
+	head := title
+	if p.version != "" {
+		head += " · " + p.version
+	}
 	p.mu.Unlock()
-	p.println(title)
+	p.println(head)
 }
 
 func (p *Plain) Stage(key string) {

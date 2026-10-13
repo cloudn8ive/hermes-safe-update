@@ -72,7 +72,10 @@ type Answer struct {
 // Renderer is everything the flow may show. Implementations are safe for
 // concurrent use (the update output pump and the ticker both call them).
 type Renderer interface {
-	// Start prints the header (title, date top-right) and sets up the footer.
+	// SetVersion sets the tool's own version shown in the header next to the
+	// title ("Hermes Safe Update · v0.1.2"). Call it before Start; empty = none.
+	SetVersion(version string)
+	// Start prints the header (title, version, date top-right) and sets up the footer.
 	Start(title string, steps []timings.Step, est *timings.Estimator, banners bool)
 	// Stage moves the footer to step key; prints a numbered banner when the
 	// group changes (banners on).

@@ -29,17 +29,24 @@ session id in it is made up.
 
 | OS | Architectures | Status |
 |---|---|---|
-| Windows 10 | amd64 | unit-tested; one real unattended update (started by a scheduled task) ran and verified on Windows 10 22H2 amd64, and the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. On the real update the settings step failed, because that Hermes range removed renderer-server.ts; this was fixed afterwards (file:// detection, backup when detection fails) and covered by unit tests and a read-only dry run, but no real settings migration has been run since the fix |
+| Windows 10 | amd64 | unit-tested. Many real interactive updates have run and verified on Windows 10 22H2 amd64 with v0.1.x builds, the latest on 2026-10-13 with the code of this release, and one real unattended update (started by a scheduled task); the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. The first real update (v0.1.0 development build) failed at the settings step because that Hermes range removed renderer-server.ts; this was fixed (file:// detection, backup when detection fails). Since the fix, one real update has migrated a real settings store from the old `http://127.0.0.1` origin to `file://` (with a backup), and every later real update found nothing left to migrate. No other real migration scenario has been run |
 | Windows 11 | amd64 | expected to work; not yet tested |
 | Windows 10 / 11 | arm64 | builds; not run on arm64 hardware |
 | macOS | arm64, amd64 | **untested, proceed at your own risk** |
 | Linux | amd64, arm64 | **untested, proceed at your own risk** |
 
-All targets compile (cross-compiled and vetted). The unit tests have so far
-been run on Windows only; CI will run them on macOS and Linux once the
-repository is published. Nobody has run an update with it on macOS or Linux.
-There it prints a warning and asks you to confirm before it does anything. Pass `--accept-untested` to
-skip the question (required together with `--unattended`). Reports from
+All targets compile (cross-compiled and vetted). The unit tests run in CI on
+Windows, macOS and Linux on every push, and the Linux test binaries were also
+run on a real Linux kernel (WSL2) in an audit. Nobody has run a real Hermes
+update with it on macOS or Linux; on those systems the code paths are tested
+with fakes only.
+There it prints a warning and, before a command that closes, updates or
+writes something (`run`, `mirror setup`, the settings commands), asks you to
+confirm once. Your answer (Y, or `--accept-untested`) is remembered in
+`safe-update.json`, so later runs, scheduled ones included, do not ask again;
+`--unattended` needs `--accept-untested` the first time. The look-only
+commands (`--check`, `list-backups`, `migrate-settings --dry-run`) and the
+scheduled `mirror refresh` and `mirror status` never ask. Reports from
 testers are welcome.
 
 ## Your desktop settings disappeared after updating?
@@ -139,13 +146,21 @@ success and failure reports both help.
 3. macOS blocks the first run of a downloaded, unsigned program. Clear the
    quarantine flag with `xattr -d com.apple.quarantine <file>` (or approve it
    in System Settings, Privacy & Security).
-4. It warns and asks you to confirm before it does anything (see
-   [Platforms](#platforms)).
+4. Before a command that closes or updates something it warns and asks you
+   to confirm, once (see [Platforms](#platforms)).
+5. Optional: download the shell shims `hermes-safe-update.sh` and
+   `hermes-update-check.sh`, plus `hermes-safe-update.desktop` (Linux) or the
+   two `.command` files (macOS), and put them in `~/.local/bin` next to the
+   binary. They give you a menu entry or a Finder double-click (see
+   [Shims](#shims)). `SHA256SUMS` covers them too.
 
 To build it yourself you need Go 1.26 or newer:
 `scripts/build-all.sh v0.1.0` (git-bash, macOS, Linux) or
 `powershell -File scripts\build-all.ps1 -Version v0.1.0`. Output and
-`SHA256SUMS` go to `dist/`.
+`SHA256SUMS` go to `dist/`. A version you pass is used exactly as given (that
+is how releases are built, byte for byte the same everywhere). Without one,
+or with `dev`, a local build gets a version worked out from the repository,
+see [Which version am I running?](#which-version-am-i-running).
 
 ## Quick start
 
@@ -162,7 +177,17 @@ cd $env:LOCALAPPDATA\Programs\hermes-safe-update
 .\hermes-safe-update.exe --unattended  # for a scheduled task: never asks
 ```
 
-Or double-click the shims (`hermes-update-check.cmd` is the `--check` run). If
+On macOS and Linux, in a terminal (the binary is on your `PATH`, see
+[macOS and Linux](#macos-and-linux)):
+
+```
+hermes-safe-update --check             # look only; never asks the untested-platform question
+hermes-safe-update                     # update; asks once that you accept the untested platform
+hermes-safe-update --unattended --accept-untested   # for cron, launchd or systemd (see FAQ)
+```
+
+Or double-click the shims (`hermes-update-check.cmd` is the `--check` run;
+macOS and Linux have `.command` and `.sh` equivalents, see [Shims](#shims)). If
 the folder is on PATH, drop the `.\` and the `.exe`:
 
 ```
@@ -177,6 +202,12 @@ exactly as they are. What it does write is like `git fetch`: it may refresh
 the local mirror (if you set one up) and fetch the new commits and `v*` tags
 into the checkout's git data, which makes the check accurate and the later
 update faster. It also writes its own log and timing history.
+
+The first line of every run, `--check` included, names the tool and its
+version: `Hermes Safe Update · v0.1.2` (`Hermes Update Check · v0.1.2` for
+`--check`), in a real console window and in plain text alike. The same
+version is in `hermes-safe-update --version` and on the `start` line of
+`safe-update.log`.
 
 A normal run shows a progress footer in a real console window. In a pipe, a
 scheduled task, or with `--plain` (also `TERM=dumb`,
@@ -208,20 +239,27 @@ and nothing has been changed.
 6. **Update.** It runs `hermes update --yes --keep-stash --branch main`
    with a hard time limit (90 minutes). If Hermes' own gateway pause fails
    before changing anything, it stops the gateway and retries once.
-7. **Verify.** The gateway must report the new commit and be running, and
-   Hermes' own desktop-build check must pass. Hermes' known false "fleet
+7. **Verify.** If a gateway was running before the update, it must report
+   the new commit and be running (it is started again if it is not). If none
+   was running, none is required and none is started. Hermes' own
+   desktop-build check must pass. Hermes' known false "fleet
    version" warning does not turn a good update into a failure.
 8. **Settings.** Back up and migrate the desktop settings if the address
    changed (see above). Hermes is closed at this point.
 9. **Hooks, only after a verified update:** your `post-update` hooks run
    while Hermes is still closed.
-10. **Reopen** the desktop app if it was running, then run your
+10. **Reopen** the desktop app if it was running (setting
+    `desktop.relaunch`: `always` also reopens it when you had already closed
+    it before starting the update, `never` leaves it closed; see
+    [docs/configuration.md](docs/configuration.md)), then run your
     `post-relaunch` hooks.
 11. **Housekeeping, only after a verified update:** remove old dependency
     sets, refresh the cua-driver if the update asked for it. A failure in
     a hook or here is a warning; it never turns a verified update into a
     failed one.
-12. Print a summary card and exit.
+12. Print a summary card and exit. After a verified update it also says,
+    in one line each, if `main` moved while the update ran (`Newer`), and why
+    the desktop app was not reopened (`Hermes app`).
 
 The stages in more detail: [docs/how-it-works.md](docs/how-it-works.md).
 
@@ -239,7 +277,9 @@ The stages in more detail: [docs/how-it-works.md](docs/how-it-works.md).
   refuses to kill its own process, its parents, or any tree it runs in.
 - `hermes update` runs without `--gateway`, and the checkout's `origin` is
   never rewritten. Its environment is your own, except that `HERMES_HOME` is
-  removed (for every command the tool starts) and `PYTHONIOENCODING=utf-8`
+  removed (for every command the tool starts, and it is not used to find the
+  Hermes folder either, on any OS: use `paths.hermes_home`) and
+  `PYTHONIOENCODING=utf-8`
   is added.
 - `state.db` is only ever opened read-only. Desktop settings are changed on
   a copy that is verified before it is swapped in, with a backup and
@@ -260,11 +300,15 @@ Only a **managed source checkout** is updated: `%LOCALAPPDATA%\hermes\hermes-age
 on Windows, `~/.hermes/hermes-agent` on macOS and Linux (override with
 `paths.hermes_home` / `paths.checkout`).
 
-A packaged install (macOS `Hermes.app`, Windows MSIX, AppImage, deb or rpm,
-Docker, Nix) is recognised and left alone. The tool prints which updater to
-use and exits with code 5. These detections are code plus unit tests on every
-platform; what has been run for real is stated in the [Platforms](#platforms)
-table.
+A packaged install (macOS `Hermes.app`, Windows MSIX, Docker, Nix) is
+recognised and left alone. The tool prints which updater to use and exits
+with code 5. Anything else that has no checkout at that place (an AppImage,
+a deb or rpm, a checkout in another folder) is not recognised by name: the
+tool says it found no source checkout there and suggests updating Hermes the
+way it was installed, or setting `paths.checkout`; it also exits with code 5
+and changes nothing. These detections are code plus unit tests on every
+platform; what has been run for real is stated in the
+[Platforms](#platforms) table.
 
 ## Configuration
 
@@ -279,10 +323,14 @@ never silently does nothing. Every key is explained in
 
 A hook is your own command, run at a fixed point: `pre-close`,
 `post-update` or `post-relaunch`. It is an argument list, not shell text. It
-gets `HERMES_SAFE_UPDATE_STAGE` and `HERMES_SAFE_UPDATE_RESULT` in its
-environment, and its last output line appears on the summary card. A failing
-or slow hook is a warning only. Example and details:
-[docs/configuration.md](docs/configuration.md#hooks).
+gets five variables in its environment (stage, result, the Hermes home, the
+checkout and Hermes' Python; exact meaning in
+[docs/configuration.md](docs/configuration.md#hooks)), and its last output
+line appears on the summary card. A failing or slow hook is a warning only.
+A ready-made `post-update` hook that keeps your edited bundled skills up to
+date lives in [examples/hooks/bundled-skill-merge](examples/hooks/bundled-skill-merge)
+(Windows `.cmd` and macOS/Linux `.sh` wrappers; tested on Windows and, in
+WSL2, on Linux; not on a Mac).
 
 ## Local mirror (optional)
 
@@ -299,7 +347,8 @@ up (never with `--unattended`); answer `N` to stop being asked.
 ## Settings backups
 
 `backup-settings` makes a backup on demand and `list-backups` lists them.
-Backups live in `<hermes home>\backups\settings-<UTC date-time>\`, and the
+Backups live in `<hermes home>\backups\settings-<UTC date-time>\` (macOS and
+Linux: `<hermes home>/backups/settings-<UTC date-time>/`), and the
 newest 3 are kept (`settings.backup_retention`). Merge rules and revert:
 [docs/settings-migration.md](docs/settings-migration.md).
 
@@ -336,16 +385,32 @@ changed.
 
 ## Shims
 
-`scripts\hermes-safe-update.cmd` runs `hermes-safe-update.exe` (found next to
-the shim, else in `%LOCALAPPDATA%\Programs\hermes-safe-update`, else on
-PATH), sets the window title, passes all arguments through, prints the exit
-code and log location, and waits for a key. It exits with code 2 if it finds
-no exe. `scripts\hermes-update-check.cmd` does the same with `--check`. Use
-them as targets for a Start menu link or desktop shortcut.
+A shim is a small launcher script for a shortcut or menu entry. It finds the
+tool, sets the window title, passes all arguments through, prints the exit
+code and log location, and waits for a key so the window stays open. It
+exits with code 2 if it cannot find the tool. Each OS has its own pair; the
+look-only one (`hermes-update-check`) is the same run with `--check`. The
+tool itself never creates or changes shortcuts, Start menu entries or menu
+entries; you add them as below.
+
+**Windows.** `scripts\hermes-safe-update.cmd` runs `hermes-safe-update.exe`
+(found next to the shim, else in `%LOCALAPPDATA%\Programs\hermes-safe-update`,
+else on PATH). `scripts\hermes-update-check.cmd` adds `--check`.
+
+**macOS and Linux.** `scripts/hermes-safe-update.sh` runs the
+`hermes-safe-update` binary (found next to the shim, else in `~/.local/bin`,
+else on PATH); `scripts/hermes-update-check.sh` adds `--check`. Like the
+`.cmd` shim it clears `HERMES_HOME`, so it always updates the default
+install. Set `HERMES_SAFE_UPDATE_NO_PAUSE=1` to skip the final "Press Enter".
+From a terminal you can run the binary directly instead. Tested so far: the
+`.sh` and `.command` shims run in automated tests on Linux (dash, and bash in
+POSIX mode, which is what macOS uses for `sh`), and the `.desktop` entry
+passes `desktop-file-validate`. Neither has been tried in a real Linux
+desktop session or on a Mac yet.
 
 ### Shortcuts
 
-Desktop shortcut:
+**Windows.** Desktop shortcut:
 
 1. Right-click the desktop, New, Shortcut.
 2. Target: `%LOCALAPPDATA%\Programs\hermes-safe-update\hermes-safe-update.cmd`
@@ -361,14 +426,64 @@ Or in PowerShell, one shortcut per shim:
 $t="$env:LOCALAPPDATA\Programs\hermes-safe-update\hermes-safe-update.cmd"; $l=(New-Object -ComObject WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Safe Hermes update.lnk"); $l.TargetPath=$t; $l.WorkingDirectory=Split-Path $t; $l.Save()
 ```
 
+**Linux.** `scripts/hermes-safe-update.desktop` is an application menu entry
+("Hermes Safe Update", with "Hermes Update Check (look only)" as its
+right-click action). It opens a terminal and runs the two `.sh` shims from
+`~/.local/bin`; if you keep them elsewhere, edit the two `Exec=` lines.
+
+```
+cp hermes-safe-update.desktop ~/.local/share/applications/
+```
+
+It is this tool's own entry; Hermes' entry (`com.nousresearch.hermes.desktop`)
+belongs to Hermes and is left alone.
+
+**macOS.** There is no Start menu to add to. Double-click
+`hermes-safe-update.command` (or `hermes-update-check.command`) in Finder;
+it opens Terminal and runs the shim next to it, so keep the `.command` and
+`.sh` files together. Make the `.command` files runnable once and clear the
+download flag:
+
+```
+cd ~/.local/bin
+chmod +x hermes-safe-update.command hermes-update-check.command
+xattr -d com.apple.quarantine hermes-safe-update.command hermes-update-check.command
+```
+
+Drag a `.command` file to the Dock (right part, next to the Trash) for a
+one-click launcher.
+
 ## Updating the tool
 
 1. Close the tool if it is running. Do not replace it during an update.
 2. Download the new release and check its hash as in [Install](#install).
 3. Replace `hermes-safe-update.exe` (and the two shims, if you use them) in
-   the install folder.
+   the install folder. On macOS and Linux replace the binary in
+   `~/.local/bin` (and the shims, if you use them), run `chmod +x` on it again,
+   and on macOS clear the quarantine flag again (see [macOS and
+   Linux](#macos-and-linux)).
 
 Your config, the machine state and the settings backups stay as they are.
+
+## Which version am I running?
+
+Look at the first line of any run, run `hermes-safe-update --version`, or
+read the `start` line of `safe-update.log` (`version=...`). A release prints
+just its version, for example `v0.1.2`. A binary built from a checkout
+between releases prints where it comes from:
+
+| It prints | It means |
+| --- | --- |
+| `v0.1.2` | the release itself |
+| `v0.1.2+25.3a8a2c7` | 25 commits after v0.1.2, built at commit `3a8a2c7` |
+| `v0.1.2+25.3a8a2c7.dirty` | the same, with uncommitted changes to tracked files |
+| `dev+3a8a2c7` | a plain `go build` in a checkout (Go stamps the commit; `.dirty` is added for local changes) |
+| `dev` | no version information at all (a source archive built without the scripts) |
+
+The `+25` counts commits since the tag `v0.1.2` if the repository has it,
+otherwise since the commit that added the `## [0.1.2]` section to
+`CHANGELOG.md`. `scripts/build-all.sh` and `scripts/build-all.ps1` work this
+out with `scripts/dev-version.sh` and `scripts/dev-version.ps1`.
 
 ## Uninstall
 
@@ -376,7 +491,9 @@ Uninstalling does not touch Hermes or its settings.
 
 1. Delete the install folder `%LOCALAPPDATA%\Programs\hermes-safe-update`
    (or wherever you put the exe and shims), and any shortcuts you made. If you
-   added it to PATH, remove that entry too.
+   added it to PATH, remove that entry too. On macOS and Linux delete the
+   binary and the shims from `~/.local/bin`, any Dock item, and on Linux
+   `~/.local/share/applications/hermes-safe-update.desktop`.
 2. If you ran `mirror setup`, remove its refresh job and folder:
    - `hermes cron list` shows the job, named "Hermes update mirror refresh"
      (or the `mirror.job_name` you set). Remove it with `hermes cron remove <id>`.
@@ -408,7 +525,8 @@ that app.
 optional steps (the gateway pause probe and dependency cleanup). If that
 Python is missing, those steps are skipped or reported as unknown; see the log.
 
-**Where is the log?** `<hermes home>\logs\safe-update.log`. Your home folder
+**Where is the log?** `<hermes home>\logs\safe-update.log` (macOS and Linux:
+`<hermes home>/logs/safe-update.log`, by default `~/.hermes/logs/`). Your home folder
 appears as `~` and the local app-data folder as `%LOCALAPPDATA%`. Session
 titles and ids never go into the log (the screen shows them; the log only
 counts busy sessions), and neither does the mirror folder. Commit hashes,
@@ -420,21 +538,38 @@ matching runs, and from built-in numbers before there is any history. The
 desktop build is the slow part, several minutes. With little history it says
 "rough" (see Known limitations).
 
-**Can I schedule it?** It is meant for that
-(`hermes-safe-update --unattended --no-elevate`; `--no-elevate` means it
-never shows an admin prompt), but it has not yet been tried as a scheduled
-task.
+**Can I schedule it?** Yes, it is meant for that: use `--unattended`. One
+unattended update started by a Windows scheduled task has run and verified
+(see [Platforms](#platforms)); nothing else has been tried as a scheduled job.
+
+- Windows: `hermes-safe-update --unattended --no-elevate` (`--no-elevate`
+  means it never shows an admin prompt; it has no effect elsewhere).
+- macOS and Linux (cron, a launchd agent or a systemd timer; all untested):
+  run `hermes-safe-update --unattended --accept-untested`, with the full path
+  to the binary because a scheduler has a short `PATH`. The first run records
+  that you accept the untested platform in `safe-update.json`, so later jobs
+  may drop `--accept-untested`; without it and without that record an
+  unattended run stops with exit 3. On Linux a scheduler has no desktop
+  session: the tool then does not reopen the desktop app (it says why) and
+  the settings step ends with a warning that Electron needs a graphical
+  session; the update itself is not affected. If the scheduler stops the job
+  (a timeout, `systemctl stop`, a closed terminal), `SIGTERM`/`SIGHUP` end
+  the run like Ctrl+C and the update marker is released. The Hermes cron job
+  of `mirror setup` runs `mirror refresh`, which never asks the
+  untested-platform question.
 
 ## Troubleshooting
 
 - **Exit 5, "not a source checkout".** Your Hermes is a packaged install, or
   the home folder is not where the tool looks. Set `paths.hermes_home`.
-- **Exit 2.** The `hermes` launcher is missing from `<hermes home>\bin`.
-  Check `paths.hermes_home`.
+- **Exit 2.** The `hermes` launcher was not found. Windows: it is expected in
+  `<hermes home>\bin`. macOS and Linux: in `<checkout>/.hermes/bin/hermes`,
+  `~/.local/bin/hermes` or `<hermes home>/bin/hermes`. Check
+  `paths.hermes_home`.
 - **Exit 4.** Read the STOP line in the output or log: marker held by
   another update, less than `tunables.min_free_gb` free, the update check
   failed (offline?), or the updater was started from inside a Hermes chat
-  (run it from a normal terminal or the Start menu; updating would stop the
+  (run it from a normal terminal or a shortcut; updating would stop the
   process that runs it. `--check` works anywhere).
 - **Exit 3 after waiting.** Sessions stayed busy for 30 minutes. Nothing was
   changed. Try again when idle, or raise `tunables.idle_wait_max_s`.
@@ -449,8 +584,9 @@ task.
   `--dry-run` and read the first line (`from X to Y`). If the target is
   wrong, pass `--origin http://127.0.0.1:PORT`. Go back with
   `revert-settings`.
-- **Garbled symbols in the progress display.** Use Windows Terminal, run with
-  `--plain`, or change `theme.glyphs`.
+- **Garbled symbols in the progress display.** On Windows use Windows
+  Terminal; on macOS and Linux use a terminal with a UTF-8 locale and a font
+  that has the symbols. Or run with `--plain`, or change `theme.glyphs`.
 
 ## License
 

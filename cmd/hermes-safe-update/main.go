@@ -27,7 +27,9 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/update"
 )
 
-// version is set at build time: -ldflags "-X main.version=v0.1.0".
+// version is set at build time: -ldflags "-X main.version=v0.1.0". Release
+// builds pass the release tag; local builds get a derived one from
+// scripts/dev-version.sh|ps1 (see version.go for what "dev" turns into).
 var version = "dev"
 
 // environment is everything main touches from the outside world, so tests
@@ -45,7 +47,17 @@ type environment struct {
 	sleep   func(ctx context.Context, d time.Duration) error // replaces real waits in the flow
 	apiBase string                                           // GitHub API base URL (main: real; tests: httptest; empty: none)
 	newUI   func(cfg *config.Config, w io.Writer) ui.Renderer
-	selfPID int // pid placed in the fake process table (0 = os.Getpid())
+	selfPID int    // pid placed in the fake process table (0 = os.Getpid())
+	ver     string // tool version to show (tests pin it; "" = resolveVersion of the build)
+}
+
+// toolVersion is the version the tool reports on screen, in --version and in
+// the log.
+func (env *environment) toolVersion() string {
+	if env.ver != "" {
+		return env.ver
+	}
+	return resolveVersion(version, readBuildInfo)
 }
 
 // now is the clock of the run (the real one unless a test injects one).
@@ -57,7 +69,7 @@ func (env *environment) now() time.Time {
 }
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
 	code := run(ctx, os.Args[1:], &environment{
 		platform: platform.New(),
 		getenv:   os.Getenv,
@@ -81,10 +93,10 @@ func run(ctx context.Context, args []string, env *environment) int {
 	}
 	switch o.command {
 	case "version":
-		fmt.Fprintf(env.stdout, "hermes-safe-update %s (%s)\n", version, env.platform.OS)
+		fmt.Fprintf(env.stdout, "hermes-safe-update %s (%s)\n", env.toolVersion(), env.platform.OS)
 		return apperr.OK
 	case "help":
-		fmt.Fprintf(env.stdout, helpText, version)
+		fmt.Fprintf(env.stdout, helpText, env.toolVersion())
 		return apperr.OK
 	}
 
@@ -97,7 +109,7 @@ func run(ctx context.Context, args []string, env *environment) int {
 	}
 	log, closeLog := openLog(cfg, env)
 	defer closeLog()
-	log.Info("start", slog.String("version", version), slog.String("command", o.command), slog.String("os", env.platform.OS))
+	log.Info("start", slog.String("version", env.toolVersion()), slog.String("command", o.command), slog.String("os", env.platform.OS))
 	if cfg.MachineErr != nil {
 		log.Warn("machine state unreadable", slog.String("error", cfg.MachineErr.Error()))
 	}
@@ -105,7 +117,7 @@ func run(ctx context.Context, args []string, env *environment) int {
 	if o.command == "mirror refresh" {
 		cfg.Run.Unattended = true // cron: never prompt
 	}
-	if err := untestedGate(ctx, cfg, env); err != nil {
+	if err := untestedGate(ctx, o, cfg, env, log); err != nil {
 		log.Warn("untested platform not accepted")
 		return fail(env, err)
 	}
@@ -232,21 +244,46 @@ func openLog(cfg *config.Config, env *environment) (*slog.Logger, func()) {
 	return slog.New(logx.NewHandler(f, level, red)), func() { _ = f.Close() }
 }
 
-// untestedGate asks once on platforms where nothing was run for real
-// (macOS, Linux). --accept-untested skips it; --unattended without it stops.
-func untestedGate(ctx context.Context, cfg *config.Config, env *environment) error {
+// gateExempt lists the commands that never close, update or write anything
+// of Hermes, so the untested-platform question does not apply: `mirror
+// refresh` (what the Hermes cron job runs; with the gate it would exit 3,
+// silently, on every scheduled run on macOS/Linux), `mirror status`,
+// `check` (pre-flight only: reads the install, the process table and the
+// session databases, may `git fetch` into the checkout's git data, and
+// leaves HEAD, the working tree and the running app alone), `list-backups`
+// and `migrate-settings --dry-run`. Everything that closes, updates or
+// writes (run, the settings commands, mirror setup) stays gated.
+func gateExempt(o options) bool {
+	switch o.command {
+	case "mirror refresh", "mirror status", "check", "list-backups":
+		return true
+	case "migrate-settings":
+		return o.dryRun
+	}
+	return false
+}
+
+// untestedGate asks once per machine on platforms where nothing was run for
+// real (macOS, Linux). Accepting (Y, or --accept-untested) is remembered in
+// safe-update.json, so later runs, scheduled ones included, do not ask.
+// Without a remembered acceptance --unattended needs --accept-untested.
+func untestedGate(ctx context.Context, o options, cfg *config.Config, env *environment, log *slog.Logger) error {
 	p := env.platform
-	if p.Tested || cfg.Run.AcceptUntested {
+	if p.Tested || gateExempt(o) || cfg.Machine.UntestedAccepted(p.OS) {
+		return nil
+	}
+	if cfg.Run.AcceptUntested {
+		rememberUntested(cfg, env, log)
 		return nil
 	}
 	msg := fmt.Sprintf("hermes-safe-update has only been tested on Windows. On %s it is untested: "+
 		"it may close, update or relaunch Hermes incorrectly. Proceed at your own risk.", p.OS)
 	if cfg.Run.Unattended {
-		return fmt.Errorf("%w: %s Pass --accept-untested to run unattended", apperr.ErrUntestedDeclined, msg)
+		return fmt.Errorf("%w: %s Pass --accept-untested once to run unattended (it is remembered on this machine)", apperr.ErrUntestedDeclined, msg)
 	}
 	r := ui.NewPlain(env.stderr, p.Console)
 	a, err := r.Prompt(ctx, ui.PromptSpec{
-		Text:         msg + " Press Y to continue, N to stop.",
+		Text:         msg + " Press Y to continue (you will not be asked again on this machine), N to stop.",
 		Keys:         []rune{'y', 'n'},
 		Timeout:      cfg.Tunables.ConfirmTimeout(),
 		AbortOnCtrlC: true,
@@ -257,5 +294,32 @@ func untestedGate(ctx context.Context, cfg *config.Config, env *environment) err
 	if a.Key != 'y' {
 		return fmt.Errorf("%w (pass --accept-untested to skip this question)", apperr.ErrUntestedDeclined)
 	}
+	rememberUntested(cfg, env, log)
 	return nil
+}
+
+// rememberUntested writes the acceptance into safe-update.json (re-read
+// first, so nothing another process saved in between is lost). A failure
+// only means the question comes again next time.
+func rememberUntested(cfg *config.Config, env *environment, log *slog.Logger) {
+	home := env.home(cfg)
+	if home == "" {
+		return
+	}
+	path := filepath.Join(home, "safe-update.json")
+	st, err := config.LoadMachineState(path)
+	if err != nil {
+		st = cfg.Machine // unreadable: SaveMachineState keeps the old file aside
+	}
+	st.AcceptUntested(env.platform.OS, env.now())
+	err = os.MkdirAll(home, 0o755)
+	if err == nil {
+		err = config.SaveMachineState(path, st)
+	}
+	if err != nil {
+		log.Warn("could not remember the untested-platform acceptance", slog.String("error", err.Error()))
+		fmt.Fprintf(env.stderr, "note: could not save your answer (%v); you will be asked again next time\n", err)
+		return
+	}
+	cfg.Machine = st
 }

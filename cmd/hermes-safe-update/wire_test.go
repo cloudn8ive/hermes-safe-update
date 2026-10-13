@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cloudn8ive/hermes-safe-update/internal/apperr"
+	"github.com/cloudn8ive/hermes-safe-update/internal/config"
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
 )
@@ -66,6 +67,7 @@ func (s *synthHome) cli(args ...string) int {
 		stdout:   &s.out,
 		stderr:   &s.errb,
 		runner:   s.run,
+		ver:      testToolVersion,
 	}
 	return run(context.Background(), args, env)
 }
@@ -86,6 +88,13 @@ func TestCheckRunsTheFlowAndChangesNothing(t *testing.T) {
 		if !strings.Contains(all, want) {
 			t.Errorf("output lacks %q:\n%s", want, all)
 		}
+	}
+	// the tool's own version: first line on screen, and in the log
+	if first := strings.SplitN(all, "\n", 2)[0]; first != "Hermes Update Check · "+testToolVersion {
+		t.Errorf("first line = %q", first)
+	}
+	if lg, err := os.ReadFile(filepath.Join(s.home, "logs", "safe-update.log")); err != nil || !strings.Contains(string(lg), "version="+testToolVersion) {
+		t.Errorf("log start line lacks version=%s (err %v):\n%s", testToolVersion, err, lg)
 	}
 	for _, c := range s.run.Calls() {
 		if len(c.Argv) > 2 && c.Argv[1] == "update" && c.Argv[2] == "--yes" {
@@ -158,6 +167,136 @@ func TestMirrorRefreshWithoutMirrorIsSilentZero(t *testing.T) {
 	s := newSynthHome(t)
 	if code := s.cli("mirror", "refresh"); code != 0 || s.out.Len() != 0 {
 		t.Errorf("exit %d stdout %q", code, s.out.String())
+	}
+}
+
+// The cron shim runs `mirror refresh` with no flags. On macOS/Linux the
+// untested-platform gate used to run first and exit 3 on every scheduled run.
+func TestScheduledMirrorRefreshSkipsTheUntestedGate(t *testing.T) {
+	for _, args := range [][]string{{"mirror", "refresh"}, {"mirror", "status"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			s := newSynthHome(t)
+			s.plat.OS, s.plat.Tested = "linux", false
+			if code := s.cli(args...); code != 0 {
+				t.Fatalf("exit %d (want 0)\n%s", code, s.errb.String())
+			}
+			if strings.Contains(s.errb.String(), "untested") {
+				t.Errorf("gate fired: %s", s.errb.String())
+			}
+		})
+	}
+}
+
+// Everything that closes, updates or writes stays behind the gate.
+func TestUntestedGateStillCoversCommandsThatChangeThings(t *testing.T) {
+	for _, args := range [][]string{{"run"}, {"mirror", "setup"}, {"migrate-settings"}, {"backup-settings"}, {"revert-settings"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			s := newSynthHome(t)
+			s.plat.OS, s.plat.Tested = "linux", false
+			code := s.cli(append([]string{"--unattended"}, args...)...)
+			if code != apperr.Cancelled || !strings.Contains(s.errb.String(), "untested") {
+				t.Errorf("exit %d, stderr %q (want %d + untested notice)", code, s.errb.String(), apperr.Cancelled)
+			}
+			if c := s.run.Calls(); len(c) != 0 {
+				t.Errorf("ran %v before the gate", c)
+			}
+		})
+	}
+}
+
+// The look-only commands never ask: the README calls --check safe anywhere.
+func TestUntestedGateSkipsTheLookOnlyCommands(t *testing.T) {
+	for _, args := range [][]string{{"check"}, {"--check"}, {"list-backups"}, {"migrate-settings", "--dry-run"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			s := newSynthHome(t)
+			s.plat.OS, s.plat.Tested = "linux", false
+			s.cli(append([]string{"--plain", "--unattended"}, args...)...)
+			if strings.Contains(s.errb.String(), "untested") {
+				t.Errorf("gate fired: %s", s.errb.String())
+			}
+		})
+	}
+}
+
+func savedAcceptance(t *testing.T, s *synthHome) map[string]string {
+	t.Helper()
+	st, err := config.LoadMachineState(filepath.Join(s.home, "safe-update.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st.AcceptedUntested
+}
+
+// "One-time" is true: --accept-untested is remembered in safe-update.json,
+// and a later unattended run (a scheduler) does not stop at the question.
+func TestAcceptUntestedFlagIsRemembered(t *testing.T) {
+	s := newSynthHome(t)
+	s.plat.OS, s.plat.Tested = "linux", false
+	if code := s.cli("--unattended", "run"); code != apperr.Cancelled {
+		t.Fatalf("before accepting: exit %d, want %d", code, apperr.Cancelled)
+	}
+	if acc := savedAcceptance(t, s); len(acc) != 0 {
+		t.Fatalf("a refused run saved %v", acc)
+	}
+	s.errb.Reset()
+	s.cli("--plain", "--unattended", "--accept-untested", "run")
+	if acc := savedAcceptance(t, s); acc["linux"] == "" {
+		t.Fatalf("acceptance not saved: %v", acc)
+	}
+	s.errb.Reset()
+	s.cli("--plain", "--unattended", "run")
+	if strings.Contains(s.errb.String(), "untested") {
+		t.Errorf("asked again after accepting: %s", s.errb.String())
+	}
+}
+
+func TestAnsweringYIsRemembered(t *testing.T) {
+	s := newSynthHome(t)
+	s.plat.OS, s.plat.Tested = "linux", false
+	s.plat.Console = &platform.FakeConsole{Keys: []platform.Key{{Rune: 'y'}}}
+	s.cli("--plain", "run")
+	if acc := savedAcceptance(t, s); acc["linux"] == "" {
+		t.Fatalf("Y not saved: %v", acc)
+	}
+	s.errb.Reset()
+	s.plat.Console = &platform.FakeConsole{} // no key available: a second question would fail
+	s.cli("--plain", "run")
+	if strings.Contains(s.errb.String(), "untested") {
+		t.Errorf("asked again after Y: %s", s.errb.String())
+	}
+}
+
+func TestAnsweringNIsNotRemembered(t *testing.T) {
+	s := newSynthHome(t)
+	s.plat.OS, s.plat.Tested = "linux", false
+	s.plat.Console = &platform.FakeConsole{Keys: []platform.Key{{Rune: 'n'}}}
+	if code := s.cli("--plain", "run"); code != apperr.Cancelled {
+		t.Fatalf("exit %d", code)
+	}
+	if acc := savedAcceptance(t, s); len(acc) != 0 {
+		t.Errorf("N saved %v", acc)
+	}
+}
+
+// The acceptance belongs to the OS it was given for, and saving it keeps
+// the rest of safe-update.json.
+func TestAcceptanceIsPerOSAndKeepsOtherState(t *testing.T) {
+	s := newSynthHome(t)
+	j := filepath.Join(s.home, "safe-update.json")
+	if err := os.WriteFile(j, []byte(`{"mirror":{"path":"/m","set_up":"x"},"accepted_untested":{"darwin":"2026-01-01T00:00:00Z"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.plat.OS, s.plat.Tested = "linux", false
+	if code := s.cli("--unattended", "run"); code != apperr.Cancelled {
+		t.Fatalf("a macOS acceptance must not cover Linux: exit %d", code)
+	}
+	s.cli("--plain", "--unattended", "--accept-untested", "run")
+	st, err := config.LoadMachineState(j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mirror == nil || st.Mirror.Path != "/m" || !st.UntestedAccepted("darwin") || !st.UntestedAccepted("linux") {
+		t.Errorf("state after save: %+v", st)
 	}
 }
 

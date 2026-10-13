@@ -9,12 +9,19 @@ respective owners. They are used here only to say which software this tool
 works with.
 
 Hermes Agent (https://github.com/NousResearch/hermes-agent) is released
-under the MIT License by Nous Research. hermes-safe-update does not include
-Hermes Agent source code. It runs the user's own installed copy of Hermes
-(its launcher, its bundled Python and its bundled Electron) and reads files
-that Hermes writes. Small pieces of text that Hermes prints (progress lines,
-a few error messages) are matched as data and listed in
-internal/hermes/contracts.go.
+under the MIT License by Nous Research (Copyright (c) 2025 Nous Research).
+The hermes-safe-update binaries do not include Hermes Agent source code. They
+run the user's own installed copy of Hermes (its launcher, its bundled Python
+and its bundled Electron) and read files that Hermes writes. Small pieces of
+text that Hermes prints (progress lines, a few error messages) are matched as
+data and listed in internal/hermes/contracts.go.
+
+The source repository also holds an example hook,
+examples/hooks/bundled-skill-merge (not part of the binaries or the release
+archives). It imports the user's installed Hermes code at run time. Two short
+functions in it (read_manifest and set_manifest_entry) re-implement the
+manifest format and read/write idiom of Hermes Agent's tools/skills_sync.py;
+that idiom is MIT-licensed, Copyright (c) 2025 Nous Research.
 
 Third-party Go modules. The binaries contain the modules below; each keeps
 its own license. The full copyright and license text of every one is in

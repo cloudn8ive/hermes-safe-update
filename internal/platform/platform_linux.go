@@ -5,6 +5,7 @@ package platform
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/sys/unix"
 )
@@ -20,11 +21,19 @@ func New() *Platform {
 	return newUnixPlatform("linux",
 		func(ctx context.Context) ([]Process, error) { return readProcTable(ctx, "/proc") },
 		func(pid int) bool { return procIsZombie("/proc", pid) },
-		func() []string {
+		func() []mountPoint {
 			b, err := os.ReadFile("/proc/mounts")
 			if err != nil {
-				return []string{"/"}
+				return []mountPoint{{Root: "/", Fixed: true}}
 			}
-			return parseMounts(string(b))
+			var out []mountPoint
+			for _, m := range parseMountDevs(string(b)) {
+				dev := m.Dev
+				if real, err := filepath.EvalSymlinks(dev); err == nil {
+					dev = real // /dev/disk/by-uuid/... and /dev/mapper/... are symlinks
+				}
+				out = append(out, mountPoint{Root: m.Root, Fixed: m.Root == "/" || !blockRemovable("/sys", dev)})
+			}
+			return out
 		})
 }

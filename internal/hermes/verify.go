@@ -53,6 +53,10 @@ type VerifyInput struct {
 	Gateway  GatewayState
 	Alive    bool // gateway pid alive
 	VerifyRC int  // 0 when VerifyDesktop reported ok, non-zero otherwise
+	// NoGateway: no gateway ran before the update, so none is required
+	// afterwards (a desktop-only install must not end in PROBLEM because no
+	// messaging gateway is up). Gateway and Alive are then ignored.
+	NoGateway bool
 }
 
 // VerifyResult is the verdict plus its log line.
@@ -67,13 +71,16 @@ type VerifyResult struct {
 // warning (exit 1 + KnownFalseFleet text) counts as OK only when the
 // gateway runs the new code and the desktop build verified.
 func EvaluateUpdate(in VerifyInput) VerifyResult {
-	r := VerifyResult{CodeOK: in.Head != "" && in.Gateway.CodeSHA == in.Head && in.Alive}
+	r := VerifyResult{CodeOK: in.NoGateway || (in.Head != "" && in.Gateway.CodeSHA == in.Head && in.Alive)}
 	switch {
 	case in.RC == 0 && r.CodeOK && in.VerifyRC == 0:
 		r.OK, r.Line = true, "RESULT: OK"
 	case in.RC == 1 && strings.Contains(in.Output, KnownFalseFleet) && r.CodeOK && in.VerifyRC == 0:
 		r.OK, r.KnownFalseFleet = true, true
 		r.Line = "RESULT: OK (updater exited 1 on the known false fleet warning #93406; gateway verified on new code)"
+		if in.NoGateway {
+			r.Line = "RESULT: OK (updater exited 1 on the known false fleet warning #93406; no gateway was running)"
+		}
 	default:
 		r.Line = fmt.Sprintf("RESULT: PROBLEM (update rc=%d, gateway on new code=%t, desktop verify rc=%d)", in.RC, r.CodeOK, in.VerifyRC)
 	}

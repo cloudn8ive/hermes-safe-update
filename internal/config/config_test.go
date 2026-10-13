@@ -513,3 +513,44 @@ func TestBadFlagValuesAreValidated(t *testing.T) {
 		t.Errorf("negative --delay should fail validation: %v", err)
 	}
 }
+
+func TestDesktopRelaunchPolicy(t *testing.T) {
+	if got := Defaults().Desktop.Relaunch; got != RelaunchAuto {
+		t.Errorf("default = %q, want %q (the behaviour before the key existed)", got, RelaunchAuto)
+	}
+	for _, v := range []string{RelaunchAuto, RelaunchAlways, RelaunchNever} {
+		y := writeFile(t, t.TempDir(), "safe-update.yaml", "desktop:\n  relaunch: \""+v+"\"\n")
+		cfg, err := Load(LoadOptions{YAMLPath: y, Getenv: noEnv})
+		if err != nil || cfg.Desktop.Relaunch != v {
+			t.Errorf("%q: got %q, %v", v, cfg.Desktop.Relaunch, err)
+		}
+	}
+	// an unrelated section leaves the default alone
+	y := writeFile(t, t.TempDir(), "safe-update.yaml", "logging:\n  level: \"debug\"\n")
+	if cfg, err := Load(LoadOptions{YAMLPath: y, Getenv: noEnv}); err != nil || cfg.Desktop.Relaunch != RelaunchAuto {
+		t.Errorf("untouched section: %q, %v", cfg.Desktop.Relaunch, err)
+	}
+}
+
+func TestDesktopRelaunchBadValueNamesTheLine(t *testing.T) {
+	for _, v := range []string{"sometimes", "Always", "true", ""} {
+		y := writeFile(t, t.TempDir(), "safe-update.yaml", "tunables:\n  min_free_gb: 7\ndesktop:\n  relaunch: \""+v+"\"\n")
+		_, err := Load(LoadOptions{YAMLPath: y, Getenv: noEnv})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Fatalf("%q: want *ValidationError, got %v", v, err)
+		}
+		if len(ve.Problems) != 1 || ve.Problems[0].Path != "desktop.relaunch" || ve.Problems[0].Line != 4 {
+			t.Errorf("%q: problems = %+v", v, ve.Problems)
+		}
+		if !strings.Contains(err.Error(), "safe-update.yaml:4: desktop.relaunch: must be one of auto, always, never") {
+			t.Errorf("%q: error text %q", v, err.Error())
+		}
+	}
+	// a misspelt key is still an unknown-key error with its line
+	y := writeFile(t, t.TempDir(), "safe-update.yaml", "desktop:\n  relaunc: \"always\"\n")
+	_, err := Load(LoadOptions{YAMLPath: y, Getenv: noEnv})
+	if err == nil || !strings.Contains(err.Error(), "relaunc") || !strings.Contains(err.Error(), "line 2") {
+		t.Errorf("misspelt key: %v", err)
+	}
+}

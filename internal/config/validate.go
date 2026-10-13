@@ -133,6 +133,12 @@ func (f File) Validate() error {
 		}
 	}
 
+	switch f.Desktop.Relaunch {
+	case RelaunchAuto, RelaunchAlways, RelaunchNever:
+	default:
+		add("desktop.relaunch", "must be one of auto, always, never (got %q)", f.Desktop.Relaunch)
+	}
+
 	names := map[string]bool{}
 	for i, h := range f.Hooks {
 		base := fmt.Sprintf("hooks[%d]", i)
@@ -148,7 +154,7 @@ func (f File) Validate() error {
 			add(base+".when", "must be one of pre-close, post-update, post-relaunch (got %q)", h.When)
 		}
 		if len(h.Run) == 0 || strings.TrimSpace(h.Run[0]) == "" {
-			add(base+".run", "must be a non-empty argv list, e.g. [\"powershell.exe\", \"-File\", \"x.ps1\"]")
+			add(base+".run", "must be a non-empty argv list, e.g. [\"/bin/sh\", \"/abs/x.sh\"] or [\"powershell.exe\", \"-File\", \"x.ps1\"]")
 		}
 		nonNeg(base+".timeout_s", h.TimeoutS)
 	}

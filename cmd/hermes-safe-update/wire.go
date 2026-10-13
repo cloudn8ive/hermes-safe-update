@@ -68,7 +68,10 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(he
 		p := env.platform
 		r := env.run()
 		markers := p.Paths.DesktopProcessMarkers()
-		d.Classify = func(proc platform.Process) string { return hermes.Classify(proc, in.Home, in.Checkout, markers) }
+		appDirs := hermes.MacAppDirs(p.Paths.PackagedInstallHints(pathEnv(env)))
+		d.Classify = func(proc platform.Process) string {
+			return hermes.ClassifyIn(proc, in.Home, in.Checkout, markers, appDirs)
+		}
 		d.Sessions = &hermes.SQLiteSessions{Home: in.Home, Now: env.now}
 		gw := &hermes.CLIGateway{Home: in.Home, Launcher: in.Launcher, Python: in.Python, Checkout: in.Checkout,
 			Run: r, Procs: p.Procs, GOOS: p.OS}
@@ -83,8 +86,11 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(he
 		d.CUA = cua.New(cua.Deps{Runner: r, Launcher: in.Launcher, Autostart: p.Autostart, Home: in.Home,
 			Log: func(s string) { log.Info(s) }})
 		d.Mirror = newMirror(cfg, env, in, log)
+		d.ManagedPython = func() string { return hermes.ManagedPython(p.Paths, in.Home) }
 		d.Hooks = &update.ExecHooks{Runner: r, Hooks: cfg.Hooks, Dir: in.Home, Procs: p.Procs}
-		d.SpawnMirrorSetup = func(ctx context.Context) error { return spawnMirrorSetup(env.exe()) }
+		if spawnsOwnWindow {
+			d.SpawnMirrorSetup = func(ctx context.Context) error { return spawnMirrorSetup(env.exe()) }
+		}
 		d.LogPath = filepath.Join(in.Home, "logs", "safe-update.log")
 		d.TimingsPath = filepath.Join(in.Home, "logs", "safe-update-timings.json")
 		d.Settings = newSettings(cfg, env, in)
@@ -122,6 +128,7 @@ func runFlow(mode update.Mode) func(context.Context, options, *config.Config, *e
 			r = ui.New(cfg, env.platform, env.stderr, env.getenv)
 		}
 		defer r.Close()
+		r.SetVersion(env.toolVersion())
 		d := update.Deps{
 			Config: cfg, Platform: env.platform, Runner: env.run(), Log: log, UI: r, Clock: env.clock, Sleep: env.sleep,
 			Locator: newLocator(cfg, env), Wire: wireInstall(cfg, env, log), Mode: mode, SelfPID: env.selfPID, Getenv: env.getenv,

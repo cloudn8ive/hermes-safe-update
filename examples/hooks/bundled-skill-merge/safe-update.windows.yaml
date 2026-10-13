@@ -1,0 +1,7 @@
+# Add this to safe-update.yaml (%LOCALAPPDATA%\hermes\safe-update.yaml) and change the path to where
+# you put this folder. The hook runs after a verified update, while Hermes is still closed.
+hooks:
+  - name: "Skill merge"
+    when: "post-update"
+    run: ["cmd.exe", "/c", 'C:\Users\you\hermes-hooks\bundled-skill-merge\bundled-skill-merge.cmd']
+    timeout_s: 240

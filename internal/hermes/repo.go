@@ -84,6 +84,24 @@ func (r *GitRepo) DirtyCount(ctx context.Context) (int, error) {
 	return n, nil
 }
 
+// CommitCount counts the commits reachable from `to` but not from `from`.
+// Only full 40-character SHAs are accepted, so an odd value can never be
+// read by git as an option or a ref name.
+func (r *GitRepo) CommitCount(ctx context.Context, from, to string) (int, bool) {
+	if len(from) != fullSHALen || len(to) != fullSHALen {
+		return 0, false
+	}
+	res, err := r.run(ctx, gitTimeout, "rev-list", "--count", from+".."+to)
+	if err != nil || res.TimedOut || res.Code != 0 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(res.Output))
+	if err != nil || n < 0 {
+		return 0, false
+	}
+	return n, true
+}
+
 // DiffKinds decides from `git diff --quiet` exit codes only (rule 18: stderr
 // carries unrelated pack warnings, so output is never parsed). 0 = unchanged,
 // 1 = changed, anything else (including a timeout) = unknown.

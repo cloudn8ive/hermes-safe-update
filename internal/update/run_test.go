@@ -112,6 +112,10 @@ func (g *fakeGateway) Start(context.Context) error {
 type fakeRepo struct {
 	mu   sync.Mutex
 	head string
+	// CommitCount answers; countOK=false = git cannot say.
+	count   int
+	countOK bool
+	counted [][2]string // every CommitCount(from, to)
 }
 
 func (r *fakeRepo) Head(context.Context) (string, string, error) {
@@ -123,6 +127,12 @@ func (r *fakeRepo) DirtyCount(context.Context) (int, error) { return 0, nil }
 func (r *fakeRepo) DiffKinds(context.Context) (*bool, *bool) {
 	f := false
 	return &f, &f
+}
+func (r *fakeRepo) CommitCount(_ context.Context, from, to string) (int, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.counted = append(r.counted, [2]string{from, to})
+	return r.count, r.countOK
 }
 func (r *fakeRepo) set(h string) { r.mu.Lock(); r.head = h; r.mu.Unlock() }
 
@@ -235,12 +245,15 @@ type harness struct {
 	update    func(n int) execx.Result // n = 1-based call count of `hermes update`
 	updateCmd execx.Cmd                // the last `hermes update` Cmd
 	mirror    mirror.Service
+	spawn     func(context.Context) error // SpawnMirrorSetup (nil = macOS/Linux)
 	ctx       context.Context
 	wrap      execx.Runner      // replaces runner when set
 	logSink   io.Writer         // receives the run's log (default: discarded)
 	env       map[string]string // updater's environment (nil = empty)
 	selfPID   int               // the updater's pid in the fake process table (0 = real)
 	exists    func(string) bool // FileExists (nil = everything exists)
+
+	managedPython func() string // Deps.ManagedPython (nil = the install's value)
 }
 
 func desktopProc() platform.Process {
@@ -342,29 +355,31 @@ func (h *harness) run(flags ...string) error {
 			h.clock.Advance(dd)
 			return ctx.Err()
 		},
-		Locator:  fakeLocator{in: h.install, err: h.locErr},
-		Sessions: h.sessions,
-		Gateway:  h.gw,
-		Repo:     repo,
-		Verifier: h.verifier,
-		Settings: h.settings,
-		GC:       h.gc,
-		CUA:      h.cua,
-		Hooks:    &ExecHooks{Runner: runner, Hooks: h.cfg.Hooks, Dir: tHome, Procs: h.plat.Procs},
-		Mirror:   h.mirror,
-		Marker:   h.marker,
+		Locator:          fakeLocator{in: h.install, err: h.locErr},
+		Sessions:         h.sessions,
+		Gateway:          h.gw,
+		Repo:             repo,
+		Verifier:         h.verifier,
+		Settings:         h.settings,
+		GC:               h.gc,
+		CUA:              h.cua,
+		Hooks:            &ExecHooks{Runner: runner, Hooks: h.cfg.Hooks, Dir: tHome, Procs: h.plat.Procs},
+		Mirror:           h.mirror,
+		SpawnMirrorSetup: h.spawn,
+		Marker:           h.marker,
 		Classify: func(p platform.Process) string {
 			return hermes.Classify(p, tHome, tHome+`\hermes-agent`, []string{"win-unpacked"})
 		},
 		FileExists: func(p string) bool {
 			return h.exists == nil || h.exists(p)
 		},
-		Mode:        h.mode,
-		SelfPID:     h.selfPID,
-		Getenv:      func(k string) string { return h.env[k] },
-		Title:       "Hermes Safe Update",
-		TimingsPath: h.timings,
-		LogPath:     tHome + `\logs\safe-update.log`,
+		ManagedPython: h.managedPython,
+		Mode:          h.mode,
+		SelfPID:       h.selfPID,
+		Getenv:        func(k string) string { return h.env[k] },
+		Title:         "Hermes Safe Update",
+		TimingsPath:   h.timings,
+		LogPath:       tHome + `\logs\safe-update.log`,
 	}
 	r := NewRun(d)
 	ctx := h.ctx
@@ -729,6 +744,38 @@ func TestPackagedInstallExits5(t *testing.T) {
 	h.mustContain("App Installer feed")
 }
 
+// An install the tool cannot classify used to print "is a unknown, not a
+// managed source checkout: ." with the advice empty.
+func TestUnknownInstallSaysWhatWasLookedAt(t *testing.T) {
+	for name, in := range map[string]hermes.Install{
+		"no advice from the locator": {Kind: hermes.KindUnknown, Checkout: "/h/hermes-agent"},
+		"no checkout path either":    {Kind: hermes.KindUnknown},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			h.install = in
+			err := h.run()
+			if apperr.ExitCode(err) != apperr.NotCheckout {
+				t.Fatalf("err=%v", err)
+			}
+			out := h.output()
+			for _, bad := range []string{"is a unknown", ": ."} {
+				if strings.Contains(out, bad) || strings.Contains(err.Error(), bad) {
+					t.Errorf("malformed wording %q:\n%s\n%v", bad, out, err)
+				}
+			}
+			for _, want := range []string{"no Hermes source checkout found at", "paths.checkout"} {
+				if !strings.Contains(out, want) || !strings.Contains(err.Error(), want) {
+					t.Errorf("want %q in both the output and the error:\n%s\n%v", want, out, err)
+				}
+			}
+			if in.Checkout != "" && !strings.Contains(out, in.Checkout) {
+				t.Errorf("the folder that was looked at is not named:\n%s", out)
+			}
+		})
+	}
+}
+
 func TestLauncherMissingExits2(t *testing.T) {
 	h := newHarness(t)
 	h.locErr = apperr.ErrLauncherMissing
@@ -850,11 +897,38 @@ type fakeMirror struct {
 	mirror.Service
 	st       mirror.Status
 	declined bool
+
+	seed        *mirror.SeedResult // nil = "no mirror set up"
+	stAfterSeed *mirror.Status     // what Status() says once Seed has run
+	seeded      bool
+
+	newer         mirror.Newer // NewerThan answer
+	newerOK       bool
+	newerCalls    int
+	newerHead     string
+	newerCheckout string
+	newerDeadline bool // the context had a deadline of a few seconds
 }
 
-func (m *fakeMirror) Status() mirror.Status { return m.st }
+func (m *fakeMirror) Status() mirror.Status {
+	if m.seeded && m.stAfterSeed != nil {
+		return *m.stAfterSeed
+	}
+	return m.st
+}
 func (m *fakeMirror) Seed(context.Context, string) mirror.SeedResult {
+	m.seeded = true
+	if m.seed != nil {
+		return *m.seed
+	}
 	return mirror.SeedResult{Reason: "no mirror set up"}
+}
+func (m *fakeMirror) NewerThan(ctx context.Context, checkout, head string) (mirror.Newer, bool) {
+	m.newerCalls++
+	m.newerHead, m.newerCheckout = head, checkout
+	dl, ok := ctx.Deadline()
+	m.newerDeadline = ok && time.Until(dl) <= 10*time.Second
+	return m.newer, m.newerOK
 }
 func (m *fakeMirror) APICompare(context.Context, string) *mirror.Compare { return nil }
 func (m *fakeMirror) Location(context.Context) (string, float64, string) {
@@ -1118,7 +1192,7 @@ func TestStartedFromGatewayChatStopsBeforeClosing(t *testing.T) {
 			if h.updates != 0 || len(h.app.Calls()) != 0 || h.gw.stops != 0 {
 				t.Errorf("changed something: updates=%d app=%v", h.updates, h.app.Calls())
 			}
-			h.mustContain("Run this from a normal terminal or the Start menu, not from inside a Hermes chat")
+			h.mustContain("Run this from a normal terminal or a shortcut, not from inside a Hermes chat")
 		})
 	}
 }
@@ -1179,7 +1253,7 @@ func TestBrokenChainWithSessionEnvStops(t *testing.T) {
 			if h.updates != 0 || len(h.app.Calls()) != 0 || h.gw.stops != 0 {
 				t.Errorf("changed something: updates=%d app=%v", h.updates, h.app.Calls())
 			}
-			h.mustContain("Run this from a normal terminal or the Start menu, not from inside a Hermes chat")
+			h.mustContain("Run this from a normal terminal or a shortcut, not from inside a Hermes chat")
 		})
 	}
 }
@@ -1214,5 +1288,87 @@ func TestCheckWithChatEnvStillWorks(t *testing.T) {
 	}
 	if strings.Contains(h.output(), "inside a Hermes chat") {
 		t.Error("check refused")
+	}
+}
+
+// ---- gateway is only required when one ran before the update ----
+
+// A desktop-only install (no gateway before the update) must end in OK and
+// must not get a messaging gateway started.
+func TestDesktopOnlyInstallDoesNotNeedOrStartAGateway(t *testing.T) {
+	h := newHarness(t)
+	h.procs.Remove(200)                // no gateway process
+	h.gw.state = hermes.GatewayState{} // and no gateway_state.json
+	h.con.Keys = []platform.Key{key('y')}
+	if err := h.run(); err != nil {
+		t.Fatalf("err = %v\n%s", err, h.output())
+	}
+	if h.gw.starts != 0 || h.gw.stops != 0 {
+		t.Errorf("gateway touched: starts=%d stops=%d", h.gw.starts, h.gw.stops)
+	}
+	h.mustContain("RESULT: OK", "not running before the update")
+	if strings.Contains(h.output(), "RESULT: PROBLEM") {
+		t.Errorf("PROBLEM for a desktop-only install:\n%s", h.output())
+	}
+}
+
+// A gateway that ran before the update and is gone afterwards is still
+// restarted, and the run still fails when it does not come back on the new
+// code (the existing behaviour for users who run a gateway).
+func TestGatewayThatRanBeforeIsStillRequiredAndRestarted(t *testing.T) {
+	for name, setup := range map[string]func(h *harness){
+		"classified gateway process": func(h *harness) {},
+		"live pid in gateway_state.json only": func(h *harness) {
+			// not a process the classifier claims (POSIX venv symlink case)
+			h.procs.Remove(200)
+			h.procs.Add(platform.Process{PID: 200, Name: "python3", Cmdline: "/usr/bin/python3 /opt/x/main.py"})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			setup(h)
+			h.gw.onStart = nil // the restart does not bring it back on the new code
+			h.update = func(int) execx.Result {
+				h.repo.set(newSHA) // HEAD moves, the gateway dies and stays on the old code
+				h.procs.Remove(200)
+				return execx.Result{Output: "Update complete! (v1.0 → v1.1)"}
+			}
+			h.con.Keys = []platform.Key{key('y')}
+			err := h.run()
+			if !errors.Is(err, apperr.ErrUpdateProblem) {
+				t.Fatalf("err = %v\n%s", err, h.output())
+			}
+			if h.gw.starts == 0 {
+				t.Error("the gateway that ran before was not restarted")
+			}
+			h.mustContain("RESULT: PROBLEM")
+		})
+	}
+}
+
+// The close request is one polite signal to the Electron main process only.
+// On Linux that is SIGTERM, which Electron turns into app.quit() exactly
+// once (its handler resets itself, so a second SIGTERM would kill the app
+// without before-quit), and signalling renderer/GPU helpers makes the main
+// process crash during quit. Classify never counts --type= helpers; this
+// keeps the close stage from ever asking twice or asking a helper.
+func TestCloseAsksTheMainProcessOnceAndNeverAHelper(t *testing.T) {
+	h := newHarness(t)
+	for pid, typ := range map[int]string{101: "renderer", 102: "gpu-process", 103: "utility"} {
+		h.procs.Add(platform.Process{PID: pid, PPID: 100, Name: "Hermes.exe",
+			Cmdline: `"` + tDesktop + `" --type=` + typ})
+	}
+	h.con.Keys = []platform.Key{key('y')}
+	if err := h.run(); err != nil {
+		t.Fatalf("err = %v\n%s", err, h.output())
+	}
+	var closes []string
+	for _, c := range h.app.Calls() {
+		if strings.HasPrefix(c, "close ") || strings.HasPrefix(c, "force ") {
+			closes = append(closes, c)
+		}
+	}
+	if len(closes) != 1 || closes[0] != "close 100" {
+		t.Errorf("close/force calls = %v, want exactly [close 100]", closes)
 	}
 }

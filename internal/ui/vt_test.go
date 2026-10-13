@@ -650,7 +650,7 @@ func TestOutputGutterRemarkAndHiding(t *testing.T) {
 			t.Errorf("Output(%q):\n got %q\nwant %q", c.in, line, "  "+c.want)
 		}
 	}
-	for _, hidden := range []string{"", "   ", "Tip: You can now select a provider and model:", "  hermes model              # Select provider and model", "run hermes computer-use install --upgrade later"} {
+	for _, hidden := range []string{"", "   ", "Tip: You can now select a provider and model:", "  hermes model              # Select provider and model"} {
 		m := h.mark()
 		h.r.Output(hidden)
 		if got := h.since(m); got != "" {
@@ -955,5 +955,49 @@ func TestStageOutOfOrderStaysInBuildGroup(t *testing.T) {
 	h.r.Stage("finalize")
 	if p := strip(h.since(m)); !strings.Contains(p, "5/5  ") {
 		t.Errorf("last banner: %q", p)
+	}
+}
+
+// The header carries the tool's own version after the title, dim, and keeps
+// the date flush right at the same width as without a version (update run
+// and --check alike).
+func TestHeaderShowsToolVersionAndKeepsWidth(t *testing.T) {
+	for _, cols := range []int{80, 120} {
+		for _, check := range []bool{false, true} {
+			h := newHarness(t, cols, true)
+			h.r.SetVersion("v0.1.2+25.3a8a2c7")
+			title := "Hermes Safe Update"
+			if check {
+				h.startCheck()
+				title = "Hermes Update Check"
+			} else {
+				h.startUpdate(true)
+			}
+			hdr := strings.Split(strip(h.out()), "\n")[1]
+			want := "    ♦ " + title + " · v0.1.2+25.3a8a2c7"
+			if !strings.HasPrefix(hdr, want) || !strings.HasSuffix(hdr, "Thu 1 Oct") {
+				t.Errorf("cols %d check=%v: header = %q, want prefix %q", cols, check, hdr, want)
+			}
+			if got, w := runeLen(hdr), 2+cols-1-4; got != w {
+				t.Errorf("cols %d check=%v: header width = %d, want %d", cols, check, got, w)
+			}
+			if !strings.Contains(h.out(), "\x1b["+h.r.col().Dim+"m · v0.1.2+25.3a8a2c7\x1b[0m") {
+				t.Errorf("cols %d: version segment is not dim: %q", cols, h.out())
+			}
+			// the footer rule and console title keep the bare title
+			if strings.Contains(strip(strings.Join(h.r.footer(), "\n")), "v0.1.2") {
+				t.Errorf("cols %d: footer must not carry the version", cols)
+			}
+		}
+	}
+}
+
+func TestHeaderWithoutVersionIsUnchanged(t *testing.T) {
+	h := newHarness(t, 80, true)
+	h.r.SetVersion("  ")
+	h.startUpdate(true)
+	hdr := strings.Split(strip(h.out()), "\n")[1]
+	if strings.Contains(hdr, "·") {
+		t.Errorf("empty version must add nothing: %q", hdr)
 	}
 }

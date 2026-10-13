@@ -163,3 +163,26 @@ func TestProcessAliveAdapter(t *testing.T) {
 		t.Error("alive adapter wrong (pid <= 0 must be dead)")
 	}
 }
+
+func TestEvaluateUpdateNoGatewayBefore(t *testing.T) {
+	const head = "4e7403130ee278bd99c450fcd9f73c6b32135c95"
+	fleet := "x\nFleet version check returned no rows\ny"
+	for _, c := range []struct {
+		name   string
+		in     VerifyInput
+		wantOK bool
+	}{
+		{"no gateway needed", VerifyInput{RC: 0, Head: head, NoGateway: true}, true},
+		{"known false fleet warning", VerifyInput{RC: 1, Output: fleet, Head: head, NoGateway: true}, true},
+		{"update itself failed", VerifyInput{RC: 1, Head: head, NoGateway: true}, false},
+		{"desktop verify failed", VerifyInput{RC: 0, Head: head, NoGateway: true, VerifyRC: 1}, false},
+		{"without NoGateway a missing gateway is a problem", VerifyInput{RC: 0, Head: head}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := EvaluateUpdate(c.in)
+			if r.OK != c.wantOK {
+				t.Errorf("got %+v", r)
+			}
+		})
+	}
+}

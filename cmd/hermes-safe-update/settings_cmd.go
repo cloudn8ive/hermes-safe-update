@@ -18,6 +18,8 @@ func newSettings(cfg *config.Config, env *environment, in hermes.Install) *setti
 	return settings.New(settings.Deps{
 		Install: in, Settings: cfg.Settings, Procs: env.platform.Procs,
 		DesktopMarkers: env.platform.Paths.DesktopProcessMarkers(), Runner: env.run(), Now: env.now,
+		DesktopAppDirs: hermes.MacAppDirs(env.platform.Paths.PackagedInstallHints(pathEnv(env))),
+		GOOS:           env.platform.OS, Getenv: env.getenv,
 	})
 }
 

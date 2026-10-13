@@ -32,15 +32,15 @@ func envGet(env Env, key string) string {
 	return strings.TrimSpace(env.Getenv(key))
 }
 
-// HermesHome is $HERMES_HOME, else <userData override>/hermes-home when
+// HermesHome is <userData override>/hermes-home when
 // HERMES_DESKTOP_USER_DATA_DIR is set, else ~/.hermes plus the literal
-// HERMES_DATA_DIR_SUFFIX (data-paths.mjs). A HERMES_HOME inside
-// "profiles/<name>" names the parent as the home. Untested on a real
-// macOS or Linux machine.
+// HERMES_DATA_DIR_SUFFIX (data-paths.mjs). Like Windows (and like the
+// Python updater and the launcher shims) it ignores HERMES_HOME: every child
+// the tool starts has HERMES_HOME removed (execx.Environ), so honouring it
+// here would watch one home while `hermes update` ran against another. A
+// home elsewhere is set with paths.hermes_home. Untested on a real macOS or
+// Linux machine.
 func (p unixPaths) HermesHome(env Env) (string, error) {
-	if h := envGet(env, "HERMES_HOME"); h != "" {
-		return normalizeHome(h), nil
-	}
 	if ud := envGet(env, "HERMES_DESKTOP_USER_DATA_DIR"); ud != "" {
 		return path.Join(path.Clean(ud), "hermes-home"), nil
 	}
@@ -48,15 +48,6 @@ func (p unixPaths) HermesHome(env Env) (string, error) {
 		return "", errNoHome
 	}
 	return path.Join(env.UserHome, ".hermes") + envGet(env, "HERMES_DATA_DIR_SUFFIX"), nil
-}
-
-func normalizeHome(h string) string {
-	h = path.Clean(h)
-	parent := path.Dir(h)
-	if strings.EqualFold(path.Base(parent), "profiles") {
-		return path.Dir(parent)
-	}
-	return h
 }
 
 // UserData is the Electron userData dir of the stable "Hermes" app:
@@ -85,7 +76,7 @@ func (p unixPaths) UserData(env Env) (string, error) {
 }
 
 // LauncherCandidates follows upstream's desktop update shim: the checkout's
-// .hermes/bin/hermes, ~/.local/bin/hermes, then $HERMES_HOME/bin/hermes.
+// .hermes/bin/hermes, ~/.local/bin/hermes, then <home>/bin/hermes.
 // Never venv/bin/hermes. Untested on a real macOS or Linux machine.
 func (p unixPaths) LauncherCandidates(env Env, home, checkout string) []string {
 	var out []string

@@ -170,7 +170,16 @@ func (a *unixApp) IsRunning(pid int) bool { return a.procs.Alive(pid) }
 // RequestClose asks the app to quit without waiting. macOS: a normal Cmd+Q
 // through AppleScript addressed by bundle id (this reaches every copy with
 // that id, and falls back to SIGTERM to pid if osascript fails). Linux:
-// SIGTERM to the main pid only, never the process group. On macOS, if pid is
+// SIGTERM to the main pid only, never the process group and never an
+// Electron helper (--type=): Electron installs a SIGTERM handler in its main
+// process that runs app.quit() (before-quit, window close, will-quit), but it
+// resets itself after the first signal, so a second SIGTERM kills the app
+// without that, and a SIGTERM to a renderer/GPU helper kills it at once and
+// takes the main process down with a FATAL. Checked with a synthetic app on
+// Electron 40.10.2 under Linux (WSL2 Debian, Xvfb): SIGTERM to the main pid
+// gave before-quit, will-quit, quit, exit 0 and all Local Storage writes
+// on disk; SIGTERM to every pid crashed the main process (SIGTRAP). Not run
+// with Hermes' own desktop app or in a real desktop session. On macOS, if pid is
 // already gone this returns nil without running osascript, because
 // `tell application ... to quit` launches an app that is not running.
 // osascript can also block on the macOS Automation (TCC) permission prompt

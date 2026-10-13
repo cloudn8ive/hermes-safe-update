@@ -16,6 +16,7 @@ type File struct {
 	Theme    Theme    `yaml:"theme"`
 	Mirror   Mirror   `yaml:"mirror"`
 	Settings Settings `yaml:"settings"`
+	Desktop  Desktop  `yaml:"desktop"`
 	Hooks    []Hook   `yaml:"hooks"`
 	Logging  Logging  `yaml:"logging"`
 }
@@ -149,6 +150,23 @@ type Settings struct {
 	Origin          string   `yaml:"origin"`           // default: detected from the installed build
 	KeepNew         []string `yaml:"keep_new"`         // live-state keys: the new origin's value stays
 	Union           []string `yaml:"union"`            // session-keyed maps/pair lists: union, new wins per entry
+}
+
+// Relaunch policies for the desktop app after a run (Desktop.Relaunch).
+const (
+	// RelaunchAuto reopens the app only if it was running when the update
+	// started (the default, and the behaviour before the key existed).
+	RelaunchAuto = "auto"
+	// RelaunchAlways also reopens it after a verified update when it was
+	// already closed at the start (attended runs only).
+	RelaunchAlways = "always"
+	// RelaunchNever leaves the app closed.
+	RelaunchNever = "never"
+)
+
+// Desktop configures what happens to the desktop app after the update.
+type Desktop struct {
+	Relaunch string `yaml:"relaunch"` // auto | always | never
 }
 
 // HookWhen names the point in the flow at which a hook runs.

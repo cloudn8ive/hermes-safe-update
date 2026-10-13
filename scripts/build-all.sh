@@ -2,14 +2,22 @@
 # Build release binaries for every supported target into dist/ and write
 # dist/SHA256SUMS. Works in git-bash on Windows and on Linux/macOS CI.
 #
-#   scripts/build-all.sh [VERSION]      (default: git describe, else "dev")
+#   scripts/build-all.sh [VERSION]
+#
+# A release passes its version explicitly (scripts/build-all.sh v0.1.2) and
+# gets exactly that string, so the dev repo and the public clone build
+# byte-identical binaries. Without VERSION (or with "dev") a local build
+# gets a derived one such as v0.1.2+25.3a8a2c7[.dirty] (scripts/dev-version.sh).
 #
 # Targets = the platforms Hermes itself runs on (see docs/design.md).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-VERSION="${1:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
+VERSION="${1:-dev}"
+if [ "$VERSION" = dev ]; then
+  VERSION=$(bash scripts/dev-version.sh 2>/dev/null || echo dev)
+fi
 NAME=hermes-safe-update
 TARGETS="windows/amd64 windows/arm64 darwin/arm64 darwin/amd64 linux/amd64 linux/arm64"
 
@@ -30,8 +38,14 @@ done
 # Licence notices travel with the binaries (BSD-3 terms in docs/third-party.md).
 cp LICENSE NOTICE docs/third-party.md dist/
 
-# The two Windows launcher shims ship as release assets too (hashed as checked out).
-cp scripts/hermes-safe-update.cmd scripts/hermes-update-check.cmd dist/
+# The launcher shims ship as release assets too (hashed as checked out):
+# .cmd for Windows; .sh, .command (macOS Finder) and .desktop (Linux) for
+# macOS and Linux. Keep this list in step with build-all.ps1 (a test checks).
+cp scripts/hermes-safe-update.cmd scripts/hermes-update-check.cmd \
+  scripts/hermes-safe-update.sh scripts/hermes-update-check.sh \
+  scripts/hermes-safe-update.command scripts/hermes-update-check.command \
+  scripts/hermes-safe-update.desktop dist/
+chmod +x dist/*.sh dist/*.command
 
 cd dist
 files=$(ls | grep -v '^SHA256SUMS$')

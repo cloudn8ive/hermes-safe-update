@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,13 +82,21 @@ func stepAside(ctx context.Context, r *Run) error {
 	}
 	r.Facts.Install = in
 	if in.Kind != hermes.KindCheckout {
-		r.info("This Hermes install is a %s, not a managed source checkout: %s.", in.Kind, in.StepAside)
-		return fmt.Errorf("%w (%s): %s", apperr.ErrNotCheckout, in.Kind, in.StepAside)
+		r.info("%s", notCheckoutLine(in))
+		return fmt.Errorf("%w (%s): %s", apperr.ErrNotCheckout, in.Kind, in.Advice())
 	}
 	if r.Wire != nil {
 		r.Wire(in, &r.Deps)
 	}
 	return nil
+}
+
+// notCheckoutLine is the one-line reason for stepping aside.
+func notCheckoutLine(in hermes.Install) string {
+	if in.Kind == hermes.KindUnknown {
+		return fmt.Sprintf("Not a managed Hermes source checkout: %s.", in.Advice())
+	}
+	return fmt.Sprintf("This Hermes install is a %s, not a managed source checkout: %s.", in.Kind, in.Advice())
 }
 
 // ---- 1 local (§2.2 1-5) ----
@@ -230,6 +239,12 @@ func (r *Run) checkForUpdates(ctx context.Context) hermes.UpdateCheck {
 		if st.OK && r.Facts.HeadFull != "" {
 			res := r.Mirror.Seed(ctx, in.Checkout)
 			if res.Used {
+				// Re-read the status: a refresh inside the seed moved
+				// LastOK, and the pre-flight copy above is older than that.
+				st = r.Mirror.Status()
+				r.Facts.MirrorState = &st
+				r.Facts.MirrorRefreshed, r.Facts.MirrorCurrent = res.Refreshed, res.Current
+				r.Facts.CheckedAt = r.Clock.Now()
 				proof := "not proven"
 				if res.Complete {
 					proof = "yes"
@@ -379,7 +394,7 @@ func (r *Run) chatAncestor(procs []platform.Process) (platform.Process, bool) {
 	return platform.Process{}, false
 }
 
-const insideChatMessage = "Run this from a normal terminal or the Start menu, not from inside a Hermes chat: updating would stop the process that runs it."
+const insideChatMessage = "Run this from a normal terminal or a shortcut, not from inside a Hermes chat: updating would stop the process that runs it."
 
 // chatEnv is the second inside-a-chat signal, for when the parent chain is
 // broken (an intermediate process such as `start` or an MSYS shell already
@@ -419,6 +434,7 @@ func stageProcs(ctx context.Context, r *Run) error {
 		}
 	}
 	r.Facts.Procs = r.count(e.procs)
+	r.recordGatewayBefore()
 	r.rows(ui.Row{Key: "running", Value: runningText(r.Facts.Procs)})
 	if r.Facts.Procs[hermes.ClassGateway] > 0 && r.Gateway != nil {
 		if !e.probed {
@@ -430,6 +446,8 @@ func stageProcs(ctx context.Context, r *Run) error {
 			r.info("gateway pause check: OK (%s)", e.info)
 		case hermes.GateBlocked:
 			r.info("gateway pause check: BLOCKED (%s). The update will stop the gateway first and start it again afterwards.", e.info)
+		case hermes.GateNotApplicable:
+			r.info("gateway pause check: not applicable on this OS")
 		default:
 			r.info("gateway pause check: unknown (%s)", e.info)
 		}
@@ -438,6 +456,24 @@ func stageProcs(ctx context.Context, r *Run) error {
 		return fmt.Errorf("%w: not enough free disk space", apperr.ErrPreflightStop)
 	}
 	return nil
+}
+
+// recordGatewayBefore notes whether a gateway ran before the update: a
+// classified gateway process, or a live pid in gateway_state.json (covers a
+// gateway the process classifier does not claim). Verify only requires and
+// restarts a gateway that was running.
+func (r *Run) recordGatewayBefore() {
+	before := r.Facts.Procs[hermes.ClassGateway] > 0
+	if !before && r.Gateway != nil {
+		before = hermes.AliveFunc(r.Platform.Procs)(r.Gateway.State().PID)
+	}
+	r.Facts.GatewayKnown, r.Facts.GatewayBefore = true, before
+}
+
+// gatewayNotRequired: pre-flight saw no gateway, so verification neither
+// waits for one nor starts one.
+func (r *Run) gatewayNotRequired() bool {
+	return r.Facts.GatewayKnown && !r.Facts.GatewayBefore && !r.Facts.GateStopped
 }
 
 // ---- 4 wait (§2.7 1-3, D2, D3) ----
@@ -733,6 +769,13 @@ func (r *Run) leftoverSets() []hermes.GCLocked {
 	return left
 }
 
+// cuaHandled reports whether this run does the deferred cua-driver refresh
+// itself (after verification). Without logon-task support (macOS, Linux) the
+// cua service does nothing, so Hermes' own hint has to reach the user.
+func (r *Run) cuaHandled() bool {
+	return r.CUA != nil && r.Platform != nil && r.Platform.Autostart != nil && r.Platform.Autostart.Supported()
+}
+
 // displayLine filters `hermes update` output for the screen ("" = hide).
 func displayLine(line string) string {
 	switch {
@@ -760,7 +803,7 @@ func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 
 	last := r.Clock.Now()
 	var lastMu = &r.mu
-	filter := &outputFilter{}
+	filter := &outputFilter{cuaHintStays: !r.cuaHandled()}
 	stopWatch := make(chan struct{})
 	go func() { // silence watchdog: one note per silent stretch
 		t := time.NewTicker(watchdogPoll)
@@ -857,7 +900,7 @@ func (r *Run) ensureGatewayRunning(ctx context.Context) {
 		return
 	}
 	if err := r.Gateway.Start(ctx); err != nil {
-		r.warn("gateway could not be restarted: %v (run: hermes gateway start --all)", err)
+		r.warn("gateway could not be restarted: %v (start it with: hermes gateway start)", err)
 		return
 	}
 	r.info("gateway restarted")
@@ -871,6 +914,7 @@ func stageVerify(ctx context.Context, r *Run) error {
 	if r.Repo != nil {
 		_, head, _ = r.Repo.Head(ctx)
 	}
+	r.Facts.HeadAfter = head
 	if r.Facts.GateStopped && r.Gateway != nil {
 		if gws, err := r.procsOf(ctx, hermes.ClassGateway); err == nil && len(gws) == 0 {
 			err := r.Gateway.Start(ctx)
@@ -879,7 +923,11 @@ func stageVerify(ctx context.Context, r *Run) error {
 	}
 	var st hermes.GatewayState
 	alive := false
-	if r.Gateway != nil {
+	noGateway := r.gatewayNotRequired()
+	if noGateway {
+		r.info("no gateway was running before the update; not checking or starting one")
+		r.rows(ui.Row{Key: "gateway", Value: "not running before the update (left alone)"})
+	} else if r.Gateway != nil {
 		w := hermes.GatewayWait{
 			State: r.Gateway.State, Alive: hermes.AliveFunc(r.Platform.Procs),
 			Sleep: func(d time.Duration) { _ = r.Sleep(ctx, d) },
@@ -895,7 +943,9 @@ func stageVerify(ctx context.Context, r *Run) error {
 			alive = hermes.AliveFunc(r.Platform.Procs)(st.PID)
 		}
 	}
-	r.rows(ui.Row{Key: "gateway", Value: gatewayText(head, st, alive)})
+	if !noGateway {
+		r.rows(ui.Row{Key: "gateway", Value: gatewayText(head, st, alive)})
+	}
 	vok, vout := false, "no verifier"
 	if r.Verifier != nil {
 		vok, vout = r.Verifier.VerifyDesktop(ctx)
@@ -909,6 +959,7 @@ func stageVerify(ctx context.Context, r *Run) error {
 	}
 	res := hermes.EvaluateUpdate(hermes.VerifyInput{
 		RC: r.Facts.UpdateRC, Output: r.Facts.UpdateOutput, Head: head, Gateway: st, Alive: alive, VerifyRC: vrc,
+		NoGateway: noGateway,
 	})
 	r.Facts.Verified = res.OK
 	r.Facts.VerifyLine = res.Line
@@ -970,8 +1021,23 @@ func stageSettings(ctx context.Context, r *Run) error {
 
 // ---- 9 relaunch (§2.10) ----
 
+// relaunchDue applies desktop.relaunch. "auto" reopens an app that was
+// running when the update started (as before the key existed); "always"
+// also reopens one that was already closed, but only after a verified
+// update and never in an unattended run (those only give back what they
+// took); "never" leaves it closed. --no-relaunch beats all three.
 func (r *Run) relaunchDue() bool {
-	return r.Facts.Closed && r.Facts.DesktopWas && !r.Config.Run.NoRelaunch && !r.relaunchTried
+	f := r.Facts
+	if !f.Closed || r.Config.Run.NoRelaunch || r.relaunchTried {
+		return false
+	}
+	switch r.Config.Desktop.Relaunch {
+	case config.RelaunchNever:
+		return false
+	case config.RelaunchAlways:
+		return f.DesktopWas || (f.Verified && !r.Config.Run.Unattended && f.Install.Desktop != "")
+	}
+	return f.DesktopWas
 }
 
 func stageRelaunch(ctx context.Context, r *Run) error {
@@ -988,14 +1054,17 @@ func (r *Run) relaunch(ctx context.Context) {
 	exe := r.Facts.Install.Desktop
 	if exe == "" || !r.FileExists(exe) {
 		r.warn("desktop exe missing: %s (run: hermes desktop --force-build)", exe)
+		r.Facts.NotReopened = "the desktop app file is missing; run: hermes desktop --force-build"
 		return
 	}
 	if ok, why := r.Platform.App.CanLaunch(exe); !ok {
 		r.note("desktop app not reopened: %s", why)
+		r.Facts.NotReopened = why
 		return
 	}
 	if err := r.Platform.App.Launch(ctx, exe, nil); err != nil {
 		r.warn("could not reopen the desktop app: %v", err)
+		r.Facts.NotReopened = "it could not be started (see above)"
 		return
 	}
 	r.Facts.Relaunched = true
@@ -1074,14 +1143,47 @@ func stageHooks(ctx context.Context, r *Run) error {
 	return nil
 }
 
+// absOrEmpty is p when it is an absolute path, else "": a hook gets a path it
+// can use from any working directory, or nothing.
+func absOrEmpty(p string) string {
+	if p == "" || !filepath.IsAbs(p) {
+		return ""
+	}
+	return p
+}
+
+// hookEnv is the environment contract of every hook (README, Hooks). The
+// variables are only ever added, never renamed or removed. All of them are
+// always set; an unknown value is the empty string.
+//
+//	HERMES_SAFE_UPDATE_STAGE    the hook's `when` value
+//	HERMES_SAFE_UPDATE_RESULT   verified | problem | unknown (pre-close)
+//	HERMES_SAFE_UPDATE_HOME     the Hermes home (the root, not a profile)
+//	HERMES_SAFE_UPDATE_CHECKOUT the source checkout being updated
+//	HERMES_SAFE_UPDATE_PYTHON   Hermes' managed Python, looked up now
+func (r *Run) hookEnv(when config.HookWhen, result string) map[string]string {
+	in := r.Facts.Install
+	python := in.Python
+	if r.ManagedPython != nil {
+		// Asked at the hook point, not taken from pre-flight: the update
+		// replaces the interpreter (its folder name carries a version).
+		python = r.ManagedPython()
+	}
+	return map[string]string{
+		"HERMES_SAFE_UPDATE_STAGE":    string(when),
+		"HERMES_SAFE_UPDATE_RESULT":   result,
+		"HERMES_SAFE_UPDATE_HOME":     absOrEmpty(in.Home),
+		"HERMES_SAFE_UPDATE_CHECKOUT": absOrEmpty(in.Checkout),
+		"HERMES_SAFE_UPDATE_PYTHON":   absOrEmpty(python),
+	}
+}
+
 // runHooks runs one point's hooks; problems are WARN rows only.
 func (r *Run) runHooks(ctx context.Context, when config.HookWhen, result string) {
 	if r.Hooks == nil {
 		return
 	}
-	outs := r.Hooks.Run(ctx, when, map[string]string{
-		"HERMES_SAFE_UPDATE_STAGE": string(when), "HERMES_SAFE_UPDATE_RESULT": result,
-	})
+	outs := r.Hooks.Run(ctx, when, r.hookEnv(when, result))
 	for _, o := range outs {
 		switch {
 		case o.TimedOut:
@@ -1104,12 +1206,29 @@ func (r *Run) runHooks(ctx context.Context, when config.HookWhen, result string)
 
 // ---- 13 summary (§2.12) ----
 
+// sourceLine says where the update's commits came from. For the mirror it
+// says how fresh the mirror was when the update started, not how old its
+// last refresh is by the time the card is drawn: a refresh inside this run
+// is "refreshed at the start of this run", a mirror that already matched
+// GitHub's tip says so, and only an unproven mirror falls back to the age
+// of its last refresh measured at that moment.
 func (r *Run) sourceLine() string {
 	switch r.Facts.Check.Source {
 	case "mirror":
+		f := r.Facts
+		switch {
+		case f.MirrorRefreshed:
+			return "local mirror, refreshed at the start of this run"
+		case f.MirrorCurrent:
+			return "local mirror, up to date with GitHub at the start of this run"
+		}
 		age := "never refreshed"
-		if st := r.Facts.MirrorState; st != nil && !st.LastOK.IsZero() {
-			age = ageText(r.Clock.Now().Sub(st.LastOK))
+		if st := f.MirrorState; st != nil && !st.LastOK.IsZero() {
+			at := f.CheckedAt
+			if at.IsZero() {
+				at = r.Clock.Now()
+			}
+			age = ageBeforeText(at.Sub(st.LastOK))
 		}
 		return "local mirror, " + age
 	case "api":
@@ -1118,6 +1237,19 @@ func (r *Run) sourceLine() string {
 		return "GitHub (git fetch)"
 	}
 	return ""
+}
+
+// ageBeforeText is the age of the mirror's last refresh as of the moment the
+// run started, for a mirror whose freshness was not proven.
+func ageBeforeText(d time.Duration) string {
+	switch m := int(d.Minutes()); {
+	case m < 1:
+		return "refreshed just before this run"
+	case m < 120:
+		return fmt.Sprintf("refreshed %d min before this run", m)
+	default:
+		return fmt.Sprintf("refreshed %d h before this run", m/60)
+	}
 }
 
 func ageText(d time.Duration) string {
@@ -1129,6 +1261,95 @@ func ageText(d time.Duration) string {
 	default:
 		return fmt.Sprintf("refreshed %d h ago", m/60)
 	}
+}
+
+// installedCommits is how many commits the update really brought in. The
+// pre-flight count is only a forecast: `hermes update` fetches GitHub itself,
+// a few minutes later, and main moves. Order of trust: git on the real old
+// and new HEAD, then the "Found N new commit(s)" line of `hermes update`,
+// then the pre-flight number.
+func (r *Run) installedCommits(ctx context.Context) (int, bool) {
+	f := r.Facts
+	if r.Repo != nil && f.HeadFull != "" && f.HeadAfter != "" && f.HeadFull != f.HeadAfter {
+		if n, ok := r.Repo.CommitCount(ctx, f.HeadFull, f.HeadAfter); ok && n > 0 {
+			r.Log.Info("installed commits", slog.Int("count", n), slog.String("from", "git"))
+			return n, true
+		}
+	}
+	if n, ok := hermes.ParseFoundCommits(f.UpdateOutput); ok {
+		r.Log.Info("installed commits", slog.Int("count", n), slog.String("from", "hermes update output"))
+		return n, true
+	}
+	if f.Check.Commits != nil {
+		return *f.Check.Commits, true
+	}
+	return 0, false
+}
+
+// newerBudget caps the whole "did main move while this ran" look.
+var newerBudget = 6 * time.Second // a var so a test can shorten it
+
+// newerRow says, after a verified update, that main moved past what was
+// installed. It is a courtesy: best effort, a few seconds at most, silent
+// when anything fails, and it never touches Verified or the exit code.
+func (r *Run) newerRow(ctx context.Context) string {
+	head := r.Facts.HeadAfter
+	if !r.Facts.Verified || r.Mirror == nil || len(head) != 40 {
+		return ""
+	}
+	cctx, cancel := context.WithTimeout(ctx, newerBudget)
+	defer cancel()
+	n, ok := r.Mirror.NewerThan(cctx, r.Facts.Install.Checkout, head)
+	switch {
+	case !ok:
+		r.Log.Debug("newer commits: could not find out; row left out")
+		return ""
+	case !n.Ahead:
+		r.Log.Info("newer commits: none, main did not move during the run")
+		return ""
+	}
+	what := "Newer commits"
+	if n.Commits != nil && *n.Commits > 0 {
+		r.Log.Info("newer commits: main moved", slog.Int("commits", *n.Commits))
+		what = fmt.Sprintf("%d more commits", *n.Commits)
+		if *n.Commits == 1 {
+			what = "1 more commit"
+		}
+	} else {
+		r.Log.Info("newer commits: main moved (count unknown)")
+	}
+	return what + " landed on GitHub while this ran; run Safe Update again when convenient"
+}
+
+// appRow says why the desktop app was not reopened (empty when it was, when
+// there is no desktop app, or when nothing needs explaining).
+func (r *Run) appRow() string {
+	f, pol := r.Facts, r.Config.Desktop.Relaunch
+	why := ""
+	switch {
+	case f.Relaunched, f.Install.Desktop == "":
+		return ""
+	case r.Config.Run.NoRelaunch:
+		why = "--no-relaunch was given"
+	case pol == config.RelaunchNever:
+		if !f.DesktopWas {
+			return "" // closed before, stays closed: nothing to explain
+		}
+		why = `desktop.relaunch is "never"`
+	case f.NotReopened != "":
+		why = f.NotReopened
+	case f.DesktopWas:
+		return ""
+	case r.Config.Run.Unattended:
+		why = "it was closed when the update started, and unattended runs only reopen an app they closed"
+	case !f.Verified:
+		why = "it was closed when the update started, and the update is not verified"
+	case pol == config.RelaunchAlways:
+		return "" // due, so a failure above would have set NotReopened
+	default:
+		why = "it was closed when the update started; set desktop.relaunch: always to reopen it"
+	}
+	return "not reopened (" + why + ")"
 }
 
 func addRow(rows []ui.Row, k, v string) []ui.Row {
@@ -1157,11 +1378,12 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 	var rows []ui.Row
 	if f.Versions[0] != "" {
 		v := f.Versions[0] + " → " + f.Versions[1]
-		if f.Check.Commits != nil {
-			v += fmt.Sprintf("  (%d commits)", *f.Check.Commits)
+		if n, ok := r.installedCommits(ctx); ok {
+			v += fmt.Sprintf("  (%d commits)", n)
 		}
 		rows = addRow(rows, "Version", v)
 	}
+	rows = addRow(rows, "Newer", r.newerRow(ctx))
 	if !f.TClose.IsZero() {
 		took := r.Facts.TReopen.Sub(f.TClose)
 		t := fmtDuration(took) + " for the update"
@@ -1173,6 +1395,7 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 		}
 		rows = addRow(rows, "Time", t)
 	}
+	rows = addRow(rows, "Hermes app", r.appRow())
 	rows = addRow(rows, "Source", r.sourceLine())
 	if f.Settings != nil {
 		rows = addRow(rows, "Settings", f.Settings.Line)
@@ -1301,6 +1524,8 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 			rows = addRow(rows, "Gateway", "update can pause it")
 		case hermes.GateBlocked:
 			rows = addRow(rows, "Gateway", "lock can't be mapped: the update will stop it first")
+		case hermes.GateNotApplicable:
+			rows = addRow(rows, "Gateway", "pause check not applicable on this OS")
 		default:
 			rows = addRow(rows, "Gateway", "pause check unavailable (see log)")
 		}
@@ -1369,9 +1594,13 @@ func (r *Run) offerMirror(ctx context.Context) {
 			r.note("a local update mirror would make updates faster, but %s; not offered", why)
 			return
 		}
+		download := "One-time 10-20 min download in its own window, then"
+		if r.SpawnMirrorSetup == nil { // macOS/Linux: no window of its own to open
+			download = "One-time 10-20 min download (S shows the one command to run in a terminal), then"
+		}
 		text = fmt.Sprintf("Optional: make future updates faster with a local mirror of the Hermes source (%.1f GB at %s; %s). "+
-			"One-time 10-20 min download in its own window, then a script-only job keeps it current every 4 hours; "+
-			"nothing is uploaded, and updates work the same without it.", gb, path, why)
+			"%s a script-only job keeps it current every 4 hours; "+
+			"nothing is uploaded, and updates work the same without it.", gb, path, why, download)
 		logText = fmt.Sprintf("Optional: make future updates faster with a local mirror of the Hermes source (%.1f GB at <mirror folder>; %s).", gb, why)
 	}
 	const keysText = " Press S to set it up, N to never ask again, any other key for not now."
@@ -1384,7 +1613,7 @@ func (r *Run) offerMirror(ctx context.Context) {
 	switch a.Key {
 	case 's':
 		if r.SpawnMirrorSetup == nil {
-			r.info("run `hermes-safe-update mirror setup` to set it up")
+			r.info("run `hermes-safe-update mirror setup` in a terminal to set it up")
 			return
 		}
 		if err := r.SpawnMirrorSetup(ctx); err != nil {

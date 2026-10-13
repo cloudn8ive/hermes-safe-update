@@ -33,6 +33,17 @@ type SeedResult struct {
 	Commits  *int
 	Complete bool // proven: nothing left to download from GitHub
 	Took     time.Duration
+	// Refreshed: this Seed fetched GitHub into the mirror and it worked.
+	Refreshed bool
+	// Current: GitHub's API named the very tip the mirror had when it was
+	// used (false when the API could not be asked).
+	Current bool
+}
+
+// Newer is the answer to "has main moved past this commit?".
+type Newer struct {
+	Ahead   bool // main is past the commit
+	Commits *int // how many commits, when the API could count them
 }
 
 // Compare is the GitHub REST compare result.
@@ -49,6 +60,11 @@ type Service interface {
 	Seed(ctx context.Context, checkout string) SeedResult
 	// APICompare asks GitHub for base...main; nil when unavailable.
 	APICompare(ctx context.Context, base string) *Compare
+	// NewerThan asks, within a few seconds and without touching the
+	// checkout or the mirror, whether main moved past head (a full sha):
+	// the GitHub API first, then `git ls-remote`. ok=false when neither
+	// could answer. checkout may be empty.
+	NewerThan(ctx context.Context, checkout, head string) (n Newer, ok bool)
 	// Setup clones the mirror (to dir, "" = choose a location), records it in
 	// safe-update.json and ensures the refresh cron job.
 	Setup(ctx context.Context, dir string) error

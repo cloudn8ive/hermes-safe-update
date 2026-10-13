@@ -19,10 +19,18 @@ const dumpMaxHidden = 400
 type outputFilter struct {
 	hiding bool
 	hidden int
+	// cuaHintStays lets Hermes' own cua-driver lines through unchanged. Set
+	// when the safe updater does not do the deferred refresh itself (no
+	// logon-task support off Windows): the line would otherwise promise a
+	// refresh that never happens and hide the one hint the user can act on.
+	cuaHintStays bool
 }
 
 // display returns the screen text for line ("" = hide).
 func (f *outputFilter) display(line string) string {
+	if f.cuaHintStays && (strings.Contains(line, hermes.CuaDeferred) || strings.Contains(line, hermes.CuaManualHint)) {
+		return line
+	}
 	if f.hiding {
 		switch {
 		case hermes.CommandDumpEndRe.MatchString(line):

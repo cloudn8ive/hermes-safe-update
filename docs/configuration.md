@@ -37,7 +37,7 @@ three fields only.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `hermes_home` | `%LOCALAPPDATA%\hermes` (Windows), `~/.hermes` (macOS, Linux) | Hermes data folder. On Windows the `HERMES_HOME` environment variable is ignored on purpose: the update always targets the default install. |
+| `hermes_home` | `%LOCALAPPDATA%\hermes` (Windows), `~/.hermes` (macOS, Linux) | Hermes data folder. The `HERMES_HOME` environment variable is ignored on every OS, on purpose: the update always targets the default install, and the tool removes `HERMES_HOME` from everything it starts (as the launcher shims do). For a home elsewhere set this key (and `checkout`); it only tells the tool where to look. |
 | `checkout` | `<hermes_home>/hermes-agent` | The source checkout. |
 | `user_data` | `%APPDATA%\Hermes`, `~/Library/Application Support/Hermes`, `~/.config/Hermes` | The desktop app's data folder (holds `Local Storage`). |
 
@@ -75,11 +75,11 @@ Cosmetic only; nothing in the update depends on it.
 | `bar_band` | 6 | Gradient colour bands, in cells (fewer bands avoid hairlines in the classic console). |
 | `bar_from`, `bar_to` | `[95, 175, 255]`, `[95, 215, 135]` | Gradient start and end, RGB. |
 | `date_top_right` | true | Show the date at the top right. |
-| `taskbar` | true | Taskbar or terminal progress where supported. |
-| `flash` | true | Flash the taskbar button when input is needed or the run ends. |
+| `taskbar` | true | Taskbar or terminal progress where supported: the taskbar button (Windows console) or Windows Terminal's tab progress. On macOS and Linux it has no effect unless you set the environment variable `HERMES_SAFE_UPDATE_OSC_PROGRESS=1`; the tool then writes the OSC 9;4 progress sequence to a terminal on stderr, for terminals that understand it (others ignore it). |
+| `flash` | true | Flash the taskbar button when input is needed or the run ends and the window is not in front. Windows only: on macOS and Linux the tool cannot tell whether the terminal is in front, so it never flashes (or rings the bell). |
 | `title_update`, `title_check` | `"Hermes Safe Update"`, `"Hermes Update Check"` | Window titles. |
 | `colors` | see example | SGR parameters, for example `"38;5;80"`. Keys: `accent ok warn err dim faint soft label token neutral track prompt`. `NO_COLOR` removes all colour. |
-| `glyphs` | see example | Characters the default Windows console font (Consolas) has. Keys: `ok err warn info command active pending dot bar rule rule_thin sep gutter arrow title section`. |
+| `glyphs` | see example | The characters used for status marks, bars and rules. The defaults are single-width characters chosen to exist in the default Windows console font (Consolas); on macOS and Linux your terminal font decides how they look. Keys: `ok err warn info command active pending dot bar rule rule_thin sep gutter arrow title section`. |
 | `hues` | see example | Per stage group: `bright` and `dark` colour index (xterm-256) and an `icon`. |
 | `section_icons` | see example | Section title prefix to icon. |
 
@@ -113,6 +113,26 @@ See [settings-migration.md](settings-migration.md).
 In key lists `*` is the only wildcard (any other glob character is rejected
 when the file loads). Keys in neither list are plain preferences.
 
+## desktop
+
+What happens to the desktop app after a run.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `relaunch` | `"auto"` | `"auto"`: reopen the app only if it was running when the update started. `"always"`: also reopen it after a **verified** update when it was already closed at the start (for example you closed Hermes yourself a moment before). `"never"`: leave it closed. Any other value is a configuration error (exit 64) that names the line. |
+
+`--no-relaunch` overrides all three for one run. `--unattended` runs only
+give back what they closed: with `"auto"` or `"always"` an app they closed is
+reopened as before, an app that was already closed stays closed (`"always"`
+changes nothing there), and `"never"` leaves it closed. `"always"` never
+reopens the app after an update that is not verified or that was cancelled
+before anything was closed, and does nothing on an install that has no
+desktop app.
+
+When the app is not reopened, the summary card has a `Hermes app` row that
+says why; when it was reopened there is no such row (the `Time` row says
+"until Hermes reopened").
+
 ## hooks
 
 A hook runs your own command at a fixed point of a run.
@@ -125,12 +145,33 @@ A hook runs your own command at a fixed point of a run.
 | `timeout_s` | Default 300. A hook that takes longer is stopped (with its process tree). |
 | `dir` | Working directory. Default: the Hermes home. |
 
-Each hook gets two environment variables: `HERMES_SAFE_UPDATE_STAGE` (the
-`when` value) and `HERMES_SAFE_UPDATE_RESULT` (`verified`, `problem` or
-`unknown`; `pre-close` hooks always see `unknown`). The last non-empty line
-the hook prints becomes its row on the summary card. A non-zero exit or a
-timeout is a warning; it never turns a verified update into a failure and
-never aborts the run.
+Each hook gets these environment variables. All five are always set; a value
+the tool does not know is the empty string (test with `-z`), never a missing
+variable. Paths are absolute or empty.
+
+| Variable | Value |
+|---|---|
+| `HERMES_SAFE_UPDATE_STAGE` | The hook's `when` value: `pre-close`, `post-update` or `post-relaunch`. |
+| `HERMES_SAFE_UPDATE_RESULT` | `verified`, `problem` or `unknown`. `pre-close` hooks always see `unknown`. |
+| `HERMES_SAFE_UPDATE_HOME` | The Hermes home: the root folder (`paths.hermes_home` or the default), not a profile folder. Profiles are in `<home>/profiles`. |
+| `HERMES_SAFE_UPDATE_CHECKOUT` | The source checkout this run updates (`paths.checkout` or `<home>/hermes-agent`). |
+| `HERMES_SAFE_UPDATE_PYTHON` | The Python interpreter that Hermes installs for itself (Windows: `<home>\tools\python-*\python.exe`; macOS and Linux: `<home>/tools/python-*/bin/python3`, else `<home>/tools/python-*/bin/python`; a guess that nobody has checked on those systems). It is a bare interpreter: Hermes' own packages are not on its path by default. Empty when none is found. |
+
+`HERMES_SAFE_UPDATE_PYTHON` is looked up on disk when each hook starts, not
+once at the start of the run. `hermes update` installs a new interpreter in a
+new, versioned folder, so a `post-update` or `post-relaunch` hook gets the
+interpreter that exists after the update, and a `pre-close` hook the one from
+before. Do not cache or hard-code this path.
+
+`HERMES_HOME` is not passed on: the tool removes it from every command it
+starts (see `paths.hermes_home`). Use `HERMES_SAFE_UPDATE_HOME` instead.
+
+These variables are only ever added, never renamed or removed, so a hook
+written today keeps working. A hook must ignore variables it does not know.
+
+The last non-empty line the hook prints becomes its row on the summary card.
+A non-zero exit or a timeout is a warning; it never turns a verified update
+into a failure and never aborts the run.
 
 Example: re-apply a custom Start menu tile after each update. This is only
 an illustration of a `post-update` hook. Point it at your own script.
@@ -145,6 +186,22 @@ hooks:
 
 In YAML double-quoted strings a backslash must be doubled, as above. Single
 quotes avoid that: `'C:\Users\you\scripts\restore-tile.ps1'`.
+
+On macOS and Linux the command is an argument list too, so name the shell or
+give a script that has the exec bit and a `#!` line, with absolute paths:
+
+```yaml
+hooks:
+  - name: "after-update"
+    when: "post-update"
+    run: ["/bin/sh", "/home/you/scripts/after-update.sh"]
+    timeout_s: 120
+```
+
+`~`, `$VAR` and `${VAR}` are not expanded in `run` or `dir` (nothing but
+`paths.hermes_home`, `paths.checkout` and `paths.user_data` is), so write
+`/home/you/...`, not `~/...`. A shell would expand them only if the script
+does it itself. There is no hooks folder: a hook is whatever the list names.
 
 The script's last printed line (for example `tile restored`) shows up on
 the card. Hooks are run by the tool with your permissions; only configure

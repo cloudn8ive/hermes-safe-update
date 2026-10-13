@@ -22,6 +22,10 @@ var (
 	ErrElectronMissing = errors.New("the bundled Electron of Hermes was not found")
 	// ErrMigrator: the migrator failed, timed out or produced no valid result.
 	ErrMigrator = errors.New("settings migrator failed")
+	// ErrNoDisplay: on Linux Electron cannot start without a graphical
+	// session (DISPLAY or WAYLAND_DISPLAY), as over SSH, in cron or in a
+	// service. Nothing is changed.
+	ErrNoDisplay = errors.New("no graphical session for Electron")
 )
 
 // storeIO reads and writes localStorage of a userData COPY. The real
@@ -42,6 +46,9 @@ type electronIO struct {
 	electron string
 	workDir  string // private scratch dir for scripts and outputs
 	timeout  time.Duration
+	// goos and getenv make the Linux display check testable; "" / nil skip it.
+	goos   string
+	getenv func(string) string
 }
 
 func (e *electronIO) check() error {
@@ -50,6 +57,10 @@ func (e *electronIO) check() error {
 	}
 	if st, err := os.Stat(e.electron); err != nil || st.IsDir() {
 		return fmt.Errorf("%w at %s", ErrElectronMissing, e.electron)
+	}
+	if e.goos == "linux" && e.getenv != nil && e.getenv("DISPLAY") == "" && e.getenv("WAYLAND_DISPLAY") == "" {
+		return fmt.Errorf("%w: neither DISPLAY nor WAYLAND_DISPLAY is set (SSH, cron and services have no desktop session); "+
+			"run this from a terminal inside your desktop session, or migrate the settings later", ErrNoDisplay)
 	}
 	return nil
 }

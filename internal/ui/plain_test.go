@@ -213,3 +213,20 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	defer l.mu.Unlock()
 	return l.w.Write(p)
 }
+
+func TestPlainHeaderShowsToolVersion(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewPlain(&buf, &platform.FakeConsole{})
+	r.SetVersion("v0.1.2")
+	r.Start("Hermes Update Check", nil, nil, false)
+	if first := strings.SplitN(buf.String(), "\n", 2)[0]; first != "Hermes Update Check · v0.1.2" {
+		t.Errorf("first line = %q", first)
+	}
+
+	buf.Reset()
+	r = NewPlain(&buf, &platform.FakeConsole{})
+	r.Start("Hermes Safe Update", nil, nil, false)
+	if first := strings.SplitN(buf.String(), "\n", 2)[0]; first != "Hermes Safe Update" {
+		t.Errorf("without a version the header is the bare title, got %q", first)
+	}
+}

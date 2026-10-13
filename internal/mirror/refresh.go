@@ -91,8 +91,12 @@ func (s *Svc) APIMainSHA(ctx context.Context) (string, bool) {
 // with an integer ahead_by is accepted; anything else is nil ("let git
 // decide"). GitHub lists at most 300 files, so 300 names = partial list.
 func (s *Svc) APICompare(ctx context.Context, base string) *Compare {
+	return s.apiCompare(ctx, base, 15*time.Second)
+}
+
+func (s *Svc) apiCompare(ctx context.Context, base string, timeout time.Duration) *Compare {
 	body, ok := s.apiGet(ctx, "/repos/"+Repo+"/compare/"+base+"..."+Branch+"?per_page=1",
-		"application/vnd.github+json", 15*time.Second, 16<<20)
+		"application/vnd.github+json", timeout, 16<<20)
 	if !ok {
 		return nil
 	}

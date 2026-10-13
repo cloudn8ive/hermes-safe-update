@@ -208,3 +208,26 @@ func TestParseGCLocked(t *testing.T) {
 		}
 	}
 }
+
+// "→ Found N new commit(s)" is the commit count the update really pulled.
+func TestContractFoundCommitsFixture(t *testing.T) {
+	out := readFixture(t, "update-pydeps-after-build.txt")
+	if n, ok := ParseFoundCommits(out); !ok || n != 29 {
+		t.Errorf("fixture: got %d, %v; want 29", n, ok)
+	}
+	cases := map[string]struct {
+		n  int
+		ok bool
+	}{
+		"→ Found 1 new commit(s)":       {1, true},
+		"  → Found 105 new commit(s)\r": {105, true},
+		"→ Found 0 new commit(s)":       {0, false},
+		"Already up to date.":           {0, false},
+		"Found many new commit(s)":      {0, false},
+	}
+	for in, want := range cases {
+		if n, ok := ParseFoundCommits(in); n != want.n || ok != want.ok {
+			t.Errorf("%q: got %d, %v", in, n, ok)
+		}
+	}
+}

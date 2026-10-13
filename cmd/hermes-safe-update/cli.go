@@ -162,14 +162,16 @@ Flags:
   --yes                skip the final "Press Y" confirmation (never skips the
                        busy-session check)
   --unattended         never ask; wait for idle sessions (max 30 min), then go
-  --accept-untested    run on macOS/Linux without the untested-platform prompt
+  --accept-untested    macOS/Linux: accept the untested-platform warning; remembered
+                       in safe-update.json, so it is asked (or passed) only once
   --plain              plain text output (also HERMES_SAFE_UPDATE_PLAIN=1, NO_COLOR)
   --log-level LEVEL    debug | info | warn | error
   --check              same as the check command
   --delay N            seconds the final confirmation waits (default 30)
   --no-relaunch        do not reopen the desktop app afterwards
   --force              run even when no update is available
-  --no-elevate         never show a UAC prompt (log the admin command instead)
+  --no-elevate         Windows only: never show a UAC prompt (log the admin command
+                       instead); no effect on macOS/Linux
 
 Exit codes:
   0  done (updated and verified, check finished, or already up to date)
@@ -183,4 +185,6 @@ Exit codes:
   64 bad command line or invalid configuration
 
 Windows is the tested platform. macOS and Linux builds are untested.
+Launcher shims (README, Shims): .cmd on Windows; .sh with a .desktop entry
+(Linux) or a .command file (macOS).
 `

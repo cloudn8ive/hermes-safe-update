@@ -24,6 +24,11 @@ type MachineState struct {
 	Mirror      *MirrorState
 	MirrorOffer string // "declined" = never offer the mirror again
 
+	// AcceptedUntested records, per OS name ("linux", "darwin"), when the
+	// user accepted the untested-platform warning (interactive Y or
+	// --accept-untested), so later runs do not ask again.
+	AcceptedUntested map[string]string
+
 	extra map[string]json.RawMessage
 }
 
@@ -34,6 +39,23 @@ func (s MachineState) MirrorOfferDeclined() bool { return s.MirrorOffer == mirro
 
 // DeclineMirrorOffer records "never ask again".
 func (s *MachineState) DeclineMirrorOffer() { s.MirrorOffer = mirrorOfferDeclined }
+
+// UntestedAccepted reports whether the untested-platform warning was already
+// accepted on this machine for the given OS name.
+func (s MachineState) UntestedAccepted(goos string) bool {
+	_, ok := s.AcceptedUntested[goos]
+	return ok
+}
+
+// AcceptUntested records the acceptance for goos (UTC, RFC 3339).
+func (s *MachineState) AcceptUntested(goos string, at time.Time) {
+	m := make(map[string]string, len(s.AcceptedUntested)+1)
+	for k, v := range s.AcceptedUntested {
+		m[k] = v
+	}
+	m[goos] = at.UTC().Format(time.RFC3339)
+	s.AcceptedUntested = m
+}
 
 // LoadMachineState reads path. A missing file is an empty state; a corrupt
 // file is an error naming the path (the caller decides whether to go on).
@@ -66,6 +88,13 @@ func LoadMachineState(path string) (MachineState, error) {
 		_ = json.Unmarshal(m, &st.MirrorOffer)
 		delete(raw, "mirror_offer")
 	}
+	if m, ok := raw["accepted_untested"]; ok {
+		var acc map[string]string
+		if json.Unmarshal(m, &acc) == nil {
+			st.AcceptedUntested = acc
+			delete(raw, "accepted_untested")
+		} // else: not ours to interpret; it stays in extra and survives a save
+	}
 	st.extra = raw
 	return st, nil
 }
@@ -87,6 +116,9 @@ func SaveMachineState(path string, st MachineState) error {
 	}
 	if st.MirrorOffer != "" {
 		out["mirror_offer"] = st.MirrorOffer
+	}
+	if len(st.AcceptedUntested) > 0 {
+		out["accepted_untested"] = st.AcceptedUntested
 	}
 	data, err := json.MarshalIndent(out, "", " ")
 	if err != nil {

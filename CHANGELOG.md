@@ -4,6 +4,222 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-13
+
+### Added
+
+- The tool's own version is now on screen. The header of every run, the
+  update and `--check`, in the console display and in plain text alike, reads
+  `Hermes Safe Update · v0.1.2` (`Hermes Update Check · v0.1.2`), with the
+  version dimmed after the title; the date stays flush right. The footer and
+  the window title keep the bare title. `--version`, `--help` and the `start`
+  line of `safe-update.log` carry the same string. README: "Which version am I
+  running?".
+- A binary that is not a release no longer calls itself just `dev`.
+  `scripts/build-all.sh` and `build-all.ps1`, when not given a version (or
+  given `dev`), derive one with the new `scripts/dev-version.sh` and
+  `dev-version.ps1`: the latest released version from `CHANGELOG.md`, the
+  number of commits since it (from the tag `v<version>` if the repository
+  has it, else from the commit that added the changelog section), the short
+  commit, and `.dirty` for uncommitted changes to tracked files, for example
+  `v0.1.2+25.3a8a2c7`; exactly the release (`v0.1.2`) when built at the
+  release commit with a clean tree. A plain `go build` that was never given a
+  version falls back to the commit Go stamped into the binary
+  (`dev+3a8a2c7`, `.dirty`), and to `dev` when there is none.
+  A version you pass explicitly (`build-all.sh v0.1.2`) is used exactly as
+  given and git is not consulted, so release binaries are still
+  byte-identical wherever they are built.
+- New setting `desktop.relaunch` in `safe-update.yaml`: what happens to the
+  desktop app after a run. `"auto"` (the default, and what the tool always
+  did) reopens it only if it was running when the update started. `"always"`
+  also reopens it after a verified update when it was already closed at the
+  start, which is what you want if you close Hermes yourself a few seconds
+  before starting the update. `"never"` leaves it closed. An unknown value is
+  a configuration error that names the line. `--no-relaunch` still beats all
+  three, and `--unattended` runs never open an app they did not close
+  (`"always"` changes nothing there). When the app is not reopened the
+  summary card has a new `Hermes app` row that says why (for example "it was
+  closed when the update started; set desktop.relaunch: always to reopen
+  it"); nothing new is shown when it was reopened. Documented in the README,
+  `docs/configuration.md` and `safe-update.example.yaml`.
+- New summary row `Newer`: after a verified update the tool takes one quick
+  look (GitHub API, then `git ls-remote`; a few seconds at most) at whether
+  `main` moved past what was installed, and if so says "7 more commits landed
+  on GitHub while this ran; run Safe Update again when convenient" (without a
+  number when only a sha comparison was possible). It explains the "update
+  available right after updating" effect. It is a courtesy: any error or
+  timeout leaves the row out, it never changes the result or the exit code,
+  it does not touch the checkout, works without a mirror (or with a stale
+  one), and does not run in `--check`.
+- Hooks get three more environment variables next to
+  `HERMES_SAFE_UPDATE_STAGE` and `HERMES_SAFE_UPDATE_RESULT`, so a hook no
+  longer has to guess paths: `HERMES_SAFE_UPDATE_HOME` (the Hermes home, the
+  root and not a profile), `HERMES_SAFE_UPDATE_CHECKOUT` (the source checkout
+  being updated) and `HERMES_SAFE_UPDATE_PYTHON` (Hermes' managed Python).
+  All are absolute paths, or an empty string when unknown, and always set.
+  The Python is looked up when each hook starts, so `post-update` and
+  `post-relaunch` hooks get the interpreter the update installed (its folder
+  name carries a version and changes on updates). `HERMES_HOME` is still not
+  passed on. Variables are only ever added, never renamed or removed.
+  Documented in the README, `docs/configuration.md` and `docs/design.md`.
+- Example hook `examples/hooks/bundled-skill-merge/`: after a verified update
+  it 3-way merges upstream changes into the bundled skills you have edited
+  (Hermes itself never updates an edited skill again), with a backup of your
+  copy, a keep list for skills that must never be merged, and no change at
+  all on a conflict. The manifest, state file, saved base and keep list are
+  copied into the run's backup folder before they are edited, and a skill
+  whose merge fails makes the hook exit 1 (a warning on the summary card). It finds Hermes through the new hook variables, so it
+  needs no helper script; a Windows `.cmd` and a macOS/Linux `.sh` wrapper,
+  `safe-update.yaml` snippets and a README are included. It imports private
+  Hermes code and says "skipped" (exit 1, nothing changed) if that cannot be
+  loaded. Run on Windows and, in WSL2 (Debian, dash and bash), on Linux, both
+  on a scratch copy of a Hermes home; not run on a Mac. Not part of the
+  release archives.
+
+- Launcher shims for macOS and Linux, the counterparts of the Windows `.cmd`
+  shims: `hermes-safe-update.sh` and `hermes-update-check.sh` (find the
+  binary next to the shim, in `~/.local/bin` or on PATH; print the exit code
+  and log location; wait for Enter), `hermes-safe-update.desktop` (Linux
+  application menu entry with a look-only "check" action) and two `.command`
+  files (macOS: double-click in Finder). They ship as release assets and
+  are covered by `SHA256SUMS`. Tested in automated tests on Linux (dash and
+  bash in POSIX mode) and with `desktop-file-validate`; not yet tried in a
+  real Linux desktop session or on a Mac.
+
+### Fixed
+
+- The summary's `Version` row counted the pre-flight forecast, not what was
+  installed: `hermes update` fetches GitHub itself a few minutes after the
+  check, so a run that forecast 85 commits and installed 92 said 85. The row
+  now counts the commits between the old and the new HEAD with git, falls
+  back to the "Found N new commit(s)" line of `hermes update`, and only then
+  to the forecast.
+- The summary's `Source` row showed a stale mirror age. The mirror status was
+  read before the check, so a run that refreshed the mirror seconds earlier
+  still said "refreshed 6 h ago", and the age grew while the update ran. It
+  now says "local mirror, refreshed at the start of this run" after a refresh
+  in this run, "local mirror, up to date with GitHub at the start of this
+  run" when the mirror already matched, and otherwise the age of the last
+  refresh as of the start of the run ("refreshed 40 min before this run").
+  A refresh that failed still falls back to GitHub, and the row says so.
+- macOS/Linux: the scheduled mirror refresh could never run. The Hermes
+  cron job calls `mirror refresh` without `--accept-untested`, and the
+  untested-platform question was asked first, so every run exited 3 without
+  a word and the job looked "active" forever. `mirror refresh` and
+  `mirror status` no longer ask; `run`, `mirror setup` and the settings
+  commands that change something still do (`check` and the look-only
+  settings commands stopped asking too, see Changed).
+
+- Verify no longer demands a messaging gateway that was never there. A
+  desktop-only install (no gateway process and no live pid in
+  `gateway_state.json` before the update) used to get `hermes gateway start
+  --all` and `RESULT: PROBLEM` after a good update; now no gateway is
+  required, checked or started. If a gateway did run before, behaviour is as
+  before: it must report the new commit, and is started if it is gone.
+- macOS/Linux: when the tool does restart a gateway it runs `hermes gateway
+  start` instead of `gateway start --all`, because `--all` first kills every
+  gateway of every profile (read from `hermes_cli/gateway.py`; not run on a
+  real Mac or Linux box).
+- macOS/Linux: `SIGTERM` and `SIGHUP` now end a run like Ctrl-C (the update
+  marker is released and the usual clean-up runs). Before, a closed terminal,
+  a `launchd`/`systemd` stop or a cron timeout killed the tool on the spot
+  and left the marker behind. Checked with a signal test on Linux (WSL2);
+  not run under a real `launchd` or `systemd`.
+- macOS/Linux: when `hermes update` defers the cua-driver (Computer Use)
+  refresh, the screen no longer says "handled by the safe updater after
+  verification" (it is not: the refresh step only exists with Windows logon
+  tasks) and Hermes' own `computer-use install --upgrade` hint is shown
+  instead of hidden. Unchanged on Windows.
+- macOS: a running `/Applications/Hermes.app` (or `~/Applications`) is now
+  recognised as the desktop app, so the wait/close steps see it; `hermes
+  update` copies the rebuilt app over it and refuses while it runs. The
+  bundle's Electron helpers still never count. Fake-tested; not run on a
+  real Mac.
+- macOS/Linux: a Hermes backend (`hermes serve`) started through the entry
+  script is now recognised by the process check (it was only recognised by
+  `hermes.exe` or `hermes_cli` in the command line), so leftover backends are
+  stopped before the update. A venv python that resolves to a system
+  interpreter outside the install is still not claimed (it fails safe: fewer
+  processes are stopped); noted in `docs/design.md`.
+- macOS/Linux: the mirror is no longer proposed on a USB stick, other
+  removable media or (macOS) a network share. Linux checks the `/sys`
+  removable flag and the USB bus of each mounted block device; macOS reads
+  the volume's `MNT_LOCAL` / `MNT_REMOVABLE` flags. The offer to set up the
+  mirror no longer promises a window of its own where none can open
+  (macOS/Linux): it says S shows the command to run in a terminal, and S
+  prints it as a note instead of a "could not start" warning. Linux checked
+  on a real kernel (WSL2, which has no removable disk); the macOS flags are
+  not verified on a Mac.
+- Linux: the settings commands now say clearly that Electron needs a
+  graphical session when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set (SSH,
+  cron, services), and stop before the backup. Before, Electron was started
+  and aborted with a generic "settings migrator failed". Not run on a Linux
+  desktop.
+- `scripts/build-all.sh` is now committed executable (100755), as the README
+  and CONTRIBUTING already assumed when they run it directly; a test checks
+  the recorded mode of it and of the shims.
+- Wording: macOS/Linux no longer print "gateway pause check: unknown (not
+  needed on this platform)" or "pause check unavailable (see log)", which
+  read like failures; they say "not applicable on this OS" (a probe that
+  really failed keeps the old wording). `--help` marks `--no-elevate` as
+  Windows only, and the glyph docs no longer present the Windows console
+  font as the only one.
+
+### Changed
+
+- Docs: the README and `docs/design.md` no longer say CI "will run" on macOS
+  and Linux once published; the unit tests run there on every push, and the
+  Linux test binaries were also run on a real kernel (WSL2). No real Hermes
+  update has been run on macOS or Linux. The "Can I schedule it?" answer now
+  matches the Platforms table (one unattended update started by a Windows
+  scheduled task ran and verified) and has macOS/Linux guidance for cron,
+  launchd and systemd (untested). Quick start, log and backup paths and
+  troubleshooting have macOS/Linux equivalents. Hook docs gain a POSIX
+  example (`["/bin/sh", "/abs/x.sh"]`) and say `~` and `$VAR` are not
+  expanded in `run` or `dir` (a test pins it); the validation message names
+  both forms. `HERMES_SAFE_UPDATE_OSC_PROGRESS=1` is documented, and
+  `theme.taskbar` / `theme.flash` say they do nothing on macOS/Linux
+  (taskbar unless that variable is set).
+- macOS/Linux: the terminal title is restored after the run. The tool saves
+  the title on the terminal's title stack (`CSI 22;0 t`) when it starts the
+  progress display and restores it (`CSI 23;0 t`) when it ends, so the tab
+  no longer keeps "Hermes Update Check · stopped". Terminals without a title
+  stack (Apple's Terminal.app is not known to have one) ignore it and keep
+  the last title. Seen in the escape output of the real Linux binary on a
+  pty (WSL2); not tried in a real terminal emulator or on a Mac.
+- macOS/Linux: `HERMES_HOME` is now ignored when the tool looks for the
+  Hermes folder, as it already was on Windows. The tool always removed it
+  from the environment of every command it starts, so honouring it for the
+  lookup watched one home while `hermes update` ran against another. The
+  launcher shims clear it too. To use a home elsewhere set
+  `paths.hermes_home` (and `paths.checkout`). Documented in the README and
+  `docs/configuration.md`.
+- A Hermes install the tool cannot classify (no checkout at the expected
+  folder, no packaged-install hint) now says "no Hermes source checkout found
+  at <folder>; update it the way it was installed, or set `paths.checkout`".
+  It used to print "This Hermes install is a unknown, not a managed source
+  checkout: ." with the advice empty. README and `docs/design.md` no longer
+  claim that AppImage, deb and rpm installs are detected; they never were
+  (exit 5 as before).
+- macOS/Linux: the untested-platform question is now really one-time. Your
+  answer (Y, or `--accept-untested`) is remembered per OS in
+  `safe-update.json` (`accepted_untested`); later runs, scheduled ones
+  included, do not ask, and `--unattended` needs `--accept-untested` only
+  the first time. It also no longer asks before look-only commands: `check`
+  (`--check`), `list-backups` and `migrate-settings --dry-run`. `run`,
+  `mirror setup`, `migrate-settings`, `backup-settings` and `revert-settings`
+  still ask. Fake-tested; not run on a real Mac or Linux box.
+- Linux close request: no change in behaviour, now checked. One `SIGTERM` to
+  the Electron main process is `app.quit()` (confirmed in Electron 40.10.2
+  source and with a synthetic app on Linux under WSL2); `SIGTERM` to renderer
+  or GPU helpers crashed the main process. The tool already signals only the
+  main process, once; a test now pins that. Not yet run with Hermes' own
+  desktop app on a real Linux desktop (steps in `docs/design.md`).
+- The "started from inside a Hermes chat" stop now says "Run this from a
+  normal terminal or a shortcut" instead of "… or the Start menu", which
+  only fits Windows.
+- `--help` names the launcher shims for each OS.
+
 ## [0.1.2] - 2026-10-11
 
 ### Changed
@@ -162,7 +378,8 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
-[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/cloudn8ive/hermes-safe-update/releases/tag/v0.1.0

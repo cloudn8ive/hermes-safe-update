@@ -18,15 +18,17 @@ const (
 // New returns the macOS backends: `ps` process table, AppleScript quit then
 // SIGTERM/SIGKILL, `open` launch. Untested on a real macOS machine.
 func New() *Platform {
-	return newUnixPlatform("darwin", listPS, nil, func() []string {
-		roots := []string{"/"}
+	return newUnixPlatform("darwin", listPS, nil, func() []mountPoint {
+		roots := []mountPoint{{Root: "/", Fixed: true}}
 		if ents, err := os.ReadDir("/Volumes"); err == nil {
 			for _, e := range ents {
 				p := filepath.Join("/Volumes", e.Name())
 				if real, err := filepath.EvalSymlinks(p); err == nil && real == "/" {
 					continue // the boot volume's symlink
 				}
-				roots = append(roots, p)
+				var st unix.Statfs_t
+				fixed := unix.Statfs(p, &st) == nil && darwinFixed(st.Flags)
+				roots = append(roots, mountPoint{Root: p, Fixed: fixed})
 			}
 		}
 		return roots

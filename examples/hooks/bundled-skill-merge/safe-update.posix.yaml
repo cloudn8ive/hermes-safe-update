@@ -1,0 +1,8 @@
+# Add this to safe-update.yaml (~/.hermes/safe-update.yaml) and change the path to where you put this
+# folder. Write the full path: "~" and "$VAR" are not expanded in run. The hook runs after a verified
+# update, while Hermes is still closed.
+hooks:
+  - name: "Skill merge"
+    when: "post-update"
+    run: ["/bin/sh", "/home/you/hermes-hooks/bundled-skill-merge/bundled-skill-merge.sh"]
+    timeout_s: 240

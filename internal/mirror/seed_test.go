@@ -75,6 +75,9 @@ func TestSeedCopiesCommitsAndKeepsOrigin(t *testing.T) {
 	if !res.Complete {
 		t.Fatal("Complete = false: after seeding nothing should be left to download")
 	}
+	if !res.Refreshed || !res.Current {
+		t.Fatalf("a refresh ran and reached GitHub's tip: Refreshed=%v Current=%v", res.Refreshed, res.Current)
+	}
 	if got := g(t, co, "rev-parse", "origin/main"); got != tip {
 		t.Fatalf("origin/main = %s, want %s", got, tip)
 	}
@@ -130,6 +133,9 @@ func TestSeedAlreadyCurrentHasZeroCommits(t *testing.T) {
 	if !res.Used || res.Commits == nil || *res.Commits != 0 {
 		t.Fatalf("Seed = %+v", res)
 	}
+	if res.Refreshed || !res.Current {
+		t.Fatalf("no refresh was needed and the API named this tip: Refreshed=%v Current=%v", res.Refreshed, res.Current)
+	}
 }
 
 func TestSeedAPIUnavailableRefreshesAnyway(t *testing.T) {
@@ -152,6 +158,10 @@ func TestSeedAPIUnavailableRefreshesAnyway(t *testing.T) {
 	}
 	if got := g(t, co, "rev-parse", "origin/main"); got != tip {
 		t.Fatalf("origin/main = %s", got)
+	}
+	// fetched from GitHub just now; the API could not confirm the tip
+	if !res.Refreshed || res.Current {
+		t.Fatalf("Refreshed=%v Current=%v", res.Refreshed, res.Current)
 	}
 }
 
@@ -238,6 +248,10 @@ func TestSeedReasons(t *testing.T) {
 		res := New(d).Seed(ctx, t.TempDir())
 		if res.Used || !strings.HasPrefix(res.Reason, "mirror refresh failed (git fetch rc=128") {
 			t.Fatalf("%+v", res)
+		}
+		// a failed refresh must never read as refreshed or current
+		if res.Refreshed || res.Current {
+			t.Fatalf("failed refresh reported as fresh: %+v", res)
 		}
 	})
 }

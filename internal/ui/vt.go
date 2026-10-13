@@ -46,14 +46,15 @@ const waitingLabel = "Waiting for your answer"
 // stage banners, aligned key/value rows (python-behaviour §5). All output goes
 // through one mutex; the ticker goroutine and the update pump may both call it.
 type VT struct {
-	mu   sync.Mutex
-	w    io.Writer
-	plat *platform.Platform
-	th   config.Theme
-	st   *style
-	clk  timings.Clock
-	opts Options
-	pad  string
+	mu      sync.Mutex
+	version string // tool version shown in the header (SetVersion)
+	w       io.Writer
+	plat    *platform.Platform
+	th      config.Theme
+	st      *style
+	clk     timings.Clock
+	opts    Options
+	pad     string
 
 	title   string
 	steps   []timings.Step
@@ -156,6 +157,13 @@ func okTrue(p *bool) bool { return p != nil && *p }
 
 // ---- Start / header
 
+// SetVersion records the tool version for the header (before Start).
+func (v *VT) SetVersion(version string) {
+	v.mu.Lock()
+	v.version = strings.TrimSpace(version)
+	v.mu.Unlock()
+}
+
 func (v *VT) Start(title string, steps []timings.Step, est *timings.Estimator, banners bool) {
 	v.mu.Lock()
 	if v.started {
@@ -181,6 +189,9 @@ func (v *VT) Start(title string, steps []timings.Step, est *timings.Estimator, b
 
 	date := []seg{{t: fmtDate(v.t0), codes: []string{v.col().Dim}}}
 	left := []seg{{t: "  " + v.th.Glyphs.Title + " ", codes: []string{v.col().Accent}}, {t: title, codes: []string{bold, v.col().Accent}}}
+	if v.version != "" {
+		left = append(left, seg{t: " · " + v.version, codes: []string{v.col().Dim}})
+	}
 	if !v.th.DateTopRight {
 		left = append(left, seg{t: "  " + date[0].t, codes: date[0].codes})
 		date = nil
@@ -645,7 +656,9 @@ func hiddenOutput(line string) bool {
 			return true
 		}
 	}
-	return strings.Contains(line, hermes.CuaManualHint)
+	// The cua-driver lines are not hidden here: update.outputFilter decides
+	// (hidden where the safe updater does the refresh, shown elsewhere).
+	return false
 }
 
 func (v *VT) Output(line string) {

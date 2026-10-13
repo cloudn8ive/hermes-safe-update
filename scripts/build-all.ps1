@@ -3,6 +3,11 @@
 #
 #   powershell -NoProfile -File scripts\build-all.ps1 [-Version v0.1.0]
 #
+# A release passes its version explicitly and gets exactly that string (the
+# dev repo and the public clone then build byte-identical binaries). Without
+# -Version (or with "dev") a local build gets a derived one such as
+# v0.1.2+25.3a8a2c7[.dirty] (scripts\dev-version.ps1, same as dev-version.sh).
+#
 # Same go build line as scripts/build-all.sh (the canonical script).
 [CmdletBinding()]
 param([string]$Version = "")
@@ -10,8 +15,9 @@ param([string]$Version = "")
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 
-if (-not $Version) {
-    $Version = (& git describe --tags --always --dirty 2>$null)
+if (-not $Version -or $Version -eq "dev") {
+    . (Join-Path $PSScriptRoot "dev-version.ps1")
+    $Version = Get-DevVersion
     if (-not $Version) { $Version = "dev" }
 }
 
@@ -40,8 +46,13 @@ try {
 # Licence notices travel with the binaries (BSD-3 terms in docs/third-party.md).
 Copy-Item LICENSE, NOTICE, docs/third-party.md dist
 
-# The two Windows launcher shims ship as release assets too (hashed as checked out).
-Copy-Item scripts/hermes-safe-update.cmd, scripts/hermes-update-check.cmd dist
+# The launcher shims ship as release assets too (hashed as checked out):
+# .cmd for Windows; .sh, .command (macOS Finder) and .desktop (Linux) for
+# macOS and Linux. Keep this list in step with build-all.sh (a test checks).
+Copy-Item scripts/hermes-safe-update.cmd, scripts/hermes-update-check.cmd, `
+    scripts/hermes-safe-update.sh, scripts/hermes-update-check.sh, `
+    scripts/hermes-safe-update.command, scripts/hermes-update-check.command, `
+    scripts/hermes-safe-update.desktop dist
 
 $lines = Get-ChildItem dist -File | Where-Object Name -ne "SHA256SUMS" | Sort-Object Name | ForEach-Object {
     "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name

@@ -66,7 +66,7 @@ func (g *CLIGateway) State() GatewayState {
 // falls back to a system Python (D7).
 func (g *CLIGateway) Probe(ctx context.Context) (GateResult, string) {
 	if g.GOOS != "windows" {
-		return GateUnknown, "not needed on this platform"
+		return GateNotApplicable, "not needed on this platform"
 	}
 	if g.Python == "" {
 		return GateUnknown, "managed Python not found"
@@ -228,7 +228,15 @@ func (g *CLIGateway) waitGone(ctx context.Context) ([]int, error) {
 	}
 }
 
-// Start runs `gateway start --all` unless a gateway is already running.
+// posix reports whether the gateway is service-managed (systemd, launchd).
+// An empty GOOS counts as Windows, the tested default.
+func (g *CLIGateway) posix() bool { return g.GOOS != "" && g.GOOS != "windows" }
+
+// Start runs `gateway start --all` unless a gateway is already running. On
+// macOS/Linux it runs a plain `gateway start` instead: `--all` there means
+// "kill ALL stale gateways across all profiles first", which would also take
+// down gateways of other profiles (hermes_cli/gateway.py, `_cmd_start`).
+// Unverified on a real Mac or Linux box.
 func (g *CLIGateway) Start(ctx context.Context) error {
 	pids, err := g.PIDs(ctx)
 	if err != nil {
@@ -237,7 +245,11 @@ func (g *CLIGateway) Start(ctx context.Context) error {
 	if len(pids) > 0 {
 		return nil
 	}
-	res, err := g.Run.Run(ctx, execx.Cmd{Argv: []string{g.Launcher, "gateway", "start", "--all"}, Timeout: gwStartTimeout, Env: utf8Env})
+	argv := []string{g.Launcher, "gateway", "start"}
+	if !g.posix() {
+		argv = append(argv, "--all")
+	}
+	res, err := g.Run.Run(ctx, execx.Cmd{Argv: argv, Timeout: gwStartTimeout, Env: utf8Env})
 	if err != nil {
 		return err
 	}

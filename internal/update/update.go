@@ -66,6 +66,11 @@ type Deps struct {
 	// Verifier, Marker, Classify, GC, CUA, Settings, Hooks) once the
 	// install is located. Tests pre-wire Deps and leave it nil.
 	Wire func(in hermes.Install, d *Deps)
+	// ManagedPython finds Hermes' managed Python on disk now. Hooks get it
+	// as HERMES_SAFE_UPDATE_PYTHON, asked at each hook point so a post-update
+	// hook sees the interpreter the update installed. Nil = the path found
+	// when the install was located.
+	ManagedPython func() string
 	// FileExists defaults to os.Stat; tests replace it.
 	FileExists func(path string) bool
 
@@ -92,6 +97,7 @@ type Marker interface {
 type Facts struct {
 	Install       hermes.Install
 	HeadFull      string
+	HeadAfter     string // full HEAD read after the update (verify); "" = unknown
 	Check         hermes.UpdateCheck
 	Procs         map[string]int // class -> count (desktop, gateway, backend, kernel)
 	Gate          hermes.GateResult
@@ -124,6 +130,22 @@ type Facts struct {
 	GCPreview   *gc.Result
 	CUAStatus   *cua.Status
 	MirrorState *mirror.Status
+	// What the pre-flight seed learned about the mirror, so the summary can
+	// say how fresh the source was when the update started: it was fetched
+	// from GitHub during this run, or already matched GitHub's tip.
+	MirrorRefreshed bool
+	MirrorCurrent   bool
+	CheckedAt       time.Time // when the pre-flight check finished
+
+	// NotReopened is why a relaunch that was tried did not bring the app up
+	// (summary row "Hermes app").
+	NotReopened string
+
+	// Pre-flight saw whether a gateway was running before the update. Only
+	// then does verify require (and restart) one afterwards; an unknown
+	// state keeps the old "must run" behaviour.
+	GatewayKnown  bool
+	GatewayBefore bool
 }
 
 // Run is the state of one invocation shared by its stages.

@@ -49,6 +49,7 @@ type Deps struct {
 	Settings       config.Settings
 	Procs          platform.Procs
 	DesktopMarkers []string // platform.Paths.DesktopProcessMarkers()
+	DesktopAppDirs []string // hermes.MacAppDirs(...): installed Hermes.app bundles (macOS)
 	Runner         execx.Runner
 	HermesBefore   string // version shown in the manifest
 	HermesAfter    string
@@ -58,6 +59,10 @@ type Deps struct {
 	// <home>/cache/safe-update-settings.
 	WorkDir         string
 	ElectronTimeout time.Duration // per migrator run; default 2 min
+	// GOOS and Getenv let the migrator say why Electron cannot start on a
+	// Linux machine without a display ("" / nil = no such check).
+	GOOS   string
+	Getenv func(string) string
 
 	store storeIO // tests
 }
@@ -97,7 +102,8 @@ func (m *Manager) io() storeIO {
 	if m.store != nil {
 		return m.store
 	}
-	return &electronIO{runner: m.deps.Runner, electron: m.deps.Install.Electron, workDir: m.deps.WorkDir, timeout: m.deps.ElectronTimeout}
+	return &electronIO{runner: m.deps.Runner, electron: m.deps.Install.Electron, workDir: m.deps.WorkDir, timeout: m.deps.ElectronTimeout,
+		goos: m.deps.GOOS, getenv: m.deps.Getenv}
 }
 
 // ready fails early (before any backup) when the migrator cannot run.
@@ -138,7 +144,7 @@ func (m *Manager) ensureClosed(ctx context.Context) error {
 		return fmt.Errorf("cannot check whether Hermes is running: %w", err)
 	}
 	for _, p := range ps {
-		if hermes.Classify(p, m.deps.Install.Home, m.deps.Install.Checkout, m.deps.DesktopMarkers) == hermes.ClassDesktop &&
+		if hermes.ClassifyIn(p, m.deps.Install.Home, m.deps.Install.Checkout, m.deps.DesktopMarkers, m.deps.DesktopAppDirs) == hermes.ClassDesktop &&
 			!usesOtherUserData(p, ps, m.deps.Install.UserData) {
 			return fmt.Errorf("%w (pid %d): close it first; settings were not changed", apperr.ErrHermesRunning, p.PID)
 		}

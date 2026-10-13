@@ -1,4 +1,4 @@
-Hermes Safe Update
+Hermes Safe Update · v1.2.3-test
 == 1/5 Check
 disk free: 41.7 GB (enough)
 checkout: clean

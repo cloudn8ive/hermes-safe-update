@@ -20,15 +20,20 @@ func runCLI(t *testing.T, args ...string) (int, string, string) {
 		getenv:   func(string) string { return "" },
 		stdout:   &out,
 		stderr:   &errb,
+		ver:      testToolVersion,
 	}
 	code := run(context.Background(), args, env)
 	return code, out.String(), errb.String()
 }
 
+// testToolVersion is the version every test run reports, so replays and
+// goldens do not change with the commit the tests happen to run on.
+const testToolVersion = "v1.2.3-test"
+
 func TestVersion(t *testing.T) {
 	for _, args := range [][]string{{"version"}, {"--version"}} {
 		code, out, _ := runCLI(t, args...)
-		if code != 0 || !strings.Contains(out, "hermes-safe-update "+version) {
+		if code != 0 || !strings.Contains(out, "hermes-safe-update "+testToolVersion+" (") {
 			t.Errorf("%v: code=%d out=%q", args, code, out)
 		}
 	}
@@ -44,6 +49,9 @@ func TestHelpListsSubcommandsAndExitCodes(t *testing.T) {
 			if !strings.Contains(out, want) {
 				t.Errorf("%v: help lacks %q", args, want)
 			}
+		}
+		if !strings.HasPrefix(out, "hermes-safe-update "+testToolVersion+":") {
+			t.Errorf("%v: help does not start with the tool version: %.40q", args, out)
 		}
 	}
 }
@@ -144,7 +152,7 @@ func TestUntestedPlatformGate(t *testing.T) {
 	p.OS = "linux"
 	env := &environment{platform: p, getenv: func(string) string { return "" }, stdout: &out, stderr: &errb}
 
-	code := run(context.Background(), []string{"--unattended", "check"}, env)
+	code := run(context.Background(), []string{"--unattended", "run"}, env)
 	if code != apperr.Cancelled || !strings.Contains(errb.String(), "untested") {
 		t.Errorf("unattended without --accept-untested: code=%d stderr=%q", code, errb.String())
 	}
@@ -152,14 +160,14 @@ func TestUntestedPlatformGate(t *testing.T) {
 	// interactive: 'n' declines
 	errb.Reset()
 	p.Console = &platform.FakeConsole{Keys: []platform.Key{{Rune: 'n'}}}
-	code = run(context.Background(), []string{"check"}, env)
+	code = run(context.Background(), []string{"run"}, env)
 	if code != apperr.Cancelled {
 		t.Errorf("declined: code=%d", code)
 	}
 
 	// --accept-untested passes the gate (then hits the skeleton stub)
 	errb.Reset()
-	code = run(context.Background(), []string{"--accept-untested", "check"}, env)
+	code = run(context.Background(), []string{"--accept-untested", "run"}, env)
 	if code == apperr.Cancelled || strings.Contains(errb.String(), "untested platform not accepted") {
 		t.Errorf("--accept-untested should pass the gate: code=%d stderr=%q", code, errb.String())
 	}

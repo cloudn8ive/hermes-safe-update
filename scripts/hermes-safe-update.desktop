@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Hermes Safe Update
+Comment=Update Hermes Agent without cutting off running work (not affiliated with Nous Research)
+Exec=sh -c "exec sh \\"\\$HOME/.local/bin/hermes-safe-update.sh\\""
+Icon=system-software-update
+Terminal=true
+Categories=Utility;
+Keywords=hermes;update;
+Actions=check;
+
+[Desktop Action check]
+Name=Hermes Update Check (look only)
+Exec=sh -c "exec sh \\"\\$HOME/.local/bin/hermes-update-check.sh\\""

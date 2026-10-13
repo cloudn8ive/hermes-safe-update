@@ -21,6 +21,31 @@ const versionTimeout = 60 * time.Second
 // defaultStepAside is shown for a packaged install whose hint has no text.
 const defaultStepAside = "this Hermes install is not a managed source checkout; update it the way it was installed"
 
+// Advice is what to tell the user when the install is not a managed source
+// checkout: the hint's own text, else a default that names the folder that
+// was looked at. A checkout needs none ("").
+func (i Install) Advice() string {
+	switch {
+	case i.Kind == KindCheckout:
+		return ""
+	case i.StepAside != "":
+		return i.StepAside
+	case i.Kind == KindUnknown || i.Kind == "":
+		return unknownAdvice(i.Checkout)
+	}
+	return defaultStepAside
+}
+
+// unknownAdvice is for an install the tool cannot classify: no checkout at
+// the expected place and no packaged-install hint matched.
+func unknownAdvice(checkout string) string {
+	where := "the expected place"
+	if checkout != "" {
+		where = checkout
+	}
+	return "no Hermes source checkout found at " + where + "; if Hermes is installed some other way, update it the way it was installed, or set paths.checkout in safe-update.yaml if your checkout is elsewhere"
+}
+
 // RealLocator implements Locator from the platform path tables, the config
 // overrides and what is on disk. It never changes anything.
 type RealLocator struct {
@@ -74,6 +99,7 @@ func (l *RealLocator) Locate(ctx context.Context) (Install, error) {
 
 	if st, err := os.Stat(filepath.Join(in.Checkout, ".git")); err != nil || st == nil {
 		in.Kind = KindUnknown
+		in.StepAside = unknownAdvice(in.Checkout)
 		for _, h := range l.Paths.PackagedInstallHints(l.Env) {
 			if h.Path != "" && exists(h.Path) {
 				in.Kind = InstallKind(h.Kind)
@@ -93,7 +119,7 @@ func (l *RealLocator) Locate(ctx context.Context) (Install, error) {
 		return in, err
 	}
 	in.Launcher = launcher
-	in.Python = lastGlob(l.Paths.ManagedPythonGlobs(home))
+	in.Python = ManagedPython(l.Paths, home)
 	in.Git = l.findGit(home)
 	in.Electron = l.findElectron(in.Checkout)
 	for _, c := range l.Paths.DesktopAppCandidates(in.Checkout) {
@@ -103,6 +129,17 @@ func (l *RealLocator) Locate(ctx context.Context) (Install, error) {
 		}
 	}
 	return in, nil
+}
+
+// ManagedPython looks for Hermes' managed Python under home right now: the
+// last existing match of the platform's globs, "" if there is none. It reads
+// the disk each time, so a caller that asks after `hermes update` sees the
+// interpreter the update installed (the folder name carries a version).
+func ManagedPython(paths platform.Paths, home string) string {
+	if paths == nil || home == "" {
+		return ""
+	}
+	return lastGlob(paths.ManagedPythonGlobs(home))
 }
 
 // pickLauncher returns the first existing candidate whose `--version`

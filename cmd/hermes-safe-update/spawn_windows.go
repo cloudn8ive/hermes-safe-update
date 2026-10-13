@@ -10,6 +10,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// spawnsOwnWindow: `mirror setup` can run in a console window of its own.
+const spawnsOwnWindow = true
+
 // spawnMirrorSetup starts `mirror setup --yes --pause` in its own console
 // window, so the 10-20 min download never holds up the update window.
 func spawnMirrorSetup(exe string) error {

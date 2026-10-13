@@ -251,3 +251,39 @@ func TestPyFilesPathspecsAgreeWithPattern(t *testing.T) {
 		}
 	}
 }
+
+func TestRepoCommitCount(t *testing.T) {
+	const other = "0123456789abcdef0123456789abcdef01234567"
+	rl := gitArgv("rev-list", "--count", sha40+".."+other)
+	cases := []struct {
+		name     string
+		from, to string
+		res      execx.Result
+		want     int
+		ok       bool
+	}{
+		{"ok", sha40, other, execx.Result{Output: "92\r\n"}, 92, true},
+		{"zero is a real answer", sha40, other, execx.Result{Output: "0\n"}, 0, true},
+		{"git fails (missing object)", sha40, other, execx.Result{Code: 128, Output: "fatal: bad revision"}, 0, false},
+		{"timed out", sha40, other, execx.Result{TimedOut: true}, 0, false},
+		{"git failed but printed a number", sha40, other, execx.Result{Code: 1, Output: "7\n"}, 0, false},
+		{"not a number", sha40, other, execx.Result{Output: "warning: x\n"}, 0, false},
+		{"short sha is refused without running git", "abc", other, execx.Result{Output: "5"}, 0, false},
+		{"empty sha is refused", sha40, "", execx.Result{Output: "5"}, 0, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := &execx.Fake{}
+			f.On(rl, c.res)
+			n, ok := newRepo(f).CommitCount(context.Background(), c.from, c.to)
+			if n != c.want || ok != c.ok {
+				t.Errorf("got %d, %v", n, ok)
+			}
+			if len(c.from) != 40 || len(c.to) != 40 {
+				if len(f.Calls()) != 0 {
+					t.Errorf("git ran for a malformed sha: %v", f.Calls())
+				}
+			}
+		})
+	}
+}

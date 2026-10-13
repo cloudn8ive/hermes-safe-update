@@ -57,6 +57,18 @@ func oscProgress(state ProgressState, fraction float64) string {
 // /proc/mounts text, in order, without duplicates or loop devices.
 func parseMounts(s string) []string {
 	var out []string
+	for _, m := range parseMountDevs(s) {
+		out = append(out, m.Root)
+	}
+	return out
+}
+
+// mountDev is one local block-device mount of /proc/mounts.
+type mountDev struct{ Root, Dev string }
+
+// parseMountDevs is parseMounts with the device each mount point is on.
+func parseMountDevs(s string) []mountDev {
+	var out []mountDev
 	seen := map[string]bool{}
 	for _, line := range strings.Split(s, "\n") {
 		f := strings.Fields(line)
@@ -66,7 +78,7 @@ func parseMounts(s string) []string {
 		mp := unescapeMount(f[1])
 		if !seen[mp] {
 			seen[mp] = true
-			out = append(out, mp)
+			out = append(out, mountDev{Root: mp, Dev: f[0]})
 		}
 	}
 	return out

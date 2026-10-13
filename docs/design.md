@@ -15,7 +15,7 @@ install without cutting off running work:
 2. waits until no session is busy (asks before stopping anything),
 3. closes the desktop app gracefully (force only after a timeout),
 4. runs `hermes update --yes --keep-stash --branch main`,
-5. verifies the result (gateway runs the new code, desktop build verified),
+5. verifies the result (a gateway that ran before runs the new code, desktop build verified),
 6. backs up and migrates the desktop's UI settings when the renderer origin
    changed,
 7. runs the user's `post-update` hooks (Hermes still closed), reopens Hermes,
@@ -31,7 +31,7 @@ configuration (`safe-update.yaml`) or a hook. The code is generic.
 | Managed source checkout (`%LOCALAPPDATA%\hermes\hermes-agent`, `~/.hermes/hermes-agent`) | `<home>/hermes-agent/.git` + launcher | updates it |
 | macOS `Hermes.app` (DMG/ZIP) without a checkout | `/Applications/Hermes.app`, `~/Applications/Hermes.app` | steps aside: "use Check for Updates in the app"; exit 5 |
 | Windows MSIX desktop without a checkout | MSIX package install location | steps aside: "updates come from the App Installer feed"; exit 5 |
-| AppImage / deb / rpm desktop (Linux, self-built; best effort, untested) | running from `/tmp/.mount_*` or a package path | steps aside; exit 5 |
+| Anything else without a checkout (AppImage, deb, rpm, other layouts; these are not detected by name) | no `<home>/hermes-agent/.git` and no hint above matched | steps aside: "no Hermes source checkout found at <folder>; update it the way it was installed, or set `paths.checkout`"; exit 5 |
 | Docker | `/.dockerenv`, container cgroup | steps aside: "pull the new image"; exit 5 |
 | Nix | `/nix/store` launcher | steps aside: "update through Nix"; exit 5 |
 
@@ -46,14 +46,23 @@ checkout that also has a packaged app installed is still a checkout
 | windows/amd64 (Windows 10) | yes | unit-tested; one real unattended update (started by a scheduled task) ran and verified on Windows 10 22H2 amd64, and the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. On the real update the settings step failed, because that Hermes range removed renderer-server.ts; this was fixed afterwards (file:// detection, backup when detection fails) and covered by unit tests and a read-only dry run, but no real settings migration has been run since the fix |
 | windows/amd64 (Windows 11) | yes | expected to work; not yet tested |
 | windows/arm64 | yes | builds; not run on arm64 hardware |
-| darwin/arm64, darwin/amd64 | yes | **untested**: cross-compiled and vetted; unit tests so far run on Windows only, CI will run them here once published |
-| linux/amd64, linux/arm64 | yes | **untested**: same as darwin; Linux desktop packaging is disabled upstream, AppImage paths are unverified |
+| darwin/arm64, darwin/amd64 | yes | **untested**: cross-compiled and vetted; unit tests run in CI on macOS on every push; no real Hermes update has been run on a Mac |
+| linux/amd64, linux/arm64 | yes | **untested**: same as darwin; unit tests run in CI on Linux (also with the race detector) and as Linux test binaries on a real kernel (WSL2) in an audit; no real Hermes update has been run on Linux, and Linux desktop packaging is disabled upstream, AppImage paths are unverified |
 
 The matrix is the set of OS/arch pairs Hermes itself runs on (Tier 1 plus
 Intel macOS, which upstream builds). On macOS and Linux the tool prints a
-one-time warning and asks for confirmation; `--accept-untested` skips the
-question and is required with `--unattended` (otherwise exit 3). `version`
-and `--help` never ask.
+warning and asks for confirmation once per machine: a Y (or
+`--accept-untested`) is remembered in `safe-update.json` (`accepted_untested`,
+per OS), so later runs, scheduled ones included, do not ask again. Without a
+remembered answer, `--unattended` needs `--accept-untested` once (otherwise
+exit 3). Only commands that close, update or write ask: `run`, `mirror setup`
+and the settings commands that change something (`migrate-settings`,
+`backup-settings`, `revert-settings`). `check`, `list-backups`,
+`migrate-settings --dry-run`, `mirror refresh` (run by the Hermes cron job,
+which cannot pass the flag), `mirror status`, `version` and `--help` never
+ask: they close and update nothing. (`check` may `git fetch` into the
+checkout's git data and refresh the mirror; HEAD and the working tree stay as
+they are.)
 
 ## 2. Package layout
 
@@ -75,7 +84,7 @@ internal/gc/              dependency-generation cleanup
 internal/cua/             cua-driver refresh / logon task
 internal/settings/        settings backup/migrate/revert + JS
 internal/testutil/        golden files, fake clock
-scripts/                  build-all.sh (canonical) + build-all.ps1
+scripts/                  build-all.sh (canonical) + build-all.ps1; dev-version.sh|ps1 (version of a local build)
 ```
 
 Dependency direction (no cycles): `config`, `fsx`, `apperr`, `logx`,
@@ -106,13 +115,32 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 | 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s`; then Y confirm unless `--yes`/`--unattended` | `ErrCancelled` (3) |
 | 5 | close | Close Hermes | pre-close hooks; graceful close; force after `graceful_close_s` with blocker diagnosis; leftover backends/kernels; **claim the marker only now** | `ErrCancelled` (3) if the app will not exit |
 | 6 | gateway_stop .. restart | Update, Build, Finish | `hermes update` (no `--gateway`), timeout `update_timeout_s`, gate retry once | - |
-| 7 | verify | Finish | gateway `code_sha` == HEAD and alive; `desktop_update_verify` (D17); known false fleet warning | sets `Facts.Verified`; never flipped later |
+| 7 | verify | Finish | gateway `code_sha` == HEAD and alive, only if a gateway ran before the update (pre-flight process list or a live pid in `gateway_state.json`; none before = not required, not started); `desktop_update_verify` (D17); known false fleet warning | sets `Facts.Verified`; never flipped later |
 | 8 | settings | Finish | if verified and `auto_migrate`: backup -> migrate (Hermes is closed now) | WARN only |
 | 9 | hooks | Finish | post-update hooks (verified only), Hermes still closed | WARN only |
-| 10 | relaunch | Finish | if the desktop was running and not `--no-relaunch`; then post-relaunch hooks (whatever the result) | WARN only |
+| 10 | relaunch | Finish | `desktop.relaunch`: `auto` = if the desktop was running; `always` = also if it was closed at the start, but only verified and not `--unattended`; `never` = no; never with `--no-relaunch`. Then post-relaunch hooks (whatever the result) | WARN only |
 | 11 | cleanup | Finish | dependency-generation GC (verified only; Windows) | WARN only |
 | 12 | cua | Finish | cua-driver refresh when the update deferred it (verified only) | WARN only |
-| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer | exit 0 verified / 1 problem |
+| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. The Version row counts HEAD_before..HEAD_after with git (fallback: the `Found N new commit(s)` contract, then the forecast); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row: any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened | exit 0 verified / 1 problem |
+
+Closing on Linux (stage 5) is one `SIGTERM` to the Electron main process (never
+a `--type=` helper, never twice), then the `graceful_close_s` wait, then
+`SIGKILL` of the tree, and the tool confirms the process is gone before it
+touches any data folder. Upstream source: Electron's SIGTERM handler runs
+`Browser::Quit()`, the same path as `app.quit()` (Hermes' `main.ts` has no
+SIGTERM handler of its own; its `before-quit` and `will-quit` handlers do the
+teardown). Checked on a real Linux kernel (WSL2 Debian, Xvfb) with a synthetic
+Electron 40.10.2 app that writes Local Storage every 100 ms: 3 of 3 runs
+exited 0 after `before-quit`/`will-quit`/`quit` with every write on disk;
+`SIGTERM` to all processes, helpers included, crashed the main process 3 of 3.
+Not run with Hermes' own app or on a real Linux desktop. Still needed there:
+start Hermes desktop, open a chat, change a UI preference, run
+`hermes-safe-update --check` first, then an update with `--no-relaunch`, and
+confirm in `logs/safe-update.log` that the app exited inside
+`graceful_close_s` without "forcing", and that the preference survived.
+Open question, not tested: under WSLg Hermes starts its Electron through a
+launcher parent (`entry.ts`) that forwards `SIGTERM` to its child, and both
+are "desktop" processes, so the child may get two `SIGTERM`s.
 
 `finally` (always, once the marker is claimed): stop the marker refresher,
 release the marker if it is ours, relaunch if due, restart a gateway the
@@ -379,7 +407,17 @@ Short notes on how individual packages work.
   via execx, a timeout stops the hook's whole process tree
   (`execx.Cmd.KillTree` -> `Procs.KillTree`, as for `hermes update`),
   working dir = the hook's `dir` or the Hermes home, env
-  `HERMES_SAFE_UPDATE_STAGE` / `HERMES_SAFE_UPDATE_RESULT`. The last
+  `HERMES_SAFE_UPDATE_STAGE` / `_RESULT` / `_HOME` (Hermes root, not a
+  profile) / `_CHECKOUT` / `_PYTHON` (Hermes' managed Python), built by
+  `Run.hookEnv` for every hook point. All five are always present; an
+  unknown or non-absolute path is `""`. `_PYTHON` is asked for through
+  `Deps.ManagedPython` (`hermes.ManagedPython`, a fresh glob) when the hook
+  runs, because `hermes update` replaces the versioned interpreter folder:
+  post-update and post-relaunch hooks get the post-update Python, pre-close
+  the old one; `Install.Python` from pre-flight is only the fallback when
+  nothing is wired (tests). `HERMES_HOME` stays stripped from the child
+  environment (3cb0b70); `_HOME` is its replacement for hooks. The names are
+  a public contract: variables are only added, never renamed or removed. The last
   non-blank output line is the summary row; non-zero exit or timeout = WARN.
   `pre-close` runs at the start of the close stage (result `unknown`),
   `post-update` after a verified update only, with Hermes still closed
@@ -389,6 +427,19 @@ Short notes on how individual packages work.
   indent 1; a malformed record is skipped, a corrupt file is replaced on
   save; full updates (a `desktop` or `verify` step) and everything else are
   kept 40 + 40, original order.
+- macOS/Linux backends: `~/.hermes` (+ `HERMES_DATA_DIR_SUFFIX`); like on
+  Windows `HERMES_HOME` is ignored, because the tool removes it from every
+  child's environment and the launcher shims clear it (one behaviour on
+  all OS; `paths.hermes_home` is the way to point elsewhere).
+- macOS/Linux process classification: a backend started through the entry
+  script (`<path>/hermes serve`, directly or as the script of a python under
+  the install) is recognised. Known gap, left on purpose: a venv python
+  whose `/proc/<pid>/exe` resolves to a base interpreter outside the home
+  and checkout (for example `/usr/bin/python3.12`) is not claimed as a
+  gateway, kernel or backend. Matching on `argv[0]` instead would let a
+  forged command line pass for the install, and not claiming only means
+  fewer processes are stopped. Hermes' managed Python under `tools/python-*`
+  is not affected.
 - Windows backends: `%LOCALAPPDATA%\hermes` (+ `HERMES_DATA_DIR_SUFFIX`;
   `HERMES_HOME` is ignored) with the known-folder API and
   `%USERPROFILE%\AppData\Local` as fallbacks; Toolhelp snapshot +
@@ -411,4 +462,9 @@ Short notes on how individual packages work.
   that `paths.hermes_home` names. `scripts/hermes-safe-update.cmd` and
   `hermes-update-check.cmd` keep the names of the earlier scripts' shims: exe next to the
   shim, else `%LOCALAPPDATA%\Programs\hermes-safe-update`, else `where
-  hermes-safe-update.exe` (PATH).
+  hermes-safe-update.exe` (PATH). The macOS/Linux counterparts
+  `scripts/hermes-safe-update.sh` and `hermes-update-check.sh` look next to
+  the shim, then `~/.local/bin`, then PATH; `hermes-safe-update.desktop`
+  (Linux menu entry) and the two `.command` files (macOS Finder) launch
+  them through `sh`, so only the launched file needs the exec bit. The tool
+  never creates or edits shortcuts or menu entries on any OS.

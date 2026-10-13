@@ -47,6 +47,28 @@ var classOrder = []string{ClassDesktop, ClassGateway, ClassBackend, ClassKernel}
 //
 // Electron helpers (--type=) never count.
 func Classify(p platform.Process, home, checkout string, desktopMarkers []string) string {
+	return ClassifyIn(p, home, checkout, desktopMarkers, nil)
+}
+
+// MacAppDirs picks the installed Hermes.app bundles out of the platform's
+// packaged-install hints (/Applications, ~/Applications). `hermes update`
+// copies the rebuilt app over them and refuses while one runs, so a running
+// one is the desktop app of this install too.
+func MacAppDirs(hints []platform.PackagedHint) []string {
+	var dirs []string
+	for _, h := range hints {
+		if h.Kind == string(KindMacApp) && h.Path != "" {
+			dirs = append(dirs, h.Path)
+		}
+	}
+	return dirs
+}
+
+// ClassifyIn is Classify plus appDirs: installed app bundles
+// (MacAppDirs) whose main executable under <bundle>/Contents/MacOS counts as
+// the desktop app. Helpers in Contents/Frameworks never match, and --type=
+// processes are dropped first as before.
+func ClassifyIn(p platform.Process, home, checkout string, desktopMarkers, appDirs []string) string {
 	cmd := strings.ToLower(p.Cmdline)
 	if cmd == "" {
 		return ""
@@ -62,7 +84,7 @@ func Classify(p platform.Process, home, checkout string, desktopMarkers []string
 		return ""
 	}
 	base := exeBase(p, exe)
-	if isHermesBinaryName(base) && isDesktopMain(exe, derived, flat, checkout, desktopMarkers) {
+	if isHermesBinaryName(base) && isDesktopMain(exe, derived, flat, checkout, desktopMarkers, appDirs) {
 		return ClassDesktop
 	}
 	if !isInterpreterName(base) {
@@ -77,11 +99,23 @@ func Classify(p platform.Process, home, checkout string, desktopMarkers []string
 	if strings.Contains(cmd, " gateway run") {
 		return ClassGateway
 	}
-	if strings.Contains(cmd, " serve") && (strings.Contains(cmd, "hermes.exe") || strings.Contains(cmd, "hermes_cli")) {
+	if strings.Contains(cmd, " serve") && (strings.Contains(cmd, "hermes.exe") || strings.Contains(cmd, "hermes_cli") || isHermesServeInvocation(cmd)) {
 		return ClassBackend
 	}
 	return ""
 }
+
+// isHermesServeInvocation is the POSIX spelling of the backend command: the
+// entry script run as `<path>/hermes serve ...` (directly or as the script
+// argument of a venv python), or `hermes serve ...` as argv[0] looked up on
+// PATH. Only reached for an interpreter or hermes executable that already
+// lies under this install, so an editor or `rg` naming such a path is still
+// not claimed. cmd is lower-case.
+func isHermesServeInvocation(cmd string) bool {
+	return hermesServeRe.MatchString(cmd)
+}
+
+var hermesServeRe = regexp.MustCompile(`(^|/)hermes serve( |$)`)
 
 // effectiveExe is the normPath'd executable path: p.Exe, else the first
 // command-line token when it is an absolute path. derived reports the latter.
@@ -114,9 +148,16 @@ func isAbsPath(s string) bool {
 	return strings.HasPrefix(s, "/") || strings.HasPrefix(s, `\\`)
 }
 
-func isDesktopMain(exe string, derived bool, flatCmd, checkout string, markers []string) bool {
+func isDesktopMain(exe string, derived bool, flatCmd, checkout string, markers, appDirs []string) bool {
 	co := normPath(checkout)
-	if co == "" || !underDir(exe, co+"/apps/desktop/release") {
+	inRelease := co != "" && underDir(exe, co+"/apps/desktop/release")
+	inApp := false
+	for _, a := range appDirs {
+		if a = normPath(a); a != "" && underDir(exe, a+"/contents/macos") {
+			inApp = true
+		}
+	}
+	if !inRelease && !inApp {
 		return false
 	}
 	return !derived || hasAny(flatCmd, markers)

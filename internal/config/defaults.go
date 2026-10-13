@@ -105,6 +105,7 @@ func Defaults() File {
 				"hermes.desktop.toolDisclosure.v1",
 			},
 		},
+		Desktop: Desktop{Relaunch: RelaunchAuto},
 		Logging: Logging{Level: "info", MaxSizeMB: 5, Keep: 3},
 	}
 }

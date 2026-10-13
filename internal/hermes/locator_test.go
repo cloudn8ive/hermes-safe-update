@@ -219,8 +219,8 @@ func TestInstallKinds(t *testing.T) {
 		{"nix", false, []string{"nix"}, KindNix, "nix"},
 		{"appimage", false, []string{"appimage"}, KindAppImage, "AppImage"},
 		{"first existing hint wins", false, []string{"!msix", "nix"}, KindNix, "nix"},
-		{"unknown", false, []string{"!macos-app"}, KindUnknown, ""},
-		{"unknown with no hints", false, nil, KindUnknown, ""},
+		{"unknown", false, []string{"!macos-app"}, KindUnknown, "no Hermes source checkout found at"},
+		{"unknown with no hints", false, nil, KindUnknown, "paths.checkout"},
 	}
 	uses := map[string]string{
 		"macos-app": "use Check for Updates in the app", "msix": "updates come from the App Installer feed",
@@ -291,5 +291,30 @@ func TestCurrentVersionReadsTheLauncher(t *testing.T) {
 		if got := CurrentVersion(context.Background(), r, l); got != "" {
 			t.Errorf("launcher %q: version = %q, want empty (unknown is not an error)", l, got)
 		}
+	}
+}
+
+// ManagedPython reads the disk on every call: after an update installs a
+// newer interpreter the next call returns it (the hooks rely on this).
+func TestManagedPythonIsLookedUpOnEveryCall(t *testing.T) {
+	home := t.TempDir()
+	paths := platform.NewFake().Paths.(*platform.FakePaths)
+	paths.PythonGlobs = []string{filepath.Join(home, "tools", "python-*", "python.exe")}
+	if got := ManagedPython(paths, home); got != "" {
+		t.Fatalf("no Python installed, got %q", got)
+	}
+	old := touch(t, filepath.Join(home, "tools", "python-3.13", "python.exe"), "x")
+	if got := ManagedPython(paths, home); got != old {
+		t.Fatalf("got %q, want %q", got, old)
+	}
+	newer := touch(t, filepath.Join(home, "tools", "python-3.14", "python.exe"), "x")
+	if got := ManagedPython(paths, home); got != newer {
+		t.Fatalf("after the update got %q, want %q", got, newer)
+	}
+	if got := ManagedPython(paths, ""); got != "" {
+		t.Errorf("empty home gave %q", got)
+	}
+	if got := ManagedPython(nil, home); got != "" {
+		t.Errorf("nil paths gave %q", got)
 	}
 }

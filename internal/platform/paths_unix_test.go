@@ -19,10 +19,11 @@ func TestUnixHermesHome(t *testing.T) {
 	}{
 		{"default", fakeEnv("/home/u", nil), "/home/u/.hermes", false},
 		{"suffix appended literally", fakeEnv("/home/u", map[string]string{"HERMES_DATA_DIR_SUFFIX": "-test"}), "/home/u/.hermes-test", false},
-		{"HERMES_HOME wins", fakeEnv("/home/u", map[string]string{"HERMES_HOME": "/data/h/"}), "/data/h", false},
-		{"profile dir names its parent", fakeEnv("/home/u", map[string]string{"HERMES_HOME": "/data/h/profiles/work"}), "/data/h", false},
-		{"userData override without HERMES_HOME", fakeEnv("/home/u", map[string]string{"HERMES_DESKTOP_USER_DATA_DIR": "/tmp/ud"}), "/tmp/ud/hermes-home", false},
-		{"HERMES_HOME beats userData override", fakeEnv("/home/u", map[string]string{"HERMES_HOME": "/h", "HERMES_DESKTOP_USER_DATA_DIR": "/tmp/ud"}), "/h", false},
+		{"HERMES_HOME is ignored, like on Windows", fakeEnv("/home/u", map[string]string{"HERMES_HOME": "/data/h/"}), "/home/u/.hermes", false},
+		{"HERMES_HOME of a profile is ignored", fakeEnv("/home/u", map[string]string{"HERMES_HOME": "/data/h/profiles/work"}), "/home/u/.hermes", false},
+		{"userData override", fakeEnv("/home/u", map[string]string{"HERMES_DESKTOP_USER_DATA_DIR": "/tmp/ud"}), "/tmp/ud/hermes-home", false},
+		{"userData override beats a set HERMES_HOME", fakeEnv("/home/u", map[string]string{"HERMES_HOME": "/h", "HERMES_DESKTOP_USER_DATA_DIR": "/tmp/ud"}), "/tmp/ud/hermes-home", false},
+		{"HERMES_HOME alone needs a user home", fakeEnv("", map[string]string{"HERMES_HOME": "/h"}), "", true},
 		{"no home known", fakeEnv("", nil), "", true},
 		{"nil Getenv", Env{UserHome: "/home/u"}, "/home/u/.hermes", false},
 	}

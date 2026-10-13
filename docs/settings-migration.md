@@ -184,3 +184,8 @@ guesses wrong, pass `--origin`.
 - Tested with the real Electron on Windows, in a sandbox on a copy of a real
   desktop settings store and in an automated test on synthetic data. macOS and
   Linux paths for the desktop data folder exist but are untested.
+- On Linux Electron needs a graphical session. Without `DISPLAY` or
+  `WAYLAND_DISPLAY` (SSH, cron, a service) the commands that need it stop
+  before changing anything and say so; run them from a terminal inside your
+  desktop session. The message is covered by a test; Electron itself was not
+  run on a Linux desktop.

@@ -2,6 +2,7 @@ package hermes
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -86,6 +87,23 @@ var PauseGateRe = regexp.MustCompile(`RuntimeError: (` + PauseGateErr.String() +
 
 // UpdateCompleteRe captures "<old> → <new>" from the final update line.
 var UpdateCompleteRe = regexp.MustCompile(`Update complete! \((.+?) → (.+?)\)`)
+
+// FoundCommitsRe reads the commit count `hermes update` prints after its
+// fetch, e.g. "→ Found 92 new commit(s)". It counts what the update really
+// pulled, which can be more than the pre-flight check saw (Hermes fetches
+// GitHub itself, minutes later).
+var FoundCommitsRe = regexp.MustCompile(`Found (\d+) new commit\(s\)`)
+
+// ParseFoundCommits returns that count from `hermes update` output
+// (ok=false when the line is absent or not a positive number).
+func ParseFoundCommits(output string) (n int, ok bool) {
+	m := FoundCommitsRe.FindStringSubmatch(output)
+	if m == nil {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	return n, err == nil && n > 0
+}
 
 // CheckCommitsRe reads the commit count from `hermes update --check`.
 var CheckCommitsRe = regexp.MustCompile(`(\d+) commits? behind`)

@@ -311,7 +311,7 @@ func TestE2EStartedFromHermesChatStops(t *testing.T) {
 	w.cli("--plain")
 	w.transcript("started-from-chat")
 	w.wantCode(apperr.PreflightStop)
-	w.wantScreen("Run this from a normal terminal or the Start menu, not from inside a Hermes chat")
+	w.wantScreen("Run this from a normal terminal or a shortcut, not from inside a Hermes chat")
 	if w.ran(append([]string{w.launcher}, hermes.UpdateArgv...)...) || len(w.app.Calls()) != 0 {
 		t.Error("changed something")
 	}

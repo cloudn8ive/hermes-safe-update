@@ -1,4 +1,4 @@
-Hermes Update Check
+Hermes Update Check · v1.2.3-test
 == Pre-flight
 disk free: 41.7 GB (enough)
 checkout: clean

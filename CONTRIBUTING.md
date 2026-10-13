@@ -29,7 +29,8 @@ go test ./... -count=1 -shuffle=on
 gofmt -s -l .                 # must print nothing
 go vet ./...
 GOOS=linux go vet ./... && GOOS=darwin go vet ./...
-scripts/build-all.sh dev      # all six targets plus SHA256SUMS in dist/
+scripts/build-all.sh dev      # all six targets plus SHA256SUMS in dist/; the version is
+                              # derived, e.g. v0.1.2+25.3a8a2c7 (a release passes it: build-all.sh v0.1.2)
 ```
 
 CI runs `go test` on Windows, macOS and Linux (the race detector on Linux

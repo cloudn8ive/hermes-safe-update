@@ -99,6 +99,7 @@ func (s *Svc) seed(ctx context.Context, checkout string) SeedResult {
 
 	target, haveTarget := s.APIMainSHA(ctx)
 	have := s.head(ctx, path)
+	refreshed := false
 	if !haveTarget || target != have {
 		if haveTarget {
 			s.logf("mirror: behind GitHub, refreshing")
@@ -108,6 +109,7 @@ func (s *Svc) seed(ctx context.Context, checkout string) SeedResult {
 		if err := s.refreshAt(ctx, path, 300*time.Second, 120*time.Second); err != nil {
 			return no("mirror refresh failed (%v)", err)
 		}
+		refreshed = true
 		have = s.head(ctx, path)
 		if haveTarget && have != target {
 			return no("mirror still behind GitHub after refresh")
@@ -153,7 +155,8 @@ func (s *Svc) seed(ctx context.Context, checkout string) SeedResult {
 		"diff", "--quiet", "HEAD", "origin/"+Branch)
 	complete := err == nil && (pr.Code == 0 || pr.Code == 1)
 
-	out2 := SeedResult{Used: true, Reason: "ok", Complete: complete}
+	out2 := SeedResult{Used: true, Reason: "ok", Complete: complete, Refreshed: refreshed,
+		Current: haveTarget && have == target}
 	if cr, err := s.git(ctx, checkout, 60*time.Second, nil, "rev-list", "--count", "HEAD..origin/"+Branch); err == nil && cr.Code == 0 {
 		if n, err := strconv.Atoi(strings.TrimSpace(cr.Output)); err == nil && n >= 0 {
 			out2.Commits = &n

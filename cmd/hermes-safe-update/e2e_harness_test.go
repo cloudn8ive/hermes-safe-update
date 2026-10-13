@@ -25,7 +25,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -85,6 +87,10 @@ type e2eWorld struct {
 	vt          bool
 	yaml        string
 	apiStatus   string // "ahead" (default), "identical", "down"
+	installed   int    // `git rev-list --count old..new` (0 = 3, like the API forecast; <0 = git fails)
+	newerMode   string // compare <new HEAD>...main: "" (503) | "identical" | "ahead"
+	newerN      int    // ahead_by when newerMode is "ahead"
+	lsRemoteTip string // `git ls-remote` tip of main ("" = the current HEAD, i.e. main did not move)
 	checkOut    string // `hermes update --check` output when the API is down
 	update      []updateLine
 	updateRC    int
@@ -275,6 +281,17 @@ func (w *e2eWorld) endSession() {
 // ---- GitHub API (httptest; the real mirror service talks to it) ----
 
 func (w *e2eWorld) serveAPI(rw http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/repos/NousResearch/hermes-agent/compare/"+e2eNew+"...main") {
+		switch w.newerMode {
+		case "identical":
+			_, _ = io.WriteString(rw, `{"status":"identical","ahead_by":0,"files":[]}`)
+		case "ahead":
+			_, _ = io.WriteString(rw, `{"status":"ahead","ahead_by":`+strconv.Itoa(w.newerN)+`,"files":[{"filename":"README.md"}]}`)
+		default:
+			rw.WriteHeader(http.StatusServiceUnavailable)
+		}
+		return
+	}
 	if !strings.HasPrefix(r.URL.Path, "/repos/NousResearch/hermes-agent/compare/"+e2eOld+"...main") || w.apiStatus == "down" {
 		rw.WriteHeader(http.StatusServiceUnavailable)
 		return
@@ -440,6 +457,11 @@ func (w *e2eWorld) Run(ctx context.Context, c execx.Cmd) (execx.Result, error) {
 	switch {
 	case a0 == w.launcher:
 		return w.hermesCLI(c, rest)
+	case a0 == w.git && slices.Contains(rest, "ls-remote"):
+		return w.lsRemote(c, rest)
+	case a0 == w.git && slices.Contains(rest, "merge-base"):
+		// the mirror service asks whether a tip it never fetched is ours
+		return execx.Result{Code: 128, Output: "fatal: Not a valid commit name"}, nil
 	case a0 == w.git:
 		return w.gitCmd(c, rest)
 	case a0 == w.python:
@@ -509,6 +531,19 @@ func (w *e2eWorld) startGateway() {
 	w.writeGatewayState(sha, pidGateway2)
 }
 
+// lsRemote answers the mirror service's `git ls-remote <official URL>
+// refs/heads/main` (the look at the end of the run).
+func (w *e2eWorld) lsRemote(c execx.Cmd, rest []string) (execx.Result, error) {
+	if len(rest) < 2 || rest[len(rest)-2] != "https://github.com/NousResearch/hermes-agent.git" || rest[len(rest)-1] != "refs/heads/main" {
+		return w.unexpected(c)
+	}
+	tip := w.lsRemoteTip
+	if tip == "" {
+		tip = w.Head()
+	}
+	return execx.Result{Output: tip + "\trefs/heads/main\n"}, nil
+}
+
 func (w *e2eWorld) gitCmd(c execx.Cmd, rest []string) (execx.Result, error) {
 	want := []string{"-c", "gc.auto=0", "--no-optional-locks", "-C", w.checkout}
 	if len(rest) < len(want) || strings.Join(rest[:len(want)], " ") != strings.Join(want, " ") {
@@ -524,6 +559,14 @@ func (w *e2eWorld) gitCmd(c execx.Cmd, rest []string) (execx.Result, error) {
 		return execx.Result{Output: head + "\n"}, nil
 	case strings.HasPrefix(args, "status --porcelain"):
 		return execx.Result{}, nil
+	case args == "rev-list --count "+e2eOld+".."+e2eNew:
+		switch {
+		case w.installed < 0:
+			return execx.Result{Code: 128, Output: "fatal: bad revision"}, nil
+		case w.installed == 0:
+			return execx.Result{Output: "3\n"}, nil
+		}
+		return execx.Result{Output: strconv.Itoa(w.installed) + "\n"}, nil
 	case strings.HasPrefix(args, "diff --quiet HEAD origin/main"):
 		if strings.Contains(args, "package") {
 			return execx.Result{Code: 1}, nil // node packages changed
@@ -755,6 +798,7 @@ func (w *e2eWorld) environment() *environment {
 		self:     filepath.Join(w.home, "bin", "hermes-safe-update.exe"),
 		clock:    w.clock,
 		selfPID:  w.selfPID,
+		ver:      testToolVersion,
 		sleep:    w.sleep,
 		apiBase:  w.api.URL,
 		newUI: func(cfg *config.Config, out io.Writer) ui.Renderer {

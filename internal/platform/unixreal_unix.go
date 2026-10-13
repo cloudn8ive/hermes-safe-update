@@ -11,11 +11,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -24,7 +26,7 @@ import (
 )
 
 // newUnixPlatform assembles the backends for goos ("darwin" or "linux").
-func newUnixPlatform(goos string, list func(context.Context) ([]Process, error), zombie func(int) bool, vols func() []string) *Platform {
+func newUnixPlatform(goos string, list func(context.Context) ([]Process, error), zombie func(int) bool, vols func() []mountPoint) *Platform {
 	sig := realSignaller{}
 	procs := &unixProcs{list: list, sig: sig, self: os.Getpid(), isZombie: zombie}
 	app := &unixApp{
@@ -114,19 +116,71 @@ func userNamespacesWork() bool {
 	return err == nil
 }
 
-// unixConsole is the terminal. VT sequences are native, so EnableVT is a
-// no-op.
-type unixConsole struct{}
+// unixConsole is the terminal. VT sequences are native; EnableVT saves the
+// terminal's title on the xterm title stack and its restore func puts it
+// back, so the title the tool sets while it runs does not outlive the run.
+type unixConsole struct {
+	mu     sync.Mutex
+	pushed bool
+	// out and tty are test seams (nil = stdout, and "stdout is a terminal").
+	out io.Writer
+	tty func() bool
+}
 
 var _ Console = (*unixConsole)(nil)
 
+// xterm window-manipulation sequences: save / restore the window and icon
+// title on the terminal's title stack (xterm, VTE terminals, iTerm2 and
+// others). A terminal without a title stack ignores them and keeps the last
+// title the tool set.
+const (
+	titlePush = "\x1b[22;0t"
+	titlePop  = "\x1b[23;0t"
+)
+
+func (c *unixConsole) stdout() io.Writer {
+	if c.out != nil {
+		return c.out
+	}
+	return os.Stdout
+}
+
 // IsTerminal reports whether stdout is a terminal. Untested on a real macOS
 // or Linux machine.
-func (*unixConsole) IsTerminal() bool { return term.IsTerminal(int(os.Stdout.Fd())) }
+func (c *unixConsole) IsTerminal() bool {
+	if c.tty != nil {
+		return c.tty()
+	}
+	return term.IsTerminal(int(os.Stdout.Fd()))
+}
 
-// EnableVT does nothing: macOS and Linux terminals parse VT natively.
-// Untested on a real macOS or Linux machine.
-func (*unixConsole) EnableVT() (func(), error) { return func() {}, nil }
+// EnableVT needs no mode change (macOS and Linux terminals parse VT
+// natively); it saves the current title once, on a terminal, and returns
+// the func that restores it. Repeated calls return a no-op. Untested on a
+// real macOS or Linux machine.
+func (c *unixConsole) EnableVT() (func(), error) {
+	if !c.IsTerminal() {
+		return func() {}, nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.pushed {
+		return func() {}, nil
+	}
+	c.pushed = true
+	_, _ = io.WriteString(c.stdout(), titlePush)
+	return c.popTitle, nil
+}
+
+func (c *unixConsole) popTitle() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.pushed {
+		return
+	}
+	c.pushed = false
+	_, _ = io.WriteString(c.stdout(), titlePop)
+}
 
 // Size returns the terminal size of stdout, falling back to stderr.
 // Untested on a real macOS or Linux machine.
@@ -151,7 +205,7 @@ func (c *unixConsole) SetTitle(title string) error {
 		}
 		return r
 	}, title)
-	_, err := fmt.Fprintf(os.Stdout, "\x1b]0;%s\a", title)
+	_, err := fmt.Fprintf(c.stdout(), "\x1b]0;%s\a", title)
 	return err
 }
 
@@ -266,9 +320,16 @@ func (unixAutostart) RunElevated(context.Context, []string) (int, string, error)
 	return -1, "", ErrNotSupported
 }
 
+// mountPoint is a volume root and whether it is a local fixed disk (not
+// removable, not a network share).
+type mountPoint struct {
+	Root  string
+	Fixed bool
+}
+
 // unixDisk reports free space with statfs.
 type unixDisk struct {
-	mounts func() []string
+	mounts func() []mountPoint
 }
 
 // Free returns the bytes available to an unprivileged user on the volume
@@ -289,20 +350,22 @@ func (unixDisk) Free(p string) (uint64, error) {
 	}
 }
 
-// Volumes lists local mounted volumes with free space. Untested on a real
-// macOS or Linux machine.
+// Volumes lists mounted volumes with free space. Fixed is false for
+// removable media and network shares (Linux: /sys removable flag or USB bus;
+// macOS: statfs MNT_LOCAL / MNT_REMOVABLE), so they are never proposed as a
+// home for the git mirror. Untested on a real macOS or Linux machine.
 func (d unixDisk) Volumes() ([]Volume, error) {
-	roots := []string{"/"}
+	roots := []mountPoint{{Root: "/", Fixed: true}}
 	if d.mounts != nil {
 		roots = d.mounts()
 	}
 	var out []Volume
 	for _, r := range roots {
-		free, err := d.Free(r)
+		free, err := d.Free(r.Root)
 		if err != nil {
 			continue
 		}
-		out = append(out, Volume{Root: r, Free: free, Fixed: true, System: r == "/"})
+		out = append(out, Volume{Root: r.Root, Free: free, Fixed: r.Fixed, System: r.Root == "/"})
 	}
 	if len(out) == 0 {
 		return nil, errors.New("no readable volumes")

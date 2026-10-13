@@ -16,6 +16,9 @@ type headRepo struct{ head string }
 func (r headRepo) Head(context.Context) (string, string, error) { return "", r.head, nil }
 func (headRepo) DirtyCount(context.Context) (int, error)        { return 0, nil }
 func (headRepo) DiffKinds(context.Context) (*bool, *bool)       { return nil, nil }
+func (headRepo) CommitCount(context.Context, string, string) (int, bool) {
+	return 0, false
+}
 
 func TestParityNothingChanged(t *testing.T) {
 	var cases []struct {

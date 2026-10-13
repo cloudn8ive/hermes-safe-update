@@ -80,16 +80,19 @@ const (
 	GateUnknown GateResult = iota // probe unavailable / errored (D7)
 	GateOK
 	GateBlocked
+	// GateNotApplicable: no probe exists on this OS (macOS/Linux), which is
+	// not a failure and not "unknown".
+	GateNotApplicable
 )
 
 // Gateway reads and controls the Hermes gateway through the launcher.
 type Gateway interface {
 	State() GatewayState
 	// Probe runs the pause-gate probe under Hermes' managed Python
-	// (Windows only; other OSes return GateUnknown, "not needed").
+	// (Windows only; other OSes return GateNotApplicable).
 	Probe(ctx context.Context) (GateResult, string)
 	Stop(ctx context.Context) error  // `gateway stop`, then `--all`, then force
-	Start(ctx context.Context) error // `gateway start --all`
+	Start(ctx context.Context) error // `gateway start --all` (Windows), `gateway start` (macOS/Linux)
 }
 
 // UpdateCheck is the result of the availability chain mirror -> API -> git.
@@ -108,6 +111,9 @@ type Repo interface {
 	DirtyCount(ctx context.Context) (int, error)
 	// DiffKinds classifies HEAD..origin/main by exit codes only (rule 18).
 	DiffKinds(ctx context.Context) (npm, pydeps *bool)
+	// CommitCount is `git rev-list --count from..to` (ok=false when git
+	// cannot say, e.g. an object is missing). Read-only.
+	CommitCount(ctx context.Context, from, to string) (n int, ok bool)
 }
 
 // Verifier runs `hermes --run-module hermes_cli.desktop_update_verify` (D17).

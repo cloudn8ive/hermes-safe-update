@@ -286,6 +286,21 @@ func TestStagesLineInCheckRunShowsGroupIconsForPending(t *testing.T) {
 	}
 }
 
+// A long wait reads in minutes; the last two minutes count in seconds.
+func TestWaitingFooterCountsLongWaitsInMinutes(t *testing.T) {
+	h := newHarness(t, 100, true)
+	h.startUpdate(true)
+	h.r.Stage("wait")
+	h.r.Waiting("Waiting for your answer", h.clk.Now().Add(10*time.Minute), "auto-cancel in")
+	if s := strip(h.r.footer()[3]); s != " ► Waiting for your answer  auto-cancel in 10 min" {
+		t.Errorf("step: %q", s)
+	}
+	h.clk.Advance(8*time.Minute + 1*time.Second) // 119 s left
+	if s := strip(h.r.footer()[3]); !strings.HasSuffix(s, "auto-cancel in 119s") {
+		t.Errorf("last two minutes: %q", s)
+	}
+}
+
 func TestWaitingFooterShowsCountdownAndPausedBar(t *testing.T) {
 	h := newHarness(t, 100, true)
 	h.startUpdate(true)

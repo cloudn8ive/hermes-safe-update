@@ -88,6 +88,7 @@ func stepAside(ctx context.Context, r *Run) error {
 	if r.Wire != nil {
 		r.Wire(in, &r.Deps)
 	}
+	r.routeInitial(in)
 	return nil
 }
 
@@ -103,15 +104,26 @@ func notCheckoutLine(in hermes.Install) string {
 
 func stageLocal(ctx context.Context, r *Run) error {
 	r.section("Pre-flight")
+	if err := r.checkElevation(); err != nil {
+		return err
+	}
+	staleMarker := false
 	if r.Marker != nil {
 		pid, stale := r.Marker.Holder()
 		if pid > 0 {
 			r.stop("another update holds the marker (pid %d). Wait for it or close it first.", pid)
 			return fmt.Errorf("%w: marker held by pid %d", apperr.ErrPreflightStop, pid)
 		}
-		if stale {
-			r.note("stale update marker found (owner dead); it will be replaced")
-		}
+		staleMarker = stale
+	}
+	if err := r.checkCheckoutLock(ctx, staleMarker); err != nil {
+		return err
+	}
+	if staleMarker {
+		r.note("stale update marker found (owner dead); it will be replaced")
+	}
+	if err := r.checkACL(ctx); err != nil {
+		return err
 	}
 	need := r.Config.Tunables.MinFreeGB
 	if free, err := r.Platform.Disk.Free(r.Facts.Install.Home); err != nil {
@@ -183,6 +195,15 @@ func (r *Run) startEarly(ctx context.Context) {
 // ---- 2 remote (§2.3) ----
 
 func stageRemote(ctx context.Context, r *Run) error {
+	if err := remoteChecks(ctx, r); err != nil {
+		return err
+	}
+	// Still nothing closed: a missing ARM64 toolchain is told (or stops the
+	// run) here, once the update is known to be coming.
+	return r.checkARM64(ctx)
+}
+
+func remoteChecks(ctx context.Context, r *Run) error {
 	plan, err := r.channelPlan(ctx)
 	if err != nil {
 		return err // cancelled: never fall through to an update with a made-up plan
@@ -550,6 +571,32 @@ func (r *Run) busySessions(ctx context.Context) []hermes.Session {
 }
 
 func stageWait(ctx context.Context, r *Run) error {
+	if err := waitToClose(ctx, r); err != nil {
+		return err
+	}
+	// The close stage is next, in every mode (F, --yes and --unattended
+	// included): the lock is looked at once more when the last look is old.
+	return r.recheckLockBeforeClose(ctx)
+}
+
+// lockRecheckAfter is how old the last checkout-lock probe may be when the
+// close stage is about to start. An update that started in the gap (during
+// the prompt, an idle wait of up to idle_wait_max_s, a slow check) holds the
+// lock, and hermes update would refuse to run after Hermes was closed. A
+// probe costs microseconds and never blocks.
+const lockRecheckAfter = 60 * time.Second
+
+// recheckLockBeforeClose probes the checkout lock again when the last probe is
+// older than lockRecheckAfter (or there was none that got an answer). Held:
+// the usual pre-flight stop, exit 4, nothing closed.
+func (r *Run) recheckLockBeforeClose(ctx context.Context) error {
+	if !r.lockProbedAt.IsZero() && r.Clock.Now().Sub(r.lockProbedAt) <= lockRecheckAfter {
+		return nil
+	}
+	return r.checkCheckoutLock(ctx, false)
+}
+
+func waitToClose(ctx context.Context, r *Run) error {
 	l, err := r.Platform.Procs.List(ctx)
 	if err != nil {
 		return fmt.Errorf("process listing failed: %w", err)
@@ -564,8 +611,61 @@ func stageWait(ctx context.Context, r *Run) error {
 		r.info("desktop app: not running; %s will still be stopped", runningText(counts))
 	}
 	tun := r.Config.Tunables
+	for {
+		forced, err := r.waitForIdle(ctx)
+		if err != nil {
+			return err
+		}
+		if r.Config.Run.Unattended || r.Config.Run.Yes {
+			return nil
+		}
+		total := r.plannedTotal("close")
+		text := fmt.Sprintf("Hermes will close for the update. The update takes %s. Press Y to continue now, any other key to abort (auto-abort in %s).",
+			withRough(fmt.Sprintf("about %d min", minutes(total)), r.roughNote("close")), ui.CountdownText(tun.ConfirmTimeoutS))
+		asked := r.Clock.Now()
+		a, err := r.ask(ctx, text, []rune{'y', 'n', 'a', 'q', '\r', 0x1b}, tun.ConfirmTimeout(), "auto-cancel in")
+		if err != nil {
+			return err
+		}
+		if a.Key != 'y' {
+			r.info("aborted (no confirmation); nothing was changed")
+			return fmt.Errorf("%w: not confirmed", apperr.ErrCancelled)
+		}
+		// The sessions were last looked at before the prompt. After a long
+		// wait a chat may have started a turn that Hermes would now cut off,
+		// so look again before closing. A user who already chose F (close
+		// despite active sessions) has answered that question: not asked again.
+		// The checkout lock is a different question (F says nothing about it):
+		// it is looked at again here when its last probe is old, so a held
+		// lock stops the run before a long wait for busy sessions starts.
+		if err := r.recheckLockBeforeClose(ctx); err != nil {
+			return err
+		}
+		if forced || r.Clock.Now().Sub(asked) <= confirmRecheckAfter {
+			return nil
+		}
+		busy := r.busySessions(ctx)
+		if len(busy) == 0 {
+			return nil
+		}
+		r.info("%d session(s) became active while the confirmation waited; waiting for them to finish before closing Hermes", len(busy))
+	}
+}
+
+// confirmRecheckAfter is how long the "Press Y" prompt may wait before the
+// busy-session check is repeated after the answer: the idle window is three
+// minutes, and the default prompt waits ten, so a quick answer needs no second
+// look (and costs no extra read) while a long one does. The checkout lock has
+// its own, age-based rule (lockRecheckAfter).
+const confirmRecheckAfter = 60 * time.Second
+
+// waitForIdle blocks until no session is busy, or the user presses F to close
+// Hermes anyway (forced). The idle budget (idle_wait_max_s) starts at each
+// call: it is the time one waiting episode may take, and a second episode
+// after a long confirmation wait must not inherit the first one's spent time.
+func (r *Run) waitForIdle(ctx context.Context) (forced bool, err error) {
+	tun := r.Config.Tunables
 	start := r.Clock.Now()
-	forced := false
 	for !forced {
 		busy := r.busySessions(ctx)
 		r.Facts.Busy = busy
@@ -576,43 +676,29 @@ func stageWait(ctx context.Context, r *Run) error {
 		r.rowsLog(ui.Row{Key: "sessions", Value: head + sessionLines(busy)}, head+sessionLogLines(busy))
 		if r.Clock.Now().Sub(start) >= tun.IdleWaitMax() {
 			r.stop("sessions still active after %d min; nothing was changed. Re-run when idle.", tun.IdleWaitMaxS/60)
-			return fmt.Errorf("%w: sessions still active", apperr.ErrCancelled)
+			return false, fmt.Errorf("%w: sessions still active", apperr.ErrCancelled)
 		}
 		if r.Config.Run.Unattended {
 			if err := r.Sleep(ctx, tun.IdlePoll()); err != nil {
-				return err
+				return false, err
 			}
 			continue
 		}
 		a, err := r.ask(ctx, "Waiting for them to finish. Press A to abort, F to close Hermes anyway (running turns will be cut off).",
 			[]rune{'a', 'f', 'q', 'n', 0x1b}, tun.IdlePoll(), "checking again in")
 		if err != nil {
-			return err
+			return false, err
 		}
 		switch {
 		case a.Abort || a.Key == 'a' || a.Key == 'q' || a.Key == 'n' || a.Key == 0x1b:
 			r.info("aborted by user; nothing was changed")
-			return fmt.Errorf("%w: aborted by user", apperr.ErrCancelled)
+			return false, fmt.Errorf("%w: aborted by user", apperr.ErrCancelled)
 		case a.Key == 'f':
 			r.info("user chose to close Hermes despite active sessions")
 			forced = true
 		}
 	}
-	if r.Config.Run.Unattended || r.Config.Run.Yes {
-		return nil
-	}
-	total := r.plannedTotal("close")
-	text := fmt.Sprintf("Hermes will close for the update. The update takes %s. Press Y to continue now, any other key to abort (auto-abort in %ds).",
-		withRough(fmt.Sprintf("about %d min", minutes(total)), r.roughNote("close")), tun.ConfirmTimeoutS)
-	a, err := r.ask(ctx, text, []rune{'y', 'n', 'a', 'q', '\r', 0x1b}, tun.ConfirmTimeout(), "auto-cancel in")
-	if err != nil {
-		return err
-	}
-	if a.Key != 'y' {
-		r.info("aborted (no confirmation); nothing was changed")
-		return fmt.Errorf("%w: not confirmed", apperr.ErrCancelled)
-	}
-	return nil
+	return forced, nil
 }
 
 // ---- 5 close (§2.7 4-6, §2.8 marker) ----
@@ -831,6 +917,7 @@ func displayLine(line string) string {
 }
 
 func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
+	r.Facts.UpdateStarted = true
 	argv := append([]string{r.Facts.Install.Launcher}, r.updateArgs()...)
 	cmdline := "hermes " + strings.Join(r.updateArgs(), " ")
 	r.UI.Command(cmdline)
@@ -878,6 +965,9 @@ func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 		lastMu.Unlock()
 		if step := hermes.TriggerFor(line); step != "" {
 			r.stage(step)
+			if step == "gateway_stop" && r.Facts.GW.TStop.IsZero() {
+				r.Facts.GW.TStop = r.Clock.Now()
+			}
 		}
 		r.Log.Info("  | " + line)
 		if g, ok := hermes.ParseGCLocked(line); ok {
@@ -897,6 +987,9 @@ func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 	if err == nil && ctx.Err() != nil {
 		err = ctx.Err() // Ctrl+C arrived while it ran
 	}
+	// The update can replace or delete the launcher; find it again before
+	// anything else runs `hermes ...` (verify, rescue, relaunch, hooks).
+	r.reresolveLauncher(context.WithoutCancel(ctx))
 	return code, res.Output, err
 }
 
@@ -934,6 +1027,14 @@ func (r *Run) ensureGatewayRunning(ctx context.Context) {
 	if gws, err := r.procsOf(ctx, hermes.ClassGateway); err == nil && len(gws) > 0 {
 		return
 	}
+	if r.Facts.GW.NotStarted != "" {
+		return // the verify stage already refused, and said why
+	}
+	if ok, why := r.gatewayStartAllowed(ctx, true); !ok {
+		r.Facts.GW.NotStarted = why
+		r.warn("the gateway is down and was not started: %s", why)
+		return
+	}
 	if err := r.Gateway.Start(ctx); err != nil {
 		r.warn("gateway could not be restarted: %v (start it with: hermes gateway start)", err)
 		return
@@ -950,10 +1051,21 @@ func stageVerify(ctx context.Context, r *Run) error {
 		_, head, _ = r.Repo.Head(ctx)
 	}
 	r.Facts.HeadAfter = head
+	// refused: the early start below was refused, and said so.
+	refused := false
 	if r.Facts.GateStopped && r.Gateway != nil {
 		if gws, err := r.procsOf(ctx, hermes.ClassGateway); err == nil && len(gws) == 0 {
-			err := r.Gateway.Start(ctx)
-			r.info("gateway start (it was stopped for the update): %s", errText(err))
+			// Safe Update stopped this gateway itself, so it is down whatever
+			// Hermes did; the same guard as every other start still applies
+			// (a half-written tree after a torn update, Hermes' own hold).
+			if ok, why := r.gatewayStartAllowed(ctx, true); !ok {
+				refused = true
+				r.Facts.GW.NotStarted = why
+				r.warn("the gateway is not running and was not started: %s", why)
+			} else {
+				err := r.Gateway.Start(ctx)
+				r.info("gateway start (it was stopped for the update): %s", errText(err))
+			}
 		}
 	}
 	var st hermes.GatewayState
@@ -968,14 +1080,46 @@ func stageVerify(ctx context.Context, r *Run) error {
 			Sleep: func(d time.Duration) { _ = r.Sleep(ctx, d) },
 			Max:   r.Config.Tunables.VerifyWait(), Poll: gatewayPoll,
 		}
-		st, alive = w.Wait(ctx, head)
-		if !alive {
-			r.info("gateway not running; starting it")
-			err := r.Gateway.Start(ctx)
-			r.info("gateway start: %s", errText(err))
-			_ = r.Sleep(ctx, lateStartWait)
-			st = r.Gateway.State()
-			alive = hermes.AliveFunc(r.Platform.Procs)(st.PID)
+		if refused {
+			// A gateway that was deliberately not started will not come up
+			// by waiting for it.
+			st, alive = r.Gateway.State(), false
+		} else {
+			st, alive = w.Wait(ctx, head)
+		}
+		switch {
+		case alive && head != "" && st.CodeSHA != "" && st.CodeSHA != head:
+			// alive, but Hermes never moved it to the new code
+			st, alive = r.restartStale(ctx, w, head, st)
+		case !alive && !refused:
+			// A gateway is down after the update. gatewayStartAllowed(torn):
+			// an update that did not finish (non-zero exit, no "Update
+			// complete!") must not start one on a half-written tree; a clean
+			// exit, or one after "Update complete!", is never torn there, so
+			// passing true is the same as computing it.
+			if ok, why := r.gatewayStartAllowed(ctx, true); !ok {
+				r.Facts.GW.NotStarted = why
+				r.warn("the gateway is not running and was not started: %s", why)
+			} else {
+				r.info("gateway not running; starting it")
+				err := r.Gateway.Start(ctx)
+				r.info("gateway start: %s", errText(err))
+				_ = r.Sleep(ctx, lateStartWait)
+				st = r.Gateway.State()
+				alive = hermes.AliveFunc(r.Platform.Procs)(st.PID)
+				if err != nil {
+					r.Facts.GW.RescueErr = errText(err)
+				} else if alive && !r.Facts.GateStopped {
+					// Safe Update, not Hermes, brought it back (when Safe
+					// Update stopped it itself, the Gateway row says so).
+					r.Facts.GW.Rescued, r.Facts.GW.Via = true, r.startedVia()
+					if start := r.Facts.GW.TStop; !start.IsZero() {
+						r.Facts.GW.Down = r.Clock.Now().Sub(start)
+					} else if !r.Facts.TClose.IsZero() {
+						r.Facts.GW.Down = r.Clock.Now().Sub(r.Facts.TClose)
+					}
+				}
+			}
 		}
 	}
 	if !noGateway {
@@ -998,6 +1142,7 @@ func stageVerify(ctx context.Context, r *Run) error {
 	})
 	r.Facts.Verified = res.OK
 	r.Facts.VerifyLine = res.Line
+	r.Facts.GW.Tolerated = res.RelaunchTolerated
 	if res.Note != "" {
 		r.stop("%s", res.Note)
 	}
@@ -1503,6 +1648,10 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 		rows = addRow(rows, "cua-driver", f.CUA.Line)
 	}
 	rows = addRow(rows, "Gateway", f.GateLine)
+	rows = append(rows, r.gatewayRows()...)
+	if lr, ok := r.launcherRow(); ok {
+		rows = append(rows, lr)
+	}
 	rows = append(rows, f.HookRows...)
 	for _, u := range unfinished {
 		rows = append(rows, ui.Row{Key: "Not finished", Value: u.String(), Verdict: ptr(ui.VerdictAttention)})

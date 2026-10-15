@@ -77,7 +77,10 @@ type e2eWorld struct {
 	clock *testutil.Clock
 
 	root, home, checkout, launcher, git, python string
-	electron, desktopExe, userData, cuaExe      string
+	// launcher2 is a second launcher the install has once the scenario made it
+	// (the .hermes/bin one of the checkout); "" = none.
+	launcher2                              string
+	electron, desktopExe, userData, cuaExe string
 
 	selfPID int // the updater's pid in the fake table (0 = real)
 
@@ -523,7 +526,7 @@ func (w *e2eWorld) Run(ctx context.Context, c execx.Cmd) (execx.Result, error) {
 	w.mu.Unlock()
 	a0, rest := c.Argv[0], c.Argv[1:]
 	switch {
-	case a0 == w.launcher:
+	case a0 == w.launcher || (w.launcher2 != "" && a0 == w.launcher2):
 		return w.hermesCLI(c, rest)
 	case a0 == w.git && slices.Contains(rest, "ls-remote"):
 		return w.lsRemote(c, rest)
@@ -630,7 +633,7 @@ func (w *e2eWorld) hermesCLI(c execx.Cmd, rest []string) (execx.Result, error) {
 		w.mutate("gateway stop")
 		w.removeGateways()
 		return execx.Result{Output: "Gateway stopped."}, nil
-	case "gateway start --all":
+	case "gateway start --all", "gateway start": // the plain verb is the E2 restart (StartAfterStale)
 		w.mutate("gateway start")
 		w.startGateway()
 		return execx.Result{Output: "Gateway started."}, nil
@@ -996,7 +999,20 @@ func (w *e2eWorld) cli(args ...string) int {
 // assertions check text, not colours or cursor movement).
 func (w *e2eWorld) screen() string { return w.shown(ansiRe.ReplaceAllString(w.errb.String(), "")) }
 
-var countdownRe = regexp.MustCompile(`(?m)^  \d+s\n`)
+var countdownRe = regexp.MustCompile(`(?m)^  \d+( min|s)\n`)
+
+// The plain countdown prints "  30s" and, for two minutes or more, "  10 min":
+// both are racy output that the transcripts leave out.
+func TestCountdownReCoversSecondsAndMinuteLines(t *testing.T) {
+	for _, line := range []string{"  30s\n", "  0s\n", "  10 min\n", "  2 min\n"} {
+		if got := countdownRe.ReplaceAllString("a\n"+line+"b\n", ""); got != "a\nb\n" {
+			t.Errorf("%q is not removed: %q", line, got)
+		}
+	}
+	if got := countdownRe.ReplaceAllString("  3 minutes ago\n  keep 30s\n", ""); got != "  3 minutes ago\n  keep 30s\n" {
+		t.Errorf("a line that only looks similar was removed: %q", got)
+	}
+}
 
 var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
 

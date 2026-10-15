@@ -8,5 +8,6 @@ func newStub(goos string, tested bool) *Platform {
 	return &Platform{
 		OS: goos, Tested: tested,
 		Paths: s, App: s, Procs: s, Console: s, Progress: s, Autostart: s, Disk: s,
+		Locks: s, Elevation: s, Access: s,
 	}
 }

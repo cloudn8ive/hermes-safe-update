@@ -86,15 +86,13 @@ func TestPlainPromptPrintsCountdownEveryTenSeconds(t *testing.T) {
 		}
 		t.Fatalf("never printed %q:\n%s", want, buf.String())
 	}
-	time.Sleep(20 * time.Millisecond)
 	snap := func() string {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		return buf.String()
 	}
-	if strings.Contains(snap(), "25s") {
-		t.Errorf("25 s left is not a multiple of 10:\n%s", snap())
-	}
+	// the first line is printed whatever the timeout
+	waitFor("  25s\n")
 	clk.Advance(5 * time.Second) // 20 s left
 	waitFor("  20s\n")
 	clk.Advance(5 * time.Second) // 15 s left: nothing new
@@ -108,6 +106,95 @@ func TestPlainPromptPrintsCountdownEveryTenSeconds(t *testing.T) {
 	case <-done:
 		t.Fatal("prompt returned early")
 	case <-time.After(20 * time.Millisecond):
+	}
+}
+
+// A long timeout (the default is ten minutes) must not print sixty lines: once
+// a minute while more than two minutes are left, every ten seconds after.
+func TestCountdownLineForALongTimeout(t *testing.T) {
+	var got []string
+	for left := 600; left >= 0; left-- {
+		if line, due := countdownLine(left, 10); due {
+			got = append(got, line)
+		}
+	}
+	want := []string{"  10 min", "  9 min", "  8 min", "  7 min", "  6 min", "  5 min", "  4 min", "  3 min", "  2 min",
+		"  110s", "  100s", "  90s", "  80s", "  70s", "  60s", "  50s", "  40s", "  30s", "  20s", "  10s", "  0s"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("lines:\n got %q\nwant %q", got, want)
+	}
+}
+
+// The prompt itself prints those lines: 590 s left is not one of them, 540 s is.
+func TestPlainPromptCountdownIsOncePerMinuteWhileLong(t *testing.T) {
+	var buf bytes.Buffer
+	clk := testutil.NewClock(time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC))
+	r := NewPlain(&buf, &platform.FakeConsole{})
+	r.SetClock(clk)
+	r.pollEvery = time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		_, _ = r.Prompt(ctx, PromptSpec{Text: "?", Keys: []rune{'y'}, Timeout: 10 * time.Minute})
+	}()
+	snap := func() string {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return buf.String()
+	}
+	waitFor := func(want string) {
+		t.Helper()
+		for i := 0; i < 2000; i++ {
+			if strings.Contains(snap(), want) {
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatalf("never printed %q:\n%s", want, snap())
+	}
+	waitFor("  10 min\n")
+	clk.Advance(10 * time.Second) // 590 s left
+	time.Sleep(30 * time.Millisecond)
+	if strings.Contains(snap(), "590s") || strings.Contains(snap(), "  600s") {
+		t.Errorf("a ten-second line while 10 minutes are left:\n%s", snap())
+	}
+	clk.Advance(50 * time.Second) // 540 s left
+	waitFor("  9 min\n")
+}
+
+// A timeout that is not on the minute grid (150 s) still starts with a line:
+// "3 min", then the once-a-minute rule from 2 min.
+func TestPlainPromptPrintsAFirstLineForAnyTimeout(t *testing.T) {
+	var buf bytes.Buffer
+	clk := testutil.NewClock(time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC))
+	r := NewPlain(&buf, &platform.FakeConsole{})
+	r.SetClock(clk)
+	r.pollEvery = time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		_, _ = r.Prompt(ctx, PromptSpec{Text: "?", Keys: []rune{'y'}, Timeout: 150 * time.Second})
+	}()
+	snap := func() string {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return buf.String()
+	}
+	waitFor := func(want string) {
+		t.Helper()
+		for i := 0; i < 2000; i++ {
+			if strings.Contains(snap(), want) {
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatalf("never printed %q:\n%s", want, snap())
+	}
+	waitFor("  3 min\n")
+	clk.Advance(30 * time.Second) // 120 s left
+	waitFor("  2 min\n")
+	if n := strings.Count(snap(), "  3 min\n"); n != 1 {
+		t.Errorf("the first line was printed %d times:\n%s", n, snap())
 	}
 }
 

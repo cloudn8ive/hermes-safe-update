@@ -207,6 +207,7 @@ func loadConfig(o options, env *environment) (*config.Config, error) {
 	f.NoRelaunch = b("no-relaunch", &o.noRelaunch)
 	f.Force = b("force", &o.force)
 	f.NoElevate = b("no-elevate", &o.noElevate)
+	f.AllowElevated = b("allow-elevated", &o.allowElev)
 	if o.set["channel"] {
 		f.Channel = &o.channel
 	}

@@ -293,3 +293,85 @@ func TestProbeLooksUpPythonAtProbeTime(t *testing.T) {
 		t.Errorf("interpreters used: %v", c)
 	}
 }
+
+// ---- StopStale: the restart of one gateway that runs old code ----
+
+// gwOf is a gateway process of this gateway's home (no fixed path literal, so
+// the test is the same on every OS).
+func gwOf(g *CLIGateway, pid int) platform.Process {
+	return platform.Process{PID: pid, Name: "hermes.exe", Cmdline: filepath.Join(g.Home, "bin", "hermes.exe") + " gateway run"}
+}
+
+func sawArg(calls []execx.Cmd, arg string) bool {
+	for _, c := range calls {
+		for _, a := range c.Argv {
+			if a == arg {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestStopStaleStopsOnlyTheNamedGatewayAfterPlainStop(t *testing.T) {
+	g, run, procs, _ := newGW(t)
+	procs.Add(gwOf(g, 10))
+	procs.Add(gwOf(g, 11))                                                // another profile's gateway
+	run.OnPrefix([]string{g.Launcher, "gateway", "stop"}, execx.Result{}) // the plain stop does not end it
+	if err := g.StopStale(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+	if sawArg(run.Calls(), "--all") {
+		t.Errorf("ran `gateway stop --all`: %v", run.Calls())
+	}
+	if len(run.Calls()) != 1 || strings.Join(run.Calls()[0].Argv[1:], " ") != "gateway stop" {
+		t.Errorf("calls = %v", run.Calls())
+	}
+	if k := procs.Killed(); len(k) != 1 || k[0] != 10 {
+		t.Errorf("killed = %v, want only the stale pid 10", k)
+	}
+	if pids, _ := g.PIDs(context.Background()); len(pids) != 1 || pids[0] != 11 {
+		t.Errorf("the other gateway was touched: %v", pids)
+	}
+}
+
+func TestStopStalePlainStopThatWorksKillsNothing(t *testing.T) {
+	g, run, procs, _ := newGW(t)
+	procs.Add(gwOf(g, 10))
+	run.OnFunc([]string{g.Launcher, "gateway", "stop"}, func(execx.Cmd) execx.Result { procs.Remove(10); return execx.Result{} })
+	if err := g.StopStale(context.Background(), 10); err != nil {
+		t.Fatal(err)
+	}
+	if len(run.Calls()) != 1 || len(procs.Killed()) != 0 {
+		t.Errorf("calls=%v killed=%v", run.Calls(), procs.Killed())
+	}
+}
+
+// An unknown pid is never a licence to kill: the plain stop runs, and a
+// gateway that stays is reported.
+func TestStopStaleWithUnknownPIDKillsNothing(t *testing.T) {
+	g, run, procs, _ := newGW(t)
+	procs.Add(gwOf(g, 10))
+	run.OnPrefix([]string{g.Launcher, "gateway", "stop"}, execx.Result{})
+	err := g.StopStale(context.Background(), 0)
+	if err == nil || len(procs.Killed()) != 0 || sawArg(run.Calls(), "--all") {
+		t.Fatalf("err=%v killed=%v calls=%v", err, procs.Killed(), run.Calls())
+	}
+}
+
+func TestStopStaleFailsWhenTheStaleProcessSurvivesTheKill(t *testing.T) {
+	g, run, procs, _ := newGW(t)
+	procs.Add(gwOf(g, 10))
+	run.OnPrefix([]string{g.Launcher}, execx.Result{})
+	g.Procs = &stuckProcs{FakeProcs: procs}
+	if err := g.StopStale(context.Background(), 10); err == nil || !strings.Contains(err.Error(), "could not be stopped") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestStopStaleWhenTheGatewayIsAlreadyGone(t *testing.T) {
+	g, run, _, _ := newGW(t)
+	if err := g.StopStale(context.Background(), 10); err != nil || len(run.Calls()) != 0 {
+		t.Fatalf("err=%v calls=%v", err, run.Calls())
+	}
+}

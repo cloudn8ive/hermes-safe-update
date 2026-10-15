@@ -48,12 +48,16 @@ type fakeSessions struct {
 	mu     sync.Mutex
 	script [][]hermes.Session
 	calls  int
+	onCall func(n int) // runs at the n-th read (the world changes meanwhile)
 }
 
 func (f *fakeSessions) Busy(context.Context, time.Duration) ([]hermes.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+	if f.onCall != nil {
+		f.onCall(f.calls)
+	}
 	if len(f.script) == 0 {
 		return nil, nil
 	}
@@ -62,15 +66,23 @@ func (f *fakeSessions) Busy(context.Context, time.Duration) ([]hermes.Session, e
 }
 
 type fakeGateway struct {
-	mu      sync.Mutex
-	state   hermes.GatewayState
-	gate    hermes.GateResult
-	probes  []hermes.GateResult // successive probe answers (then gate)
-	stops   int
-	starts  int
-	stopErr error
-	onStop  func()
-	onStart func()
+	mu     sync.Mutex
+	state  hermes.GatewayState
+	gate   hermes.GateResult
+	probes []hermes.GateResult // successive probe answers (then gate)
+	stops  int
+	starts int
+	// staleStops counts StopStale calls (the E2 restart), fullStops Stop
+	// calls (the close stage); both also count in stops.
+	staleStops, fullStops int
+	// staleStarts counts StartAfterStale calls (it also counts in starts
+	// unless staleStartErr is set).
+	staleStarts   int
+	staleStartErr error
+	onStaleStart  func() // runs inside StartAfterStale, before it returns staleStartErr
+	stopErr       error
+	onStop        func()
+	onStart       func()
 }
 
 func (g *fakeGateway) State() hermes.GatewayState {
@@ -88,9 +100,30 @@ func (g *fakeGateway) Probe(context.Context) (hermes.GateResult, string) {
 	}
 	return g.gate, "probe"
 }
-func (g *fakeGateway) Stop(context.Context) error {
+func (g *fakeGateway) StopStale(context.Context, int) error { return g.stop(true) }
+func (g *fakeGateway) StartAfterStale(ctx context.Context, _ int) error {
+	g.mu.Lock()
+	g.staleStarts++
+	err := g.staleStartErr
+	f := g.onStaleStart
+	g.mu.Unlock()
+	if f != nil {
+		f()
+	}
+	if err != nil {
+		return err
+	}
+	return g.Start(ctx)
+}
+func (g *fakeGateway) Stop(context.Context) error { return g.stop(false) }
+func (g *fakeGateway) stop(stale bool) error {
 	g.mu.Lock()
 	g.stops++
+	if stale {
+		g.staleStops++
+	} else {
+		g.fullStops++
+	}
 	f := g.onStop
 	g.mu.Unlock()
 	if f != nil {

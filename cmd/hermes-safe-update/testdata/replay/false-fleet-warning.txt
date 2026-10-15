@@ -9,7 +9,7 @@ node packages: changed, will be reinstalled (slower build)
 running: desktop, gateway, backend
 gateway pause check: OK (default (pid 8211))
 == 2/5 Close Hermes
-Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 30s).
+Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 10 min).
 == Close
 closing desktop app (pid 4242)
 stopping leftover backend pid 5310

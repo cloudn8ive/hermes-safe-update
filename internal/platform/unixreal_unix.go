@@ -45,6 +45,7 @@ func newUnixPlatform(goos string, list func(context.Context) ([]Process, error),
 		Progress:  newOSCProgress(os.Getenv("HERMES_SAFE_UPDATE_OSC_PROGRESS") == "1"),
 		Autostart: unixAutostart{},
 		Disk:      unixDisk{mounts: vols},
+		Locks:     Stub{}, Elevation: Stub{}, Access: Stub{},
 	}
 }
 
@@ -319,6 +320,9 @@ func (unixAutostart) TaskExecutable(context.Context, string) (string, bool, erro
 func (unixAutostart) RunElevated(context.Context, []string) (int, string, error) {
 	return -1, "", ErrNotSupported
 }
+
+// RunTask always returns ErrNotSupported (logon tasks are Windows-only).
+func (unixAutostart) RunTask(context.Context, string) error { return ErrNotSupported }
 
 // mountPoint is a volume root and whether it is a local fixed disk (not
 // removable, not a network share).

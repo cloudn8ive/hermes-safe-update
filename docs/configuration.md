@@ -49,7 +49,7 @@ three fields only.
 | `idle_window_s` | 180 | A session active within this many seconds counts as busy. |
 | `idle_poll_s` | 60 | How often busy sessions are re-checked while waiting. |
 | `idle_wait_max_s` | 1800 | Give up (nothing changed, exit 3) after waiting this long. |
-| `confirm_timeout_s` | 30 | The final "Press Y" prompt aborts after this. `--delay N` overrides it. |
+| `confirm_timeout_s` | 600 | The final "Press Y" prompt aborts after this (10 minutes; the prompt and the footer count in minutes from two minutes on, in seconds below that). `--delay N` overrides it. If the answer comes more than 60 seconds after the prompt appeared, busy sessions are checked once more before Hermes closes; if a chat is busy again, Safe Update goes back to waiting for idle (A to abort, F to close anyway; the idle limit starts again) and then asks for `Y` again. That check is not repeated after F, `--yes` or `--unattended`. Hermes' checkout lock is looked at again in every mode, right before Hermes closes, whenever the last look is more than 60 seconds old (a long prompt wait, a long wait for idle sessions, F, `--yes`, `--unattended`); if an update has started meanwhile (the lock is held), the run stops with exit 4, nothing closed. |
 | `graceful_close_s` | 30 | How long the desktop app gets to close before it is forced. |
 | `update_timeout_s` | 5400 | Hard cap for `hermes update` (90 minutes); then its whole process tree is stopped. |
 | `silent_warn_s` | 600 | Note once in the log when the update prints nothing for this long. |
@@ -175,6 +175,39 @@ out and the run asks (unattended: stops) the same way.
 If `update.channel` is `stable` or `main`, Safe Update keeps using it whatever
 Hermes is set to, including after `channel set`; the command says so. To
 follow Hermes again, set `follow` or remove the line.
+
+## preflight
+
+Checks that run before Hermes is closed. A stop ends the run with exit 4 and
+nothing changed. All of them only read; none installs or repairs anything.
+`check` runs the same probes, so it shows the same stops and exits 4 on a held
+lock or an unreadable `tools\` entry (the administrator terminal only warns
+there). The lock, elevation and access tests are Windows only; on macOS and
+Linux they do nothing (the log says "checkout lock: not probed" and "elevation
+check unavailable"; the access walk finds nothing).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `acl_check` | `"stop"` | Safe Update opens each entry of Hermes' `tools\` folder (and one level below) with your own account, plus a few other folders the update writes to. An entry you cannot open was left behind by an elevated install or update (owner Administrators, no usable permission for your account); the next update would fail on it with `[WinError 5]`. `"stop"`: end the run when an entry under `tools\` cannot be opened for reading, and print the two commands that give it back for each of the first 5 entries (`takeown /f "<entry>" /r /d y`, then `icacls "<entry>" /reset /t /c /q`; run them in an administrator terminal; on a non-English Windows replace `y` with that language's yes letter, `j` on German). The stop message also names the way past it: `preflight.acl_check: "warn"` in `safe-update.yaml` (the update is then expected to fail on those entries). An entry that is refused is opened a second time after about 400 ms (once for all of them), and only a refusal that repeats counts, because Windows also refuses a file for a moment while it is being deleted or scanned. If the walk hits its limit (400 opens or 2 seconds), it says "ACL check stopped early after N opens; deeper entries were not looked at". `"warn"`: print the same and go on. `"off"`: skip. Entries outside `tools\` that cannot be opened, and entries you can read but not change, are always only a warning. The test is a real open, never a guess from owner or permission entries, and it is shallow: damage deep inside `node_modules` is not seen. |
+| `arm64_toolchain` | `"warn"` | Only when Hermes' managed Python is the `win32-arm64` one (the folder name under `tools\`; Safe Update does not look at its own build), an update is coming, and Python dependencies are expected to be rebuilt (or Safe Update cannot tell). Hermes then needs the Visual Studio ARM64 C++ tools and `clang.exe`, and starts the Visual Studio Build Tools installer (several GB, an administrator prompt) when either is missing, after Hermes was closed. Safe Update repeats Hermes' own lookups (`clang.exe` on `PATH`, in `Program Files\LLVM\bin` and in the Visual Studio LLVM folders, and `vswhere`). `"warn"`: say so and go on. `"stop"`: end the run before anything is closed. `"off"`: skip. If the lookup itself fails, nothing is reported. Safe Update installs nothing. |
+
+Two more stops need no setting:
+
+- **Running as administrator.** From an elevated terminal (or a task set to
+  run with highest privileges) `run` stops with exit 4 before closing anything:
+  an elevated update leaves files in `tools\` that your normal account cannot
+  update later. `--allow-elevated` goes on anyway. `check` only warns. A
+  standard user, or an administrator with UAC off, is not "elevated" here.
+- **Checkout lock held.** `hermes update` holds a lock on the checkout
+  (`hermes-update.lock` in the git directory, or `.hermes-update.lock` in the
+  install folder when there is no `.git`) for its whole process tree.
+  When a process still holds it (another update, or a leftover child of a
+  killed one), Safe Update stops with exit 4 before closing anything and says
+  who holds it, instead of closing Hermes and letting `hermes update` refuse.
+  It only tries the lock and gives it back at once; it never creates the
+  file and never stops a process. If the lock file exists but cannot be
+  opened, that also stops (`hermes update` would refuse too). If the probe
+  cannot be asked at all, the run goes on.
 
 ## hooks
 

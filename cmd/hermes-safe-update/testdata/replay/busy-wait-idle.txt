@@ -15,7 +15,7 @@ Waiting for them to finish. Press A to abort, F to close Hermes anyway (running 
 sessions: 1 active in the last 3 min
    20260101_000000_aaaaaa  Planning the week  (last activity 102s ago)
 Waiting for them to finish. Press A to abort, F to close Hermes anyway (running turns will be cut off).
-Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 30s).
+Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 10 min).
 == Close
 closing desktop app (pid 4242)
 stopping leftover backend pid 5310

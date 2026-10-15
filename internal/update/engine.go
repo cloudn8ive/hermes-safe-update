@@ -150,6 +150,8 @@ func (r *Run) finally(ctx context.Context, err error) error {
 	}
 	if r.Facts.GateStopped {
 		r.ensureGatewayRunning(fctx)
+	} else {
+		r.rescueGateway(fctx)
 	}
 
 	switch {
@@ -167,8 +169,12 @@ func (r *Run) finally(ctx context.Context, err error) error {
 	case errors.Is(err, apperr.ErrUpdateProblem) && !r.summaryShown:
 		// interrupted during the update: still show what happened
 		r.complete(false)
+		rows := r.gatewayRows()
+		if lr, ok := r.launcherRow(); ok {
+			rows = append(rows, lr)
+		}
 		r.summary(ui.Card{OK: ptr(false), Headline: "The update needs attention: it was interrupted.",
-			Rows: []ui.Row{{Key: "Log", Value: r.LogPath}}})
+			Rows: append(rows, ui.Row{Key: "Log", Value: r.LogPath})})
 	case err != nil:
 		r.complete(false)
 	}

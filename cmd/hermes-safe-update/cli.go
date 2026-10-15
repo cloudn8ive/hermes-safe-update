@@ -29,6 +29,7 @@ type options struct {
 	noRelaunch bool
 	force      bool
 	noElevate  bool
+	allowElev  bool   // run, check: go on although this process is elevated
 	channel    string // run, check: follow | stable | main (beats update.channel)
 
 	// subcommand flags
@@ -72,6 +73,7 @@ func newFlagSet(o *options) *flag.FlagSet {
 	fs.BoolVar(&o.noRelaunch, "no-relaunch", false, "")
 	fs.BoolVar(&o.force, "force", false, "")
 	fs.BoolVar(&o.noElevate, "no-elevate", false, "")
+	fs.BoolVar(&o.allowElev, "allow-elevated", false, "")
 	fs.StringVar(&o.channel, "channel", "", "")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "")
 	fs.StringVar(&o.origin, "origin", "", "")
@@ -153,6 +155,9 @@ func parseArgs(args []string) (options, error) {
 	if o.set["channel"] && o.command != "run" && o.command != "check" {
 		return o, usageError("--channel applies to run and check only, not %s", o.command)
 	}
+	if o.set["allow-elevated"] && o.command != "run" && o.command != "check" {
+		return o, usageError("--allow-elevated applies to run and check only, not %s", o.command)
+	}
 	if o.set["delay"] && o.delay <= 0 {
 		return o, usageError("--delay must be greater than 0")
 	}
@@ -199,11 +204,15 @@ Flags:
   --plain              plain text output (also HERMES_SAFE_UPDATE_PLAIN=1, NO_COLOR)
   --log-level LEVEL    debug | info | warn | error
   --check              same as the check command
-  --delay N            seconds the final confirmation waits (default 30)
+  --delay N            seconds the final confirmation waits (default 600)
   --no-relaunch        do not reopen the desktop app afterwards
   --force              run even when no update is available
   --no-elevate         Windows only: never show a UAC prompt (log the admin command
                        instead); no effect on macOS/Linux
+  --allow-elevated     Windows only: run, check: go on although this terminal is
+                       elevated (administrator). Without it, run stops before
+                       closing anything: an elevated update leaves files in
+                       Hermes' tools folder that a normal account cannot update
   --channel CHANNEL    run, check: which Hermes update channel to follow for this
                        run: follow (default; whatever Hermes uses for this
                        install), stable (latest release) or main (every commit);
@@ -212,10 +221,14 @@ Flags:
 Exit codes:
   0  done (updated and verified, check finished, or already up to date)
   1  the update needs attention, or an unexpected error
-  2  the hermes launcher was not found
+  2  no way to run Hermes was found (no hermes launcher, and for run and check
+     no managed Python route either)
   3  cancelled before anything changed (Hermes left running)
-  4  pre-flight stop (another update running, low disk, update check failed,
-     a run that would roll Hermes back; channel set: refused or failed)
+  4  pre-flight stop (another update running or holding the checkout lock,
+     low disk, update check failed, running elevated, tools folder entries
+     your account cannot open, missing ARM64 build tools when
+     preflight.arm64_toolchain is stop, a run that would roll Hermes back;
+     channel set: refused or failed)
   5  not a source-checkout install (packaged app, MSIX, Docker, Nix): use the
      in-app updater or your package manager
   6  refused because the Hermes desktop app is running (settings commands)

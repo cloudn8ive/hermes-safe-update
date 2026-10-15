@@ -1,0 +1,30 @@
+# Synthetic excerpt in the shape of Hermes' scripts/windows-build-deps.ps1
+# (the lookups Safe Update repeats before it closes anything).
+
+function Get-HermesArm64VisualStudio {
+    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path -LiteralPath $vswhere)) { return $null }
+    $found = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath
+    if ($LASTEXITCODE -ne 0) { throw 'Visual Studio discovery failed' }
+    return ($found | Select-Object -First 1)
+}
+
+function Get-HermesClang {
+    param([string]$VisualStudio)
+    $command = Get-Command clang.exe -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+    $candidates = @((Join-Path $env:ProgramFiles 'LLVM\bin\clang.exe'))
+    if ($VisualStudio) {
+        $candidates += @(
+            (Join-Path $VisualStudio 'VC\Tools\Llvm\ARM64\bin\clang.exe'),
+            (Join-Path $VisualStudio 'VC\Tools\Llvm\bin\clang.exe')
+        )
+    }
+    return ($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+}
+
+    $vs = Get-HermesArm64VisualStudio
+    $clangPath = Get-HermesClang -VisualStudio $vs
+    if (-not $vs -or -not $clangPath) {
+        # installs Visual Studio Build Tools (UAC prompt, several GB)
+    }

@@ -286,7 +286,7 @@ func (v *VT) footer() []string {
 		extra := ""
 		if !v.waitDeadline.IsZero() {
 			left := int(math.Max(0, v.waitDeadline.Sub(now).Seconds()))
-			extra = fmt.Sprintf("  %s %ds", v.countdown, left)
+			extra = fmt.Sprintf("  %s %s", v.countdown, CountdownText(left))
 		}
 		step = st.fit([]seg{{t: " " + th.Glyphs.Active + " ", codes: []string{c.Warn, bold}}, {t: v.waitLabel, codes: []string{c.Warn}}, {t: extra, codes: []string{c.Soft}}}, w)
 	case hasCur:

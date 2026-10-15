@@ -63,19 +63,19 @@
    [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;215;1m► Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 2 of 5[0m[K[?25l[4A[J  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;221m█████[0m[38;5;236m███████████████████████████████[0m[1m   15%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
-  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-cancel in 30s[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-cancel in 10 min[0m[K
    [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;215;1m► Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 2 of 5[0m[K[4A[J  
      [38;5;221;1m? [0m[1mHermes will close for the update. The update takes about 8 min (rough: no earlier runs[0m
        [1mlike this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in[0m
-       [1m30s).[0m
+       [1m10 min).[0m
 [?25l  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;221m█████[0m[38;5;236m███████████████████████████████[0m[1m   15%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
-  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-cancel in 30s[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-cancel in 10 min[0m[K
    [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;215;1m► Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 2 of 5[0m[K[?25l[4A[J  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;221m█████[0m[38;5;236m███████████████████████████████[0m[1m   15%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
-  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-cancel in 30s[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-cancel in 10 min[0m[K
    [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;215;1m► Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 2 of 5[0m[K[?25l[4A[J  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;2;95;175;255m█████[0m[38;5;236m███████████████████████████████[0m[1m   15%[0m[38;5;250m   0:02 elapsed · about 7 min left (rough) · 9:54 AM[0m[K

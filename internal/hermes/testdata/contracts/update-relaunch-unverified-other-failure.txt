@@ -1,0 +1,10 @@
+→ Fetching updates...
+→ Pulling updates...
+✗ Building the web UI failed: npm exited 1
+
+  ⚠ Windows gateway restart could not be verified for: default
+✓ Update complete! (v1.0 → v1.1)
+Traceback (most recent call last):
+  File "update_cmd.py", line 1, in <module>
+    raise RuntimeError
+RuntimeError: Windows gateway relaunch after update was not verified alive: default

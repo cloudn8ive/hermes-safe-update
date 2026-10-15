@@ -31,7 +31,10 @@ tunables:
   idle_window_s: 180         # a session active within this many seconds counts as busy
   idle_poll_s: 60            # re-check busy sessions this often while waiting
   idle_wait_max_s: 1800      # give up (nothing changed) after waiting this long for idle sessions
-  confirm_timeout_s: 30      # the final "Press Y" prompt auto-aborts after this (--delay overrides)
+  confirm_timeout_s: 600     # the final "Press Y" prompt auto-aborts after this (--delay overrides). If you
+                             # answer after more than a minute, busy sessions are checked once more first.
+                             # Hermes' checkout lock is looked at again right before Hermes closes whenever
+                             # the last look is over a minute old (any mode, also after F, --yes, --unattended)
   graceful_close_s: 30       # wait this long for the desktop app to close before forcing it
   update_timeout_s: 5400     # hard cap for `hermes update` (90 min)
   silent_warn_s: 600         # note once when the update prints nothing for this long
@@ -184,6 +187,27 @@ update:
   # A run that would move the checkout back to an older release stops and asks
   # first (--unattended refuses).
   channel: "follow"
+
+preflight:
+  # Checks that run before Hermes is closed. A "stop" ends the run (exit 4)
+  # with nothing changed. All of them only read. Besides the two below, Safe
+  # Update stops when Hermes' checkout lock is held (an update is running; no
+  # setting, Windows) and checks the update marker and the free disk.
+  #
+  # tools\ entries your account cannot open, left behind by an elevated
+  # install or update (the next update would fail with [WinError 5]). The
+  # message prints the takeown / icacls commands that repair them (run those in
+  # an administrator terminal).
+  #   "stop"  end the run (default)   "warn"  warn and go on   "off"  skip
+  acl_check: "stop"
+  # Windows ARM64 only: Python dependencies are about to be rebuilt and clang
+  # or the ARM64 C++ tools are missing, so the update would start a Visual
+  # Studio Build Tools installer after Hermes was closed.
+  #   "warn"  say so and go on (default)   "stop"  end the run   "off"  skip
+  arm64_toolchain: "warn"
+# Running Safe Update from an administrator terminal also stops before closing
+# anything (an elevated update leaves files in tools\ that your normal account
+# cannot update). --allow-elevated overrides that for one run.
 
 # Hooks: your own commands at fixed points of the flow.
 #   when: "pre-close"      before Hermes is closed (after the confirmation)

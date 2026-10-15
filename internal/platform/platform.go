@@ -76,6 +76,11 @@ type Platform struct {
 	Progress  Progress
 	Autostart Autostart
 	Disk      Disk
+
+	// Pre-flight probes (preflight.go). Nil = not available; callers skip.
+	Locks     LockProbe
+	Elevation Elevation
+	Access    Access
 }
 
 // Env is what path resolution may look at. Tests pass a fake getenv.
@@ -224,6 +229,11 @@ type Autostart interface {
 	// RunElevated runs argv once with administrator rights (one UAC prompt
 	// on Windows) and waits. Argv is quoted by the implementation (D16).
 	RunElevated(ctx context.Context, argv []string) (exitCode int, output string, err error)
+	// RunTask starts a registered logon task once, without waiting for what
+	// it launches (`schtasks /Run /TN name`). Task Scheduler starts the
+	// process outside the caller's Job Object. Windows only; elsewhere it
+	// returns ErrNotSupported.
+	RunTask(ctx context.Context, name string) error
 }
 
 // Volume is one mounted filesystem.

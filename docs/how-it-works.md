@@ -12,20 +12,20 @@ mirror and fetch new commits and `v*` tags into the checkout's git data
 
 | # | Stage | What happens | Can stop the run |
 |---|---|---|---|
-| 0 | install check | Is this a managed source checkout with a `hermes` launcher? Packaged installs get advice instead. | exit 5; exit 2 if the launcher is missing |
-| 1 | local | Is another update's marker held by a live process? Free disk at least `min_free_gb`? Dirty checkout (information only)? Current commit. | exit 4 |
-| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back and the rollback guard asks). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). | up to date: exit 0. Check failed, release not resolvable, a stable request on a Hermes without channels, or an update that would move Hermes back to an older release (rollback guard; asks first when attended): exit 4 |
+| 0 | install check | Is this a managed source checkout with a `hermes` launcher? Packaged installs get advice instead. If there is no working launcher, `run` and `check` try to run Hermes through its managed Python (see "The launcher" below). | exit 5; exit 2 when no way to run Hermes is found (no launcher, and the managed Python route fails too) |
+| 1 | local | Running elevated (administrator)? Is another update's marker held by a live process? Does a process hold Hermes' checkout lock (an update running, or a child a killed update left behind)? Can your account open Hermes' `tools\` entries (an elevated install leaves some it cannot)? Free disk at least `min_free_gb`? Dirty checkout (information only)? Current commit. All of these only read; see "Pre-flight stops" below and `preflight` in configuration.md. | exit 4 |
+| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back and the rollback guard asks). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). On Windows ARM64 (Hermes' managed Python is the `win32-arm64` one), when Python dependencies are expected to change (or cannot be told), it also looks for the ARM64 C++ tools and `clang.exe` the way Hermes does, and warns (or stops, `preflight.arm64_toolchain: stop`) if they are missing. | up to date: exit 0. Check failed, release not resolvable, a stable request on a Hermes without channels, an update that would move Hermes back to an older release (rollback guard; asks first when attended), or missing ARM64 build tools with `arm64_toolchain: stop`: exit 4 |
 | 3 | procs | Classify running processes: desktop, gateway, backend, kernel. On Windows, probe whether Hermes' own gateway pause would work. | |
-| 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`). | exit 3 |
+| 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`; it waits `confirm_timeout_s`, default 600 s, and if the answer comes more than a minute after the prompt the busy-session check runs once more and a busy chat sends the run back to waiting for idle). Right before the close stage, in every mode (also after `F`, with `--yes`, `--unattended`, after a long idle wait), the checkout lock is probed again when the last probe is more than a minute old; a lock now held ends the run with exit 4 before anything closes. | exit 3 |
 | 5 | close | `pre-close` hooks, graceful close with `graceful_close_s` to finish, force only after that, stop leftover backends and kernels, then claim the update-in-progress marker. | exit 3 if the app will not exit |
-| 6 | update | `hermes update --yes --keep-stash` plus `--branch main` (main), `--channel stable` (`update.channel: stable`) or nothing (a release channel Hermes chose), capped at `update_timeout_s`. Progress follows Hermes' own output lines. | |
-| 7 | verify | If a gateway ran before the update: its `code_sha` equals the checkout commit and it is alive (restarted if not). No gateway before: none required, none started. `desktop_update_verify` passes. | result "problem": exit 1 |
+| 6 | update | `hermes update --yes --keep-stash` plus `--branch main` (main), `--channel stable` (`update.channel: stable`) or nothing (a release channel Hermes chose), capped at `update_timeout_s`. Progress follows Hermes' own output lines. When it ends, the `hermes` launcher is looked up again (the update can replace it). | |
+| 7 | verify | If a gateway ran before the update: its `code_sha` equals the checkout commit and it is alive (started if it is down, restarted once if it runs the old code; see Verification). No gateway before: none required, none started. `desktop_update_verify` passes. | result "problem": exit 1 |
 | 8 | settings | Back up and copy desktop settings to the origin the app uses now if it changed (workaround for settings lost when the renderer moved; see settings-migration.md). | warning only |
 | 9 | hooks | `post-update` hooks (verified only), while Hermes is still closed. | warning only |
 | 10 | relaunch | Reopen the desktop app as `desktop.relaunch` says: `auto` if it was running, `always` also if it was already closed (verified, attended runs), `never` not at all; `--no-relaunch` beats all three. Then run the `post-relaunch` hooks. | warning only |
 | 11 | cleanup | Remove old dependency sets (Windows, verified updates only). | warning only |
 | 12 | cua | Refresh cua-driver if the update deferred it (verified updates only). | warning only |
-| 13 | summary | Summary card, timing history saved, optional mirror offer. The `Version` row counts the commits really installed (git on the old and new HEAD). After a verified update, a quick best-effort look (API, then `git ls-remote`, a few seconds) adds a `Newer` row if `main` moved meanwhile; a `Channel` row names the channel and why; on a release channel the `Newer` row reports a newer published release, never main moving; an app that was not reopened gets a `Hermes app` row. | exit 0 verified, 1 problem |
+| 13 | summary | Summary card, timing history saved, optional mirror offer. The `Version` row counts the commits really installed (git on the old and new HEAD). After a verified update, a quick best-effort look (API, then `git ls-remote`, a few seconds) adds a `Newer` row if `main` moved meanwhile; a `Channel` row names the channel and why; on a release channel the `Newer` row reports a newer published release, never main moving; an app that was not reopened gets a `Hermes app` row. Rows about the gateway and the launcher (`Gateway check`, `Stale gateway`, `Gateway rescue`, `Double launch`, `Launcher`; see Verification) are notes and never change the result. | exit 0 verified, 1 problem |
 
 ## Which channel a run uses
 
@@ -110,19 +110,170 @@ having changed anything and restarts what it stopped.
 
 A run is a success only when:
 
-1. the gateway reports the checkout's new commit and is alive, and
+1. the gateway reports the checkout's new commit and is alive (only if a
+   gateway was running before the update), and
 2. Hermes' desktop-build check passes with no output.
 
-Hermes sometimes exits 1 with "Fleet version check returned no rows" even
-though the update is fine. If both checks above pass, the tool reports OK
-and notes it. On Hermes v0.22 that line is a follow-up with exit code 0 and
-shows as a "Not finished" row instead. Anything else is reported as a
-problem, with the log path.
+`hermes update` should exit 0. Two exit-1 cases still count as OK, each only
+when both checks above pass:
+
+- Hermes sometimes exits 1 with "Fleet version check returned no rows" even
+  though the update is fine. The tool reports OK and notes it. On Hermes
+  v0.22 that line is a follow-up with exit code 0 and shows as a "Not
+  finished" row instead.
+- **Hermes could not confirm its own gateway relaunch** (hermes-agent
+  #123971). The updater exits 1 after "Update complete!" because its own
+  check of the relaunched gateway failed, though the gateway may be fine.
+  Safe Update accepts that exit only when a gateway was running before, the
+  exit code is exactly 1, "Update complete!" is in the output, every failure
+  line (a line with `✗`, the last line of a Python traceback, or a line that
+  starts with `Error:`, `ERROR:`, `error:`, `fatal:` or `FATAL:`) is one of
+  the three known wordings ("Windows gateway relaunch after update was not
+  verified alive", "Windows gateway restart could not be verified", "Windows
+  gateway recovery failed:"), and Safe Update's own look at the gateway finds
+  it alive on the new commit. One unexplained failure line, or a missing
+  "Update complete!", and it stays a problem. The summary shows an amber
+  `Gateway check` row with the Hermes line. According to Hermes' current
+  source this error is now an owed follow-up with exit 0, so the exit-1 case
+  needs an updater that is older than the code it installs. That behaviour of
+  an older Hermes has not been seen by this tool; the rule rests on the issue
+  report and is tested with synthetic Hermes output.
+
+Anything else is reported as a problem, with the log path.
+
+**A gateway that is up but on the old code.** If the gateway is alive after
+the update but its `code_sha` is still the old commit (Hermes never moved it,
+or its relaunch was not seen), Safe Update stops and starts it once and waits
+for it to report the new commit. The `Stale gateway` row says what happened.
+Only that gateway is stopped, with a plain `hermes gateway stop` and, if it
+is still there after 20 seconds, a kill of that one process; never
+`gateway stop --all`, which on macOS and Linux would stop the gateways of
+every profile. The start is a plain `hermes gateway start`, never `--all`
+(which sweeps every profile's gateway first), and it runs even when another
+profile's gateway is alive; it counts only when a new gateway process appears.
+If none does, the row says Safe Update stopped the gateway but could not start
+it again, the log says so, and the run ends as a problem. It does not do this
+when Hermes' own hold line is in the output (below), or when the checkout moved
+without "Update complete!" (a half-finished update).
+It never changes `Verified` by itself: only a gateway that then reports the
+new commit makes the check pass.
+
+**A gateway that is down.** At the verify step a gateway that ran before and
+is not running is started with `hermes gateway start`. It counts as failed when the command exits non-zero or prints
+Hermes' own "Gateway start via ... FAILED" line. Only then, and only if
+Hermes printed a recovery hint naming a registered Scheduled Task
+(`schtasks /Run /TN <name>`), Safe Update runs that task once and waits up to
+a minute for a gateway process. The name is never assumed. When Safe Update,
+and not Hermes, brought a gateway back that it had not stopped itself, a
+`Gateway rescue` row says so, how (the task name if the task was used) and
+for how long it was down.
+
+**When the end of the run starts a gateway.** If the update is interrupted
+or aborted after Hermes was closed and the verify step never ran (Ctrl+C
+during `hermes update`, for example), a gateway that ran before and is down
+now is started in the last step of the run. It is not started when:
+
+- Hermes printed "Paused gateway(s) left stopped: ..." (it deliberately left
+  the gateways it paused stopped, because the checkout is not whole; its next
+  `hermes` command restarts them). The row reads "not started" and gives
+  Hermes' reason. This hold is honoured at the verify step as well.
+- the update stopped partway after the code changed (HEAD differs from the
+  pre-flight commit and there is no "Update complete!"; if the commit cannot
+  be read this counts as moved): a gateway started now could boot on a
+  half-updated tree. The row says to run `hermes update` again.
+
+A failure before HEAD moved does not block the start: the old code is whole.
+The verify step, the last step and the restart of a stale gateway apply both
+checks; the verify step applies the second only after an update that did not
+finish (non-zero exit and no "Update complete!"), so a clean exit always
+starts a down gateway. That includes the start of a gateway Safe Update
+stopped itself (a pause gate it could not map): after a half-finished update
+it is not started either, and the row says so.
+These rows are notes. They never change `Verified` or the exit code, and a
+start that fails adds a warning with the command to run by hand.
+
+**Double launch.** If `hermes update` prints both "Restarting manual gateway
+profile(s)" and "Restarting Windows gateway profile(s)" with a profile in
+both, the `Double launch` row notes that Hermes relaunched that profile twice
+(hermes-agent #126821). Different profiles in the two lines are normal and
+give no row.
 
 Hermes v0.22 folds several per-profile gateways into one on its first update;
 only the main Hermes home's `gateway_state.json` is verified. A Hermes desktop
 app from the MSIX or Store package running next to a source checkout is not
 closed by Safe Update.
+
+The gateway start, restart and Scheduled Task paths have run in automated
+tests with fakes and synthetic Hermes output, not against a real Task
+Scheduler or a real stuck gateway.
+
+## The launcher
+
+The update can replace or delete the `hermes` launcher (`bin\hermes.exe`),
+and the gateway start, the desktop-build check, the version read and the
+cua-driver refresh all run through it. Every `hermes ...` command of one run
+goes through one shared route. After `hermes update` ends, if the launcher is
+still there nothing changes. Otherwise Safe Update looks for it again: a
+launcher that moved is followed, and when none works Hermes is run through
+its managed Python with the command Hermes itself prints (`<python> -I -c
+<bootstrap>`, from `hermes_cli/_launchers.py --print-runtime-command`). Safe
+Update accepts that command only if it has the documented shape and its
+Python lies under the Hermes home. The same route is used from the start for
+an install with no launcher (a note says so). A `Launcher` row says when the
+launcher changed, or that none worked (the checks that need Hermes could not
+run). Only `run` and `check` do this; the other commands still exit 2 when
+the launcher is missing. The printed command and `--version` were checked
+read-only against a real current install; a launcher replaced in the middle
+of a real update has not been seen, only simulated.
+
+## Pre-flight stops
+
+All of these run before the close stage, only read, and end the run with exit
+4 and "Nothing was changed". Stage 1 checks them in this order: elevation,
+update marker, checkout lock, `tools\` access, free disk. The elevation, lock
+and access tests are Windows only: on macOS and Linux they do nothing (the log
+says "checkout lock: not probed" or "elevation check unavailable", and the
+access walk finds nothing); the marker and the disk check run everywhere. `check` runs them too and exits 4 on a held
+lock or an unreadable `tools\` entry; only elevation is a warning there.
+
+- **Elevation.** `run` stops when this process holds the full (elevated)
+  half of a split UAC token, also with `--yes` or `--unattended`. An
+  administrator with UAC off, or a standard user, is not elevated here.
+  `--allow-elevated` goes on (the run notes it). `check` only warns. If the
+  token cannot be read, the run goes on.
+- **Checkout lock.** Hermes holds a byte-range lock on its checkout lock file
+  for the whole `hermes update` process tree. Safe Update tries the same
+  range without waiting and gives it back at once; a missing file is free and
+  the file is never created. If it is held, the message says who: the live
+  owner with pid, program (when known) and age; or, when the owner from the holder record
+  has exited, the processes it started that still run (at most 5, a hint, not
+  proof) with the `taskkill` remedy; or that the holder cannot be told. A lock
+  file that exists but cannot be opened also stops. A probe that cannot be
+  asked is not a stop.
+- **`tools\` access.** Safe Update opens `tools\`, its entries and the
+  first-level children of folder entries with your own token (cap: 400 opens
+  or 2 seconds), plus a few other folders the update writes to. An entry
+  under `tools\` that cannot be opened for reading stops the run by default
+  (`preflight.acl_check`), is opened a second time after about 400 ms first
+  (a refusal that clears, such as a file being deleted, is not reported), and
+  prints the `takeown` / `icacls` repair commands for up to the first 5
+  entries, then names `preflight.acl_check: "warn"` as the way to go on. If
+  the cap (400 opens or 2 seconds) ends the walk early, an info line says how
+  many opens it made. Ctrl+C ends the whole run (exit 3, nothing closed). Other refusals are warnings. A symlink or
+  junction, a missing path or a sharing violation is never a finding. It is a
+  shallow test: damage deep inside `node_modules` is not seen.
+- **ARM64 build tools** (stage 2). When Hermes' managed Python is the
+  `win32-arm64` build, an update is coming and Python dependencies will be
+  rebuilt (or Safe Update cannot tell), it repeats Hermes' lookups for the
+  Visual Studio ARM64 C++ tools (`vswhere`) and `clang.exe`. If either is
+  missing it warns, or with `preflight.arm64_toolchain: stop` stops, because
+  Hermes would start the Visual Studio Build Tools installer after Hermes was
+  closed. If `vswhere` fails, nothing is reported. Safe Update installs
+  nothing.
+
+The elevated stop was tested only with a fake (it has not been run from an
+elevated terminal), the ARM64 lookup only with synthetic folders (no ARM64 machine),
+and the lock test only against locks held by other test processes.
 
 ## After the update
 

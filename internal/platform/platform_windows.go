@@ -32,5 +32,8 @@ func New() *Platform {
 		Progress:  prog,
 		Autostart: winAutostart{},
 		Disk:      winDisk{getenv: os.Getenv},
+		Locks:     winLockProbe{},
+		Elevation: winElevation{},
+		Access:    winAccess{},
 	}
 }

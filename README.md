@@ -29,7 +29,7 @@ session id in it is made up.
 
 | OS | Architectures | Status |
 |---|---|---|
-| Windows 10 | amd64 | unit-tested. Many real interactive updates have run and verified on Windows 10 22H2 amd64 with v0.1.x builds, the latest on 2026-10-13 with the code of this release, and one real unattended update (started by a scheduled task); the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. The first real update (v0.1.0 development build) failed at the settings step because that Hermes range removed renderer-server.ts; this was fixed (file:// detection, backup when detection fails). Since the fix, one real update has migrated a real settings store from the old `http://127.0.0.1` origin to `file://` (with a backup), and every later real update found nothing left to migrate. No other real migration scenario has been run |
+| Windows 10 | amd64 | unit-tested. Many real interactive updates have run and verified on Windows 10 22H2 amd64 with v0.1.x to v0.3.0 builds (what ran for real with the current release is in its release notes), and one real unattended update (started by a scheduled task); the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. The first real update (v0.1.0 development build) failed at the settings step because that Hermes range removed renderer-server.ts; this was fixed (file:// detection, backup when detection fails). Since the fix, one real update has migrated a real settings store from the old `http://127.0.0.1` origin to `file://` (with a backup), and every later real update found nothing left to migrate. No other real migration scenario has been run |
 | Windows 11 | amd64 | expected to work; not yet tested |
 | Windows 10 / 11 | arm64 | builds; not run on arm64 hardware |
 | macOS | arm64, amd64 | **untested, proceed at your own risk** |
@@ -166,7 +166,9 @@ see [Which version am I running?](#which-version-am-i-running).
 
 Run it from a normal terminal or a shortcut, never from a terminal inside
 the Hermes desktop app. An update closes that app, so the tool refuses to
-start one from there (exit code 4). `--check` is safe anywhere.
+start one from there (exit code 4). An administrator terminal is refused the
+same way on Windows (`--allow-elevated` goes on anyway; see
+[What a run does](#what-a-run-does)). `--check` is safe anywhere.
 
 In PowerShell, from the install folder (no PATH needed):
 
@@ -224,19 +226,37 @@ and nothing has been changed.
 
 1. **Install check.** If this is not a managed source checkout (see below),
    it says which updater to use and stops (exit 5).
-2. **Pre-flight.** Is another update running? Is there enough free disk
-   (5 GB by default)? Is the checkout dirty? Then it asks whether an update
+2. **Pre-flight.** Everything here only reads, and a stop is exit 4 with
+   nothing closed. On Windows it checks: is this an administrator terminal?
+   Is another update running (the update marker, and Hermes' checkout lock,
+   which a killed update's leftover child can keep held)? Can your account
+   open the entries in Hermes' `tools\` folder (an elevated install leaves
+   some it cannot)? Then: is there enough free disk (5 GB by default)? Is the
+   checkout dirty? Then it asks whether an update
    exists. On the main channel: a local mirror first if you set one up, then
    the GitHub API, then `hermes update --check --branch main`. On a release
    channel (stable): Hermes' own `hermes update --check`, which names the
    release. It predicts whether Python or Node dependencies will be
-   reinstalled, so the time estimate is closer. Which channel it uses is
-   explained in [Update channel](#update-channel-stable-or-main).
+   reinstalled, so the time estimate is closer. On Windows ARM64 with Python
+   dependencies about to be rebuilt it also looks for the build tools Hermes
+   will otherwise try to install (a warning by default). Which channel it
+   uses is explained in [Update channel](#update-channel-stable-or-main). The
+   new stops, their settings and how to fix each one are in
+   [docs/how-it-works.md](docs/how-it-works.md) and
+   [docs/configuration.md](docs/configuration.md#preflight).
 3. **Look for running processes**: desktop app, gateway, backends, kernels.
 4. **Wait.** If anything is about to be stopped, it reads every profile's
    `state.db` (read-only) for sessions active in the last 3 minutes. While
    any are active it waits. You can press `A` to abort or `F` to go ahead
-   anyway. Then it asks for a final `Y` (30 seconds, then it aborts).
+   anyway. Then it asks for a final `Y` (10 minutes, then it aborts;
+   `--delay N` changes that). If you answer more than a minute after the
+   prompt, it checks the sessions once more before closing: if a chat has
+   become busy it goes back to waiting for idle and asks again. Whatever the
+   mode (also after `F`, with `--yes` or `--unattended`, after a long wait
+   for idle sessions), Hermes' checkout lock is looked at again right before
+   closing when the last look is more than a minute old: if an update has
+   started meanwhile (the lock is held) the run stops with exit 4, nothing
+   closed.
 5. **Close.** The desktop app gets a normal close request and 30 seconds to
    save its state. Only then is it force-closed, and the log says why it
    probably did not close (an open dialog, for example). Leftover backends
@@ -248,12 +268,24 @@ and nothing has been changed.
    applies its own). If Hermes' own gateway pause fails before changing
    anything, it stops the gateway and retries once.
 7. **Verify.** If a gateway was running before the update, it must report
-   the new commit and be running (it is started again if it is not). If none
+   the new commit and be running (it is started again if it is not, unless
+   Hermes left it stopped on purpose). If it is running but still on the
+   old code, only that gateway is restarted (once, then checked again; other
+   profiles' gateways are not touched, and the start runs even while they
+   are up). If it does not come back, the `Stale gateway` row says so. If none
    was running, none is required and none is started. Hermes' own
    desktop-build check must pass. Hermes' known false "fleet
    version" warning does not turn a good update into a failure. (Hermes
    v0.22 reports it as a follow-up with exit code 0; the summary then shows
-   it as a "Not finished" row.)
+   it as a "Not finished" row.) An exit code 1 that only means Hermes could
+   not confirm its own relaunch of the gateway also counts as OK, but only
+   when Safe Update sees that gateway running the new code and nothing else
+   failed; the summary then shows a `Gateway check` row. If the update
+   was interrupted before this step and a gateway that ran before is down,
+   the end of the run starts it again, and so does this step, except after a
+   hold by Hermes or a half-finished update (`Gateway rescue` row). After the update the
+   `hermes` launcher is looked up again, because the update can replace it
+   (`Launcher` row). Details: [docs/how-it-works.md](docs/how-it-works.md#verification).
 8. **Settings.** Back up and migrate the desktop settings if the address
    changed (see above). Hermes is closed at this point.
 9. **Hooks, only after a verified update:** your `post-update` hooks run
@@ -271,7 +303,43 @@ and nothing has been changed.
     channel the run used and why). After a verified update it also says,
     in one line each, if `main` moved while the update ran (`Newer`; on a
     release channel: if a newer release was published), and why the desktop
-    app was not reopened (`Hermes app`).
+    app was not reopened (`Hermes app`). Rows that report what Safe Update
+    did about the gateway or the launcher (`Gateway check`, `Stale gateway`,
+    `Gateway rescue`, `Double launch`, `Launcher`) are notes: they never
+    change the result or the exit code.
+
+**Pre-flight stops, in short** (all exit 4, nothing closed. `check` shows
+the same stops and also exits 4 on a held lock or a `tools\` entry you cannot
+open; an administrator terminal is only a warning there):
+
+- *Administrator terminal* (Windows): an elevated update leaves files in
+  Hermes' `tools\` folder that your normal account cannot update later.
+  Open a normal terminal, or pass `--allow-elevated`.
+- *Checkout lock held*: Hermes locks its checkout for as long as an update
+  runs, and a killed update's leftover child can keep it. The message names
+  who holds it. Safe Update only tries the lock and never stops a process.
+- *`tools\` entries your account cannot open*: the message prints the
+  `takeown` / `icacls` commands that repair them, and names the way to go on
+  anyway: `preflight.acl_check: "warn"` in `safe-update.yaml` (the update
+  is then expected to fail on those entries). A refused entry is opened a
+  second time after a moment, so a refusal that clears by itself does not
+  stop the run. `preflight.acl_check` (`stop`, the default, `warn` or `off`).
+- *Missing ARM64 build tools* (Windows ARM64): a warning unless
+  `preflight.arm64_toolchain` is `stop`; `off` skips it.
+
+The lock, elevation and access tests are Windows only; on macOS and Linux
+they do nothing (the log says "checkout lock: not probed" and "elevation
+check unavailable"; the access walk finds nothing). What has run for real: the lock test against byte-range
+locks held by other processes (a helper process, and Python's own
+`msvcrt.locking` when Python is on the PATH); the access test against a
+temporary folder with a deny-read permission, and read-only on a healthy
+Hermes install (nothing found); the elevation test only checks that its
+answer agrees with the token of the test process. Not run for real: an
+elevated `run`, entries left behind by a real elevated install, the lock
+test against a real running `hermes update`, the ARM64 lookup on an ARM64
+machine, the Scheduled Task fallback of the gateway start, and an exit-1
+update from an older Hermes; those paths are covered by automated tests with
+fakes and synthetic Hermes output only.
 
 The stages in more detail: [docs/how-it-works.md](docs/how-it-works.md).
 
@@ -363,7 +431,9 @@ writes anything; it runs a read-only release check first and asks for a `Y`
   automatic rollback.
 - A step whose result the tool cannot confirm does not count as success: the
   update is verified against the gateway's reported commit, not against
-  wording in Hermes' output. Only the dependency cleanup warns when its
+  wording in Hermes' output. (The one exit code 1 that is accepted, Hermes'
+  own unconfirmed gateway relaunch, needs Safe Update's own gateway check to
+  pass on top of the wording.) Only the dependency cleanup warns when its
   output is not recognised ("Hermes output changed"). The update check,
   gate probe, verification and progress display do not warn about unexpected
   wording; they fall back to the slower path, show less detail, or report
@@ -447,9 +517,9 @@ newest 3 are kept (`settings.backup_retention`). Merge rules and revert:
 |---|---|
 | 0 | done: updated and verified, check finished, or already up to date |
 | 1 | the update ran but needs attention, or an unexpected error |
-| 2 | the `hermes` launcher was not found |
+| 2 | no way to run Hermes was found: the `hermes` launcher is missing and (for `run` and `check`) Hermes cannot be run through its managed Python either |
 | 3 | cancelled before anything changed (you, a timeout, idle wait exceeded, the desktop app would not close, untested platform declined) |
-| 4 | pre-flight stop: another update running, low disk, update check failed, started from inside a Hermes chat, `update.channel: stable` on a Hermes without release channels, an update that would move Hermes back to an older release (you answered no, or `--unattended`), or `channel set` refused |
+| 4 | pre-flight stop: another update running or holding Hermes' checkout lock, an administrator terminal (`--allow-elevated` goes on), `tools\` entries your account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed, started from inside a Hermes chat, `update.channel: stable` on a Hermes without release channels, an update that would move Hermes back to an older release (you answered no, or `--unattended`), or `channel set` refused |
 | 5 | not a managed source checkout: nothing changed |
 | 6 | settings command refused because the desktop app is running |
 | 64 | bad command line or invalid configuration |
@@ -625,7 +695,10 @@ unattended update started by a Windows scheduled task has run and verified
 (see [Platforms](#platforms)); nothing else has been tried as a scheduled job.
 
 - Windows: `hermes-safe-update --unattended --no-elevate` (`--no-elevate`
-  means it never shows an admin prompt; it has no effect elsewhere).
+  means it never shows an admin prompt; it has no effect elsewhere). Do not
+  set the task to "Run with highest privileges": an elevated run stops with
+  exit 4 before closing anything (unless you add `--allow-elevated`, which
+  is not recommended: it leaves files your normal account cannot update).
 - macOS and Linux (cron, a launchd agent or a systemd timer; all untested):
   run `hermes-safe-update --unattended --accept-untested`, with the full path
   to the binary because a scheduler has a short `PATH`. The first run records
@@ -644,13 +717,19 @@ unattended update started by a Windows scheduled task has run and verified
 
 - **Exit 5, "not a source checkout".** Your Hermes is a packaged install, or
   the home folder is not where the tool looks. Set `paths.hermes_home`.
-- **Exit 2.** The `hermes` launcher was not found. Windows: it is expected in
+- **Exit 2.** No way to run Hermes was found: the `hermes` launcher is
+  missing, and Hermes could not be run through its managed Python either. Windows: the launcher is expected in
   `<hermes home>\bin`. macOS and Linux: in `<checkout>/.hermes/bin/hermes`,
   `~/.local/bin/hermes` or `<hermes home>/bin/hermes`. Check
   `paths.hermes_home`.
 - **Exit 4.** Read the STOP line in the output or log: marker held by
-  another update, less than `tunables.min_free_gb` free, the update check
-  failed (offline?), or the updater was started from inside a Hermes chat
+  another update, Hermes' checkout lock held (the message says by whom; wait
+  for that update, or end the leftover process it names), an administrator
+  terminal (open a normal one, or pass `--allow-elevated`), `tools\` entries
+  your account cannot open (run the printed `takeown` / `icacls` commands in
+  an administrator terminal, or set `preflight.acl_check: warn`), less than
+  `tunables.min_free_gb` free, the update check failed (offline?), or the
+  updater was started from inside a Hermes chat
   (run it from a normal terminal or a shortcut; updating would stop the
   process that runs it. `--check` works anywhere).
 - **Exit 4, "would move Hermes back".** Your checkout is newer than the latest

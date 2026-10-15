@@ -1,0 +1,42 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: 3 new commit(s) on main (GitHub API)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+== 2/5 Close Hermes
+Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 10 min).
+== Close
+closing desktop app (pid 4242)
+stopping leftover backend pid 5310
+== 3/5 Update
+command: hermes update --yes --keep-stash --branch main
+  | → Update channel: main
+  | → Stopping Windows gateway (pid 8211) so files can be replaced…
+  | → Fetching updates...
+  | → Pulling updates...
+  | ✗ Update did not finish: interrupted
+  |   ⚠ Paused gateway(s) left stopped: the checkout is not whole (pull interrupted).
+  |     The next `hermes` command (or `hermes update`) restarts them.
+hermes update exit code: 1
+== 5/5 Finish
+== Verify
+WARN the gateway is not running and was not started: Hermes left it stopped on purpose: the checkout is not whole (pull interrupted); its next hermes command restarts it
+gateway: code 5d41402abc, expected 7f9c2ba4e8, alive false
+desktop app: build verified
+RESULT: PROBLEM (update rc=1, gateway on new code=false, desktop verify rc=0). Full log: C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+relaunched Hermes desktop
+post-update cleanup and cua-driver refresh skipped: update not verified
+
+The update needs attention: see RESULT above.
+  Channel      main (set in Hermes)
+  Time         3:05 until Hermes reopened  (estimate was 7:44)
+  Source       GitHub (checked via the API)
+  Gateway rescue not started: Hermes left it stopped on purpose: the checkout is not whole (pull interrupted); its next hermes command restarts it
+  Warnings     1 (see above)
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log
+hermes-safe-update: update needs attention: RESULT: PROBLEM (update rc=1, gateway on new code=false, desktop verify rc=0)

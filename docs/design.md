@@ -2,7 +2,7 @@
 
 Status: architecture of v0.1.0. The tool grew out of a set of personal
 Python scripts and keeps their behaviour where it was sound; binding
-decisions are numbered D1-D19 below. For a user-level
+decisions are numbered D1-D22 below. For a user-level
 description see [how-it-works.md](how-it-works.md); for settings see
 [settings-migration.md](settings-migration.md).
 
@@ -15,7 +15,7 @@ install without cutting off running work:
 2. waits until no session is busy (asks before stopping anything),
 3. closes the desktop app gracefully (force only after a timeout),
 4. runs `hermes update --yes --keep-stash` for the update channel in use (`--branch main` on main; D19),
-5. verifies the result (a gateway that ran before runs the new code, desktop build verified),
+5. verifies the result (a gateway that ran before runs the new code, desktop build verified; D21),
 6. backs up and migrates the desktop's UI settings when the renderer origin
    changed,
 7. runs the user's `post-update` hooks (Hermes still closed), reopens Hermes,
@@ -108,20 +108,20 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 | # | Stage key | Group | What | Stops with |
 |---|---|---|---|---|
 | 0 | stepAside | - | install kind != checkout -> advice | `ErrNotCheckout` (5) |
-| 0 | - | - | launcher missing | `ErrLauncherMissing` (2) |
-| 1 | local | Check | marker held by a live pid (v1 or v2: a recorded creation time must match, a live `delegate:` pid counts)?; free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
-| 2 | remote | Check | main: mirror -> GitHub API -> `hermes update --check --branch main`; npm/pydeps prediction against `origin/main`. Release channel: Hermes' own `--check` is the verdict; for an available release the target is the release commit, never main: `Mirror.SeedRelease` puts the tag into the checkout (mirror refreshed first if it lacks the tag), then git (`ResolveRelease`: the tag if local and at the commit Hermes named, else the commit by its 12-digit prefix, ambiguity = unknown) or `compare/<HEAD>...<tag>` gives the commit count and the npm/pydeps change; nothing resolvable = unknown, never a guess | up to date: exit 0; check failed: 4 |
+| 0 | - | - | no launcher and (for `run`/`check`) no launcher-free route either: with `Locator.AllowDirect` the install is located with `LauncherPrefix` (D22) | `ErrLauncherMissing` (2) |
+| 1 | local | Check | in this order, all read-only (D20): elevated token (`checkElevation`: `run` stops unless `--allow-elevated`, `check` warns); marker held by a live pid (v1 or v2: a recorded creation time must match, a live `delegate:` pid counts); Hermes' checkout lock held (`checkCheckoutLock`, `hermes.CheckoutLock` over `platform.LockProbe`); `tools\` entries the token cannot open (`checkACL`, `hermes.ACLChecker` over `platform.Access`; `preflight.acl_check`); free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
+| 2 | remote | Check | main: mirror -> GitHub API -> `hermes update --check --branch main`; npm/pydeps prediction against `origin/main`. Release channel: Hermes' own `--check` is the verdict; for an available release the target is the release commit, never main: `Mirror.SeedRelease` puts the tag into the checkout (mirror refreshed first if it lacks the tag), then git (`ResolveRelease`: the tag if local and at the commit Hermes named, else the commit by its 12-digit prefix, ambiguity = unknown) or `compare/<HEAD>...<tag>` gives the commit count and the npm/pydeps change; nothing resolvable = unknown, never a guess. Last, `checkARM64` (D20): `win32-arm64` managed Python + update coming + pydeps true or unknown -> `hermes.ARM64Tools` (PATH, `Program Files\LLVM\bin`, VS LLVM dirs, vswhere); `preflight.arm64_toolchain` | up to date: exit 0; check failed: 4; ARM64 tools missing with `arm64_toolchain: stop`: 4 |
 | 3 | procs | Check | process classes (desktop/gateway/backend/kernel); Windows pause-gate probe | - |
-| 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s`; then Y confirm unless `--yes`/`--unattended` | `ErrCancelled` (3) |
+| 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s` (`waitForIdle`); then Y confirm unless `--yes`/`--unattended`, `confirm_timeout_s` (600). A Y that came more than `confirmRecheckAfter` (60 s) after the prompt, and not after F, re-reads the busy sessions (`busySessions`; unreadable = busy); busy -> back to `waitForIdle` with a fresh idle budget, then the prompt again. Last, in every mode (F, `--yes`, `--unattended` included): `recheckLockBeforeClose` probes the checkout lock again when `Run.lockProbedAt` is more than `lockRecheckAfter` (60 s) old; held -> exit 4, nothing closed | `ErrCancelled` (3) |
 | 5 | close | Close Hermes | pre-close hooks; graceful close; force after `graceful_close_s` with blocker diagnosis; leftover backends/kernels; **claim the marker only now** (Hermes' format v2 with our creation time where it is readable in Hermes' clock, i.e. Windows; else v1) | `ErrCancelled` (3) if the app will not exit |
-| 6 | gateway_stop .. restart | Update, Build, Finish | `hermes update` (no `--gateway`), timeout `update_timeout_s`, gate retry once | - |
-| 7 | verify | Finish | gateway `code_sha` == HEAD and alive, only if a gateway ran before the update (pre-flight process list or a live pid in `gateway_state.json`; none before = not required, not started); `desktop_update_verify` (D17); known false fleet warning | sets `Facts.Verified`; never flipped later |
+| 6 | gateway_stop .. restart | Update, Build, Finish | `hermes update` (no `--gateway`), timeout `update_timeout_s`, gate retry once. `Facts.UpdateStarted` is set when it starts; the time of the "Stopping Windows gateway" line is kept (`GW.TStop`). When it ends, `reresolveLauncher` (D22) | - |
+| 7 | verify | Finish | gateway `code_sha` == HEAD and alive, only if a gateway ran before the update (pre-flight process list or a live pid in `gateway_state.json`; none before = not required, not started); alive on a different `code_sha` -> `restartStale` once; not alive -> start, unless `gatewayStartAllowed` says no (D21); `desktop_update_verify` (D17); known false fleet warning; tolerated relaunch exit (D21) | sets `Facts.Verified`; never flipped later |
 | 8 | settings | Finish | if verified and `auto_migrate`: backup -> migrate (Hermes is closed now) | WARN only |
 | 9 | hooks | Finish | post-update hooks (verified only), Hermes still closed | WARN only |
 | 10 | relaunch | Finish | `desktop.relaunch`: `auto` = if the desktop was running; `always` = also if it was closed at the start, but only verified and not `--unattended`; `never` = no; never with `--no-relaunch`. Then post-relaunch hooks (whatever the result) | WARN only |
 | 11 | cleanup | Finish | dependency-generation GC (verified only; Windows) | WARN only |
 | 12 | cua | Finish | cua-driver refresh when the update deferred it (verified only) | WARN only |
-| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. The Version row counts HEAD_before..HEAD_after with git only when the new HEAD descends from the old one (a rewind says `moved back N commits`; diverged histories get no number); fallback: the `Found N new commit(s)` contract, then (main only) the forecast. The `Channel` row (after Version, also in the check card) names the channel and why: the update output's `Update channel:` line, else the check's, else the plan (`--channel`, `update.channel in safe-update.yaml`, `set in Hermes`, `Hermes default`); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row (on a release channel `Mirror.NewerRelease` instead: GitHub `releases/latest`, strict `vX.Y.Z`, not a draft or prerelease, then `compare/<HEAD>...<tag>` status `ahead` = "release vX was published while this ran"; main moving is never reported there): any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened | exit 0 verified / 1 problem |
+| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. The Version row counts HEAD_before..HEAD_after with git only when the new HEAD descends from the old one (a rewind says `moved back N commits`; diverged histories get no number); fallback: the `Found N new commit(s)` contract, then (main only) the forecast. The `Channel` row (after Version, also in the check card) names the channel and why: the update output's `Update channel:` line, else the check's, else the plan (`--channel`, `update.channel in safe-update.yaml`, `set in Hermes`, `Hermes default`); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row (on a release channel `Mirror.NewerRelease` instead: GitHub `releases/latest`, strict `vX.Y.Z`, not a draft or prerelease, then `compare/<HEAD>...<tag>` status `ahead` = "release vX was published while this ran"; main moving is never reported there): any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened. `gatewayRows` and `launcherRow` add the rows `Gateway check`, `Stale gateway`, `Gateway rescue`, `Double launch` and `Launcher` (Attention verdict; D21, D22) | exit 0 verified / 1 problem |
 
 Closing on Linux (stage 5) is one `SIGTERM` to the Electron main process (never
 a `--type=` helper, never twice), then the `graceful_close_s` wait, then
@@ -144,7 +144,8 @@ are "desktop" processes, so the child may get two `SIGTERM`s.
 
 `finally` (always, once the marker is claimed): stop the marker refresher,
 release the marker if it is ours, relaunch if due, restart a gateway the
-tool stopped on every abort path.
+tool stopped on every abort path; if it did not stop the gateway itself,
+`rescueGateway` (D21).
 
 `check` runs stepAside, local, remote, procs, sessions, gc_preview,
 cua_status, summary. It never stops, closes, updates or relaunches anything,
@@ -190,6 +191,7 @@ mirror / gc / cua / settings services ─────┘        ├─> ui.Rende
 | `state.db`, `profiles/*/state.db` | Hermes | read-only SQLite (`mode=ro`, busy timeout); unreadable = busy |
 | `gateway_state.json` | Hermes | read: `code_sha`, `pid` |
 | `config.yaml` | Hermes | read-only: `update.installs.<id>.channel` (D19); never written by a run |
+| `hermes-agent/.git/hermes-update.lock` | Hermes | probed with a non-blocking try-lock that is given back at once (D20); never created, never written |
 
 Missing and broken files:
 
@@ -214,10 +216,10 @@ Errors are wrapped with `%w`; callers use `errors.Is/As`. One function,
 | Code | Meaning |
 |---|---|
 | 0 | done: update verified, check finished, or already up to date |
-| 1 | the update ran but needs attention (RESULT PROBLEM), or an unexpected error |
-| 2 | the hermes launcher was not found |
+| 1 | the update ran but needs attention (RESULT PROBLEM), or an unexpected error. A `hermes update` exit 1 that is only Hermes' own unconfirmed gateway relaunch is OK, not 1 (D21) |
+| 2 | no way to run Hermes was found: no launcher, and (`run`, `check`) Hermes cannot be run through its managed Python either (D22) |
 | 3 | cancelled before anything changed (user, timeout, idle wait exceeded, app would not exit, untested platform declined, Ctrl+C) |
-| 4 | pre-flight stop: another update holds the marker, low disk, update check failed (D1); `update.channel: stable` on a Hermes without channels, or a release check that cannot resolve or read (D19); the rollback guard said no (D19); `channel set` refused or failed |
+| 4 | pre-flight stop: another update holds the marker or Hermes' checkout lock, running elevated (`--allow-elevated` overrides), `tools\` entries the account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed (D1); `update.channel: stable` on a Hermes without channels, or a release check that cannot resolve or read (D19); the rollback guard said no (D19); `channel set` refused or failed |
 | 5 | not a managed source checkout: nothing changed, advice printed |
 | 6 | settings command refused because the desktop app is running |
 | 64 | bad command line or invalid configuration |
@@ -275,7 +277,8 @@ Binding decisions:
   later. D11 `RoundToEven`. D12 English dates. D13 estimates = mean of the
   last 5. D14 all scraped wording in `internal/hermes/contracts.go`. D15
   native process snapshots. D16 elevation only behind `--unattended` /
-  `--no-elevate` guards, quoted argv. D17 `desktop_update_verify` rc 0 +
+  `--no-elevate` guards, quoted argv (this is about the tool asking Windows for
+  an administrator prompt; running Safe Update itself elevated is D20). D17 `desktop_update_verify` rc 0 +
   empty output = verified. D18 every flag of the earlier scripts is kept.
   D19 update channels (Hermes v0.21.6+: `stable` = the latest published
   release, `main` = every commit; `--branch` beats `--channel` beats the
@@ -314,6 +317,116 @@ Binding decisions:
   (`Y` needed attended; `--yes` goes ahead; unattended or without a
   terminal it refuses; a check that cannot run still needs the `Y`). A
   stable channel is not a timing-pool dimension.
+- D20 pre-flight stops (v0.4.0). Each answers "will this update fail or be
+  refused?" with a read-only probe, and every one runs before the close stage
+  (exit 4, `ErrPreflightStop`, nothing closed). The probes are
+  `platform.LockProbe`, `platform.Elevation` and `platform.Access`
+  (Windows backends, `Stub` on macOS and Linux = unknown = never a stop; fakes
+  in tests). Checkout lock (`hermes.CheckoutLock`): the file is
+  `<git common dir>/hermes-update.lock` (`.hermes-update.lock` in the install
+  root with no `.git`), the probe a non-blocking exclusive try-lock of the byte
+  range Hermes uses (offset 1 MiB, 17 bytes: owner byte + 16 lease bytes),
+  released at once, never creating the file; a missing file is free, one that
+  cannot be opened counts as held (as in Hermes), a probe error is unknown.
+  The holder record (first bytes of the file) gives the owner pid; a live
+  owner with the recorded creation time is named, a dead owner gets a list
+  of its live descendants created since the record (at most 5, a hint) and
+  the `taskkill` remedy. Nothing is stopped. Elevation: `TokenElevationType`
+  == Full only (a standard user or UAC off is not elevated, there is no
+  normal session to protect); `run` stops, also with `--yes` and
+  `--unattended`; `--allow-elevated` (run, check) overrides; `check` warns.
+  Access probe (`hermes.ACLChecker`): the open is the test (never ACL
+  parsing or "owner is Administrators"); `tools\` and its entries
+  read+modify, first-level children of folder entries read only, plus a few
+  other folders; at most 400 opens and 2 s; a read refusal under `tools\` is
+  a Stop finding, everything else a Warn; links, missing paths and sharing
+  violations are never findings. `preflight.acl_check` is `stop|warn|off`,
+  default **stop**; repair block (`takeown`, `icacls`) for the first 5
+  findings. ARM64 (`hermes.ARM64Tools`): runs only when the managed Python
+  folder is `win32-arm64` (Hermes picks that by the machine, not by this
+  binary), an update is coming and pydeps is true or unknown; any vswhere
+  error is unknown, never missing; `preflight.arm64_toolchain` is
+  `warn|stop|off`, default **warn**. The Y confirmation waits 600 s by
+  default (was 30), counts down in minutes from 120 s on, and re-checks busy
+  sessions and the checkout lock after an answer that came more than 60 s
+  after the prompt (stage 4; a lock now held is an exit 4 before the close).
+  The access probe opens a refused `tools\` entry once more after 400 ms
+  (one shared pause) before it is a Stop, takes the run's context (Ctrl+C
+  ends the walk between opens) and reports an early end (cap or budget) as an
+  info line.
+  Contract: file names, the byte range and the tool locations are pinned in
+  `internal/hermes/contracts.go` with synthetic fixtures.
+- D21 truthful verify (v0.4.0). Nothing below flips `Facts.Verified` except
+  `hermes.EvaluateUpdate`. Tolerated relaunch exit (#123971,
+  `ToleratedRelaunchExit`): rc exactly 1, a gateway ran before,
+  "Update complete!" present, at least one line carries one of the three
+  `RelaunchUnverifiedMarkers`, and every failure line (a `✗` line, or the
+  exception line of a traceback) carries one too; plus Safe Update's own
+  gateway check (alive, `code_sha` == HEAD) and the desktop verify. The guard
+  set is deliberately tight: one unexplained failure line, or no "Update
+  complete!", keeps the PROBLEM. A line that starts with `Error:`, `ERROR:`,
+  `error:`, `fatal:` or `FATAL:` counts as a failure line too. Hermes v0.21.6
+  and later (checked in v0.21.6, v0.22.0 and current main) turn this failure
+  into an owed follow-up with exit 0, so the case needs an updater older than
+  the code it installs; that was not observed: the old wording was read in the v2026.9.x
+  tags (it contains the markers), but no run of an old updater was seen, so
+  the rule is built from the issue report, that wording and synthetic output.
+  Stale gateway (`restartStale`): alive and `code_sha` is not HEAD -> one
+  stop+start and one more wait, under `gatewayStartAllowed(torn=true)`. The stop
+  is `Gateway.StopStale(pid)`: a plain `gateway stop`, a bounded wait, then a
+  kill of that pid only; never `gateway stop --all` (on macOS and Linux that
+  stops every profile's gateway and the start brings back one). The start is
+  `Gateway.StartAfterStale(pid)`: a plain `gateway start` (never `--all`, which
+  runs `kill_gateway_processes(all_profiles=True)` first in `_cmd_start`; the
+  plain verb only checks and starts this profile's gateway, on Windows
+  `gateway_windows.start()` too), without the "some gateway exists" shortcut
+  of `Start`; it succeeds only when a gateway process that was not there
+  before appears. A failure sets `StaleStartErr` (row, warning, no wait).
+  Rescue (`rescueGateway`, in `finally`): a gateway ran before, the run
+  closed things (`Facts.Closed`), verify never ran (`VerifyLine == ""`),
+  Safe Update did not stop the gateway itself, no gateway process and a dead
+  pid in `gateway_state.json` -> start it. `gatewayStartAllowed` says no when
+  Hermes printed "Paused gateway(s) left stopped" (`ParseGatewayHeld`: it
+  holds the paused gateways on purpose and restarts them with its next
+  command), and, with `torn`, when HEAD differs from the pre-flight HEAD
+  without "Update complete!" (a half-written tree; unknown HEAD counts as
+  moved). Only after `hermes update` started (`UpdateStarted`). The verify
+  step applies the hold, and the torn check after an update that did not
+  finish (`UpdateRC != 0` and no "Update complete!"), so it agrees with the
+  abort paths; a clean exit is never torn. The same check guards the start at
+  the top of the verify stage for a gateway Safe Update stopped itself
+  (`GateStopped`). `Gateway.Start`
+  falls back to `Autostart.RunTask` (`schtasks /Run /TN <name>`) only after a
+  failed `gateway start` (`GatewayStartFailed`: rc != 0 or Hermes' "Gateway
+  start via … FAILED"), only for the task name in Hermes' own printed
+  recovery hint, and only if that task is registered
+  (`TaskExecutable`); then it waits up to 60 s for a gateway pid. The
+  double-relaunch note compares the profiles of the two "Restarting …
+  gateway profile(s)" lines. All rows are informational. There are no
+  configuration keys for any of this (no `gateway.rescue` and the like): the
+  defaults are the only behaviour, because each case is either Hermes' hold or
+  a half-written tree (do not start) or an unambiguous failure of the
+  documented outcome (start). Not built: `update.launcher_mode`
+  (hermes-agent #135766, option A). Unverified: the `schtasks /Run` fallback
+  against a real Task Scheduler, E1 against an older Hermes, and E2 and the
+  rescue on macOS and Linux (they use the same code).
+- D22 launcher route (v0.4.0). `hermes.LauncherRoute` is one object shared
+  by every runner that runs `hermes ...` in a run (`update.Deps.Route`; the
+  command wiring wraps the runners with `Route.Wrap`): a command whose
+  program is the wired launcher path is rewritten to the route's prefix. It is
+  set (a) at the start when the install was located without a launcher
+  (`Install.LauncherPrefix`, only with `RealLocator.AllowDirect`, which only
+  the run/check flow sets), and (b) after `hermes update` by
+  `reresolveLauncher` when the launcher no longer exists: the locator is asked
+  again (`LauncherResolver.ResolveLauncher`), a moved launcher becomes
+  `[new launcher]`, and when none works the prefix is `<managed python> -I -c
+  <bootstrap>` from Hermes' own `_launchers.py --print-runtime-command`
+  (`DirectPrefix`; accepted only in the documented shape, python under the
+  Hermes home). Nothing found = a `Launcher` row, not a new exit code; exit 2
+  stays for "neither a launcher nor the direct route works" at the start of
+  `run`/`check`, and for every other command. Checked read-only against a
+  real current install (probe and `--version`); a launcher replaced during a
+  real update has not been seen.
 
 ## 9. Package notes
 
@@ -436,8 +549,9 @@ Short notes on how individual packages work.
   ticker reads it), never directly.
 - `finally` (always): stop the marker refresher, release the marker if
   claimed, relaunch the desktop if it was closed and is not back yet,
-  restart a gateway the tool stopped, show the cancel card when nothing was
-  changed, save timings (plain mode too, D5). Ctrl+C during `hermes update`
+  restart a gateway the tool stopped (`ensureGatewayRunning`) or, when it did
+  not stop it, rescue one that is down (`rescueGateway`, D21), show the cancel
+  card when nothing was changed, save timings (plain mode too, D5). Ctrl+C during `hermes update`
   reaches the child through the shared console; the tool never cancels it
   (only `update_timeout_s` kills it) and the run ends with exit 1, since
   things may already have changed.

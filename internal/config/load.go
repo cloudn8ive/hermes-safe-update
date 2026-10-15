@@ -26,6 +26,7 @@ type Run struct {
 	NoRelaunch     bool
 	Force          bool
 	NoElevate      bool
+	AllowElevated  bool // run although the process is elevated (otherwise run stops before closing anything)
 	ChannelFlag    bool // --channel was given (update.channel holds its value)
 }
 
@@ -58,6 +59,7 @@ type Overrides struct {
 	NoRelaunch      *bool
 	Force           *bool
 	NoElevate       *bool
+	AllowElevated   *bool
 	Origin          *string // migrate-settings --origin
 	Channel         *string // run/check --channel (beats update.channel)
 }
@@ -172,6 +174,7 @@ func applyFlags(cfg *Config, f Overrides) {
 	setB(&cfg.Run.NoRelaunch, f.NoRelaunch)
 	setB(&cfg.Run.Force, f.Force)
 	setB(&cfg.Run.NoElevate, f.NoElevate)
+	setB(&cfg.Run.AllowElevated, f.AllowElevated)
 }
 
 // decodeYAML strictly decodes path into dst (pre-filled with defaults).

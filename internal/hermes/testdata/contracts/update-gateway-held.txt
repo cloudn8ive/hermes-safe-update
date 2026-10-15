@@ -1,0 +1,4 @@
+→ Pulling updates...
+✗ Pull did not finish: interrupted
+  ⚠ Paused gateway(s) left stopped: the checkout is not whole (pull interrupted).
+    The next `hermes` command (or `hermes update`) restarts them.

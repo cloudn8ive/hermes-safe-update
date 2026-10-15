@@ -3,8 +3,10 @@ package hermes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,7 +22,11 @@ const (
 	gwStopWait         = 20 * time.Second
 	gwStopPoll         = 2 * time.Second
 	gwAfterForceSettle = 3 * time.Second
-	probeInfoMax       = 200
+	gwTaskWait         = 60 * time.Second
+	// gwStartSettle: how long StartAfterStale waits for a new gateway process
+	// after `gateway start` said it worked.
+	gwStartSettle = 20 * time.Second
+	probeInfoMax  = 200
 )
 
 var utf8Env = map[string]string{"PYTHONIOENCODING": "utf-8"}
@@ -38,8 +44,17 @@ type CLIGateway struct {
 	Run       execx.Runner
 	Procs     platform.Procs
 	GOOS      string // "windows" runs the probe; anything else = not needed
+	// Tasks, when set, lets Start fall back to the Scheduled Task Hermes names
+	// in its own recovery hint when `gateway start` could not bring a gateway
+	// up. Nil = no fallback.
+	Tasks platform.Autostart
 	// Sleep waits between polls; default time.Sleep. Tests inject a fake.
 	Sleep func(time.Duration)
+
+	// startVia is how the last successful Start brought the gateway up
+	// ("" = not started by this object; "gateway start"; or "Task Scheduler
+	// <name>").
+	startVia string
 }
 
 var _ Gateway = (*CLIGateway)(nil)
@@ -224,6 +239,69 @@ func (g *CLIGateway) Stop(ctx context.Context) error {
 	return nil
 }
 
+// StopStale stops one gateway that is running old code, for the restart after
+// an update: `gateway stop`, a bounded wait, then a forced kill of that pid
+// alone. It never runs `gateway stop --all` and never kills another gateway
+// process: on macOS/Linux `--all` stops the gateways of every profile, and
+// the restart that follows brings back only one. pid is the gateway the state
+// file names (0 = unknown: nothing is killed, and an error says it is still
+// there). It returns an error only if that gateway is still running.
+func (g *CLIGateway) StopStale(ctx context.Context, pid int) error {
+	has := func() (bool, error) {
+		pids, err := g.PIDs(ctx)
+		if err != nil {
+			return false, err
+		}
+		for _, p := range pids {
+			if pid <= 0 || p == pid {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	still, err := has()
+	if err != nil || !still {
+		return err
+	}
+	if _, err := g.Run.Run(ctx, execx.Cmd{Argv: []string{g.Launcher, "gateway", "stop"}, Timeout: gwStopTimeout, Env: utf8Env}); err != nil {
+		return err
+	}
+	for waited := time.Duration(0); ; waited += gwStopPoll {
+		if still, err = has(); err != nil || !still {
+			return err
+		}
+		if waited >= gwStopWait {
+			break
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		g.sleep(gwStopPoll)
+	}
+	if pid > 0 {
+		procs, err := g.gatewayProcs(ctx)
+		if err != nil {
+			return err
+		}
+		for _, p := range procs {
+			if p.PID != pid {
+				continue
+			}
+			if err := g.Procs.KillTree(ctx, p); err != nil && ctx.Err() != nil {
+				return ctx.Err()
+			}
+		}
+		g.sleep(gwAfterForceSettle)
+		if still, err = has(); err != nil || !still {
+			return err
+		}
+	}
+	if pid > 0 {
+		return fmt.Errorf("gateway process %d could not be stopped", pid)
+	}
+	return errors.New("the gateway could not be stopped (its pid is unknown, so it was not killed)")
+}
+
 // waitGone polls until no gateway pid is left or the wait is over.
 func (g *CLIGateway) waitGone(ctx context.Context) ([]int, error) {
 	for waited := time.Duration(0); ; waited += gwStopPoll {
@@ -255,16 +333,107 @@ func (g *CLIGateway) Start(ctx context.Context) error {
 	if len(pids) > 0 {
 		return nil
 	}
+	return g.start(ctx, !g.posix(), nil)
+}
+
+// StartAfterStale brings back the gateway StopStale stopped, on an install
+// where other gateways (other profiles) may be running. Start would return
+// at once because some gateway exists; this runs `gateway start` anyway. It
+// never passes `--all`, on any OS: `--all` sweeps every profile's gateway
+// first (hermes_cli/gateway.py, `_cmd_start`), while the plain verb checks
+// and starts this profile's gateway only. It refuses if a gateway with
+// stalePID is still there, and succeeds only when a gateway process that was
+// not there before appears (the others do not count).
+func (g *CLIGateway) StartAfterStale(ctx context.Context, stalePID int) error {
+	before, err := g.PIDs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, p := range before {
+		if stalePID > 0 && p == stalePID {
+			return fmt.Errorf("gateway process %d is still running; not starting a second one", p)
+		}
+	}
+	if err := g.start(ctx, false, before); err != nil {
+		return err
+	}
+	// `gateway start` can say "already running" for this profile and do
+	// nothing; only a gateway that was not there before is a start.
+	for waited := time.Duration(0); ; waited += gwStopPoll {
+		now, perr := g.PIDs(ctx)
+		if perr != nil {
+			return perr
+		}
+		if newPID(now, before) {
+			return nil
+		}
+		if waited >= gwStartSettle || ctx.Err() != nil {
+			g.startVia = ""
+			return errors.New("`gateway start` ran but no new gateway process appeared")
+		}
+		g.sleep(gwStopPoll)
+	}
+}
+
+// newPID reports whether now holds a pid that before does not.
+func newPID(now, before []int) bool {
+	for _, p := range now {
+		if !slices.Contains(before, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// start runs `gateway start` (with `--all` when all is set), and on a failed
+// start the Task Scheduler fallback. known are the gateway pids that already
+// ran: only a pid outside it proves the fallback worked.
+func (g *CLIGateway) start(ctx context.Context, all bool, known []int) error {
+	g.startVia = ""
 	argv := []string{g.Launcher, "gateway", "start"}
-	if !g.posix() {
+	if all {
 		argv = append(argv, "--all")
 	}
 	res, err := g.Run.Run(ctx, execx.Cmd{Argv: argv, Timeout: gwStartTimeout, Env: utf8Env})
 	if err != nil {
 		return err
 	}
-	if res.Code != 0 {
-		return fmt.Errorf("gateway start failed (rc=%d): %s", res.Code, execx.Tail(res.Output, 200))
+	if !GatewayStartFailed(res.Code, res.Output) {
+		g.startVia = "gateway start"
+		return nil
 	}
-	return nil
+	failure := fmt.Errorf("gateway start failed (rc=%d): %s", res.Code, execx.Tail(res.Output, 200))
+	// Task Scheduler starts the process outside this process's Job Object (a
+	// parent job can kill a gateway that `gateway start` spawned, #91675). The
+	// task name is the one Hermes printed itself, and only a registered task
+	// is run.
+	name := ParseGatewayTask(res.Output)
+	if name == "" || g.Tasks == nil || !g.Tasks.Supported() {
+		return failure
+	}
+	if _, found, terr := g.Tasks.TaskExecutable(ctx, name); terr != nil || !found {
+		return failure
+	}
+	if rerr := g.Tasks.RunTask(ctx, name); rerr != nil {
+		return fmt.Errorf("%w; Scheduled Task %s could not be run: %v", failure, name, rerr)
+	}
+	for waited := time.Duration(0); ; waited += gwStopPoll {
+		pids, perr := g.PIDs(ctx)
+		if perr != nil {
+			return perr
+		}
+		if newPID(pids, known) {
+			g.startVia = "Task Scheduler (" + name + ")"
+			return nil
+		}
+		if waited >= gwTaskWait || ctx.Err() != nil {
+			return fmt.Errorf("%w; Scheduled Task %s was run but no gateway appeared", failure, name)
+		}
+		g.sleep(gwStopPoll)
+	}
 }
+
+// StartedVia says how the last successful Start brought the gateway up:
+// "gateway start", or "Task Scheduler (<task name>)" after the fallback.
+// "" when Start did nothing (a gateway was already running) or has not run.
+func (g *CLIGateway) StartedVia() string { return g.startVia }

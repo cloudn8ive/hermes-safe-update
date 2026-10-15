@@ -1,0 +1,14 @@
+→ Fetching updates...
+→ Found 12 new commit(s)
+→ Pulling updates...
+
+✓ Code updated!
+
+  ⚠ Windows gateway restart could not be verified for: default
+    (The respawned gateway may have been killed by a parent Job Object during updater teardown, #48820.)
+    Recover with: hermes gateway restart
+✓ Update complete! (v1.0 → v1.1)
+Traceback (most recent call last):
+  File "update_cmd.py", line 1, in <module>
+    raise RuntimeError
+RuntimeError: Windows gateway relaunch after update was not verified alive: default

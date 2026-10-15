@@ -398,6 +398,24 @@ func (winAutostart) TaskExecutable(ctx context.Context, name string) (string, bo
 	return taskExe(decodeSchtasks(out)), true, nil
 }
 
+// RunTask starts a registered task once (`schtasks /Run /TN name`). It
+// returns when schtasks does; what the task launches keeps running.
+func (winAutostart) RunTask(ctx context.Context, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("no task name")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	sys, _ := windows.GetSystemDirectory()
+	cmd := exec.CommandContext(ctx, sys+`\schtasks.exe`, "/Run", "/TN", name)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
+	cmd.WaitDelay = 5 * time.Second
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("schtasks /Run failed: %w: %s", err, strings.TrimSpace(decodeSchtasks(out)))
+	}
+	return nil
+}
+
 // decodeSchtasks handles UTF-16LE (with or without BOM) and UTF-8 output.
 func decodeSchtasks(b []byte) string {
 	utf16le := len(b) >= 2 && b[0] == 0xFF && b[1] == 0xFE

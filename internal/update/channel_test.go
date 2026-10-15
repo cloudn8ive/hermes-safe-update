@@ -460,12 +460,23 @@ func TestRollbackGuardAttendedYes(t *testing.T) {
 		t.Fatalf("err=%v\n%s", err, h.output())
 	}
 	h.mustContain("move Hermes BACK from v0.22.0+38.g1f6c02c to stable v0.22.0 (38 commits back)", "rollback confirmed", "RESULT: OK")
+	h.mustContain("N to stop (auto-stop in 10 min).")
 	if h.updates != 1 || h.updateArgv() != "update --yes --keep-stash --channel stable" {
 		t.Errorf("updates=%d argv=%q", h.updates, h.updateArgv())
 	}
 	if len(h.con.Keys) != 0 {
 		t.Errorf("keys left: %v", h.con.Keys)
 	}
+}
+
+// The prompt counts a short timeout in seconds, a long one in minutes (the
+// same words as the final confirmation and the footer under it).
+func TestRollbackGuardPromptCountdownWording(t *testing.T) {
+	h := rollbackHarness(t)
+	h.cfg.Tunables.ConfirmTimeoutS = 90
+	h.con.Keys = []platform.Key{key('n')}
+	_ = h.run()
+	h.mustContain("N to stop (auto-stop in 90s).")
 }
 
 func TestRollbackGuardAttendedNo(t *testing.T) {

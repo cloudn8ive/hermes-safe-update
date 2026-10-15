@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -80,7 +81,7 @@ func TestLocateCheckoutFull(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Install{Kind: KindCheckout, Home: f.home, Checkout: f.checkout, Launcher: launcher, Python: py, Git: git, Electron: el, Desktop: desk, UserData: f.paths.UserDataDir}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got  %+v\nwant %+v", got, want)
 	}
 }

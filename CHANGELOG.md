@@ -4,6 +4,121 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-15
+
+### Changed
+
+- **Upgrade note: a scheduled task that runs Safe Update with "Run with
+  highest privileges" now ends with exit 4 and changes nothing** (see the
+  administrator-terminal stop below). Remove that setting from the task, or
+  add `--allow-elevated` to its arguments (not recommended: the update then
+  leaves files your normal account cannot update later).
+- **The final "Press Y" prompt now waits 10 minutes by default (it was 30
+  seconds).** `tunables.confirm_timeout_s` and `--delay N` still set it. If
+  you answer more than a minute after it appeared, Safe Update looks at the
+  sessions once more before closing Hermes; a chat that became busy sends the
+  run back to waiting for idle. Skipped after F, with `--yes` and with
+  `--unattended`.
+- **Countdowns of two minutes or more read in minutes** ("auto-abort in
+  10 min"), shorter ones in seconds: on the final prompt, the rollback
+  prompt, `channel set` and the progress footer. In `--plain` mode a long
+  countdown prints once a minute, then every 10 seconds in the last two
+  minutes.
+- **`check` exits 4 on a held checkout lock or an unreadable `tools\` entry
+  too**, like `run`. On macOS and Linux the lock, elevation and `tools\`
+  tests do nothing (the log says "checkout lock: not probed" and "elevation
+  check unavailable").
+- **Exit 2 now means "no way to run Hermes was found".** A missing `hermes`
+  launcher no longer ends `run` or `check` with exit 2 when Hermes can still
+  be run through its managed Python (see Fixed).
+
+### Added
+
+- **A stop, exit 4 and nothing closed, when Hermes' checkout lock is held**:
+  an update still running, or a process that a killed update left behind. The
+  message names the holder, or lists what the dead owner started and the
+  `taskkill` remedy. Safe Update only tries the lock and gives it back at
+  once; it never creates the file or stops a process. `check` shows the same
+  stop, and if the probe cannot be asked the run goes on. The lock is looked
+  at again right before Hermes closes whenever the last look is over a minute
+  old, in every mode (long prompt, long wait for idle sessions, F, `--yes`,
+  `--unattended`), so an update that started meanwhile ends the run instead of
+  failing after Hermes was closed. Windows only.
+- **A `run` from an administrator terminal now stops before closing
+  anything**, exit 4. An elevated update leaves files in Hermes' `tools\`
+  folder that your normal account cannot update later. `--allow-elevated`
+  goes on anyway; `check` only warns. Only the full half of a split UAC token
+  counts (a standard user, or an administrator with UAC off, is not
+  affected). Tested with a fake token, not an elevated run. Windows only.
+- **Entries in Hermes' `tools\` folder that your account cannot open now stop
+  the run before anything is closed**, exit 4. An elevated install or update
+  leaves them behind, and the next update would fail on them with `[WinError
+  5]`. The message prints the `takeown` / `icacls` commands that repair them
+  and names the way to go on anyway: `preflight.acl_check: "warn"` (new
+  setting, `stop | warn | off`, default `stop`). It is a real, read-only open
+  with your own account, shallow (`tools\` and one level below, a few other
+  folders), capped at 400 opens and 2 seconds (it says when it stopped
+  early; Ctrl+C ends it). A refused entry is opened a second time after about
+  0.4 seconds, so a file Windows refuses for a moment while deleting or
+  scanning it does not stop the run. Elsewhere, unreadable entries are only a
+  warning. Windows only.
+- **A warning for missing ARM64 build tools** (Windows ARM64, Python
+  dependencies about to be rebuilt): without the Visual Studio ARM64 C++
+  tools or `clang.exe`, Hermes would start the Build Tools installer in the
+  middle of the update. New setting `preflight.arm64_toolchain: warn | stop |
+  off`, default `warn`. Safe Update installs nothing. Not run on an ARM64
+  machine.
+- **New summary rows**, all informational (none changes the result or the exit
+  code): `Gateway check`, `Stale gateway`, `Gateway rescue`, `Double launch`
+  (hermes-agent #126821) and `Launcher`.
+- **If `hermes gateway start` fails and Hermes' own hint names a registered
+  Scheduled Task**, Safe Update runs that task once and waits up to a minute
+  for the gateway. It never guesses a task name and ignores one that starts
+  with `/` or `-` (an option of `schtasks`). Run only against a fake Task
+  Scheduler.
+
+### Fixed
+
+- **A good update is no longer reported as a problem when only Hermes' own
+  check of its gateway relaunch failed** (hermes-agent #123971). Safe Update
+  accepts that exit 1 only when a gateway ran before, "Update complete!" was
+  printed, every failure line is one of Hermes' three relaunch wordings (a
+  line starting with `Error:`, `ERROR:`, `error:`, `fatal:` or `FATAL:`
+  counts as a failure line), and its own check finds the gateway on the new
+  commit and the desktop build verified. An amber `Gateway check` row names
+  the Hermes line. Current Hermes reports this case with exit 0, so it
+  matters for an update run by an older Hermes; tested only with synthetic
+  Hermes output.
+- **A gateway that is alive after the update but still on the old code is
+  restarted once and checked again, instead of failing the verify.** Only
+  that gateway is stopped (`gateway stop`, then a kill of that one process;
+  never `gateway stop --all`, which on macOS and Linux stops every profile's
+  gateways) and it is started with a plain `gateway start`, also while other
+  profiles' gateways run. If it does not come back, the `Stale gateway` row
+  and the log say so. Not done when Hermes left its gateways stopped on
+  purpose or the update stopped partway after the code changed. Tested with
+  fake gateways and processes, not with a second real gateway.
+- **A gateway that ran before the update and is down afterwards is started
+  again also when the verify step never ran** (an update interrupted or
+  aborted after Hermes was closed). A `Gateway rescue` row says that Safe
+  Update brought it back and how long it was down. Not started when Hermes
+  left it stopped on purpose ("Paused gateway(s) left stopped") or after an
+  update that stopped partway after the code changed; the row says why.
+  `gateway start` also counts as failed when Hermes prints "Gateway start via
+  ... FAILED" with exit 0.
+- **After an update that stopped partway** (non-zero exit, no "Update
+  complete!") and moved the code, the verify step no longer starts a gateway
+  that is down, including one Safe Update stopped itself; before, it could
+  start one on a half-updated tree. A clean exit still starts it, and Hermes'
+  own hold is respected there too.
+- **The update can replace or delete the `hermes` launcher.** Safe Update
+  looks for it again after `hermes update`: if it moved, every later `hermes`
+  command of the run follows it; if none works, Hermes is run through its
+  managed Python with the command Hermes itself prints, also when the install
+  has no launcher at the start. A `Launcher` row says when this happened. The
+  printed command was checked read-only against a real install; a launcher
+  replaced mid-update has been tested only with synthetic installs.
+
 ## [0.3.0] - 2026-10-15
 
 ### Changed
@@ -503,7 +618,8 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
-[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.1...v0.1.2

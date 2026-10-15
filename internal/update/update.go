@@ -73,6 +73,11 @@ type Deps struct {
 	ManagedPython func() string
 	// FileExists defaults to os.Stat; tests replace it.
 	FileExists func(path string) bool
+	// Route, when set, is the launcher route every `hermes ...` command of
+	// this run goes through (the cmd wiring wraps the runners with it). The
+	// run points it at the re-resolved launcher after the update. Nil = no
+	// rerouting; a launcher that vanished then stays vanished.
+	Route *hermes.LauncherRoute
 
 	Title       string // header / console title
 	Mode        Mode
@@ -150,6 +155,16 @@ type Facts struct {
 	// Channel is how this run picked its Hermes update channel and what
 	// Hermes said about it (see ChannelFacts).
 	Channel ChannelFacts
+
+	// UpdateStarted: `hermes update` was started by this run (the gateway
+	// guards of the abort paths only apply after that).
+	UpdateStarted bool
+	// GW is what the verify and abort paths learned about the gateway (see
+	// GatewayFacts).
+	GW GatewayFacts
+	// Launcher is what the post-update launcher check found (see
+	// LauncherFacts).
+	Launcher LauncherFacts
 }
 
 // ChannelFacts records the release-channel side of a run. Filled by the
@@ -194,6 +209,11 @@ type Run struct {
 	stopRefresh  func()
 	finalized    bool
 	timingsSaved bool
+	// lockProbedAt is when the checkout lock was last probed with an answer
+	// (zero: never). The close stage re-probes when it is old.
+	lockProbedAt time.Time
+	// lockNotProbedLogged: the "checkout lock: not probed" line was written.
+	lockNotProbedLogged bool
 }
 
 // Stage is one step of the flow. Key matches a timings.Step key (the footer

@@ -1,0 +1,5 @@
+✓ Code updated!
+
+  ✓ Restarting manual gateway profile(s): default
+  ✓ Restarting Windows gateway profile(s): work
+✓ Update complete! (v1.0 → v1.1)

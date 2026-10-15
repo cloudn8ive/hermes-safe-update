@@ -53,6 +53,7 @@ func (Stub) TaskExecutable(context.Context, string) (string, bool, error) {
 func (Stub) RunElevated(context.Context, []string) (int, string, error) {
 	return -1, "", ErrNotSupported
 }
+func (Stub) RunTask(context.Context, string) error { return ErrNotSupported }
 
 // ReadKey blocks until ctx is done: a stub console never delivers keys.
 func (Stub) ReadKey(ctx context.Context) (Key, error) {

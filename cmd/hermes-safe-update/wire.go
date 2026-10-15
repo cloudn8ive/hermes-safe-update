@@ -63,10 +63,12 @@ func newLocator(cfg *config.Config, env *environment) *hermes.RealLocator {
 
 // wireInstall builds the install-dependent services once the install is
 // located (update.Deps.Wire).
-func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(hermes.Install, *update.Deps) {
+func wireInstall(cfg *config.Config, env *environment, log *slog.Logger, route *hermes.LauncherRoute) func(hermes.Install, *update.Deps) {
 	return func(in hermes.Install, d *update.Deps) {
 		p := env.platform
-		r := env.run()
+		// Everything that runs `hermes ...` goes through the route, so a
+		// launcher that the update replaces or deletes changes for all of it.
+		r := route.Wrap(env.run())
 		markers := p.Paths.DesktopProcessMarkers()
 		appDirs := hermes.MacAppDirs(p.Paths.PackagedInstallHints(pathEnv(env)))
 		d.Classify = func(proc platform.Process) string {
@@ -75,7 +77,7 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(he
 		d.Sessions = &hermes.SQLiteSessions{Home: in.Home, Now: env.now}
 		managedPython := func() string { return hermes.ManagedPython(p.Paths, in.Home) }
 		gw := &hermes.CLIGateway{Home: in.Home, Launcher: in.Launcher, Python: in.Python, PythonNow: managedPython,
-			Checkout: in.Checkout, Run: r, Procs: p.Procs, GOOS: p.OS}
+			Checkout: in.Checkout, Run: r, Procs: p.Procs, GOOS: p.OS, Tasks: p.Autostart}
 		if env.sleep != nil {
 			gw.Sleep = func(dur time.Duration) { _ = env.sleep(context.Background(), dur) }
 		}
@@ -86,7 +88,7 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(he
 		d.GC = gc.New(gc.Deps{Runner: r, Python: in.Python, PythonNow: managedPython, Home: in.Home, Checkout: in.Checkout, Applicable: p.OS == "windows"})
 		d.CUA = cua.New(cua.Deps{Runner: r, Launcher: in.Launcher, Autostart: p.Autostart, Home: in.Home,
 			Log: func(s string) { log.Info(s) }})
-		d.Mirror = newMirror(cfg, env, in, log)
+		d.Mirror = newMirror(cfg, env, in, log, route)
 		d.ManagedPython = managedPython
 		d.Hooks = &update.ExecHooks{Runner: r, Hooks: cfg.Hooks, Dir: in.Home, Procs: p.Procs}
 		if spawnsOwnWindow {
@@ -99,9 +101,9 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(he
 	}
 }
 
-func newMirror(cfg *config.Config, env *environment, in hermes.Install, log *slog.Logger) *mirror.Svc {
+func newMirror(cfg *config.Config, env *environment, in hermes.Install, log *slog.Logger, route *hermes.LauncherRoute) *mirror.Svc {
 	d := mirror.Deps{
-		Runner: env.run(), Git: in.Git, Launcher: in.Launcher, Home: in.Home, Checkout: in.Checkout,
+		Runner: route.Wrap(env.run()), Git: in.Git, Launcher: in.Launcher, Home: in.Home, Checkout: in.Checkout,
 		MachinePath: filepath.Join(in.Home, "safe-update.json"), Cfg: cfg.Mirror, Disk: env.platform.Disk,
 		Exe: env.exe(), Alive: env.platform.Procs.Alive,
 		Log:     func(s string) { log.Info(s) },
@@ -130,9 +132,15 @@ func runFlow(mode update.Mode) func(context.Context, options, *config.Config, *e
 		}
 		defer r.Close()
 		r.SetVersion(env.toolVersion())
+		// One route for every `hermes ...` command of the run: when the update
+		// replaces or deletes the launcher, the run points it at the new one
+		// (or at Hermes' managed Python) and all of them follow.
+		route := &hermes.LauncherRoute{}
+		loc := newLocator(cfg, env)
+		loc.AllowDirect = true
 		d := update.Deps{
-			Config: cfg, Platform: env.platform, Runner: env.run(), Log: log, UI: r, Clock: env.clock, Sleep: env.sleep,
-			Locator: newLocator(cfg, env), Wire: wireInstall(cfg, env, log), Mode: mode, SelfPID: env.selfPID, Getenv: env.getenv,
+			Config: cfg, Platform: env.platform, Runner: route.Wrap(env.run()), Log: log, UI: r, Clock: env.clock, Sleep: env.sleep,
+			Locator: loc, Wire: wireInstall(cfg, env, log, route), Route: route, Mode: mode, SelfPID: env.selfPID, Getenv: env.getenv,
 			TimingsPath: filepath.Join(home, "logs", "safe-update-timings.json"),
 			LogPath:     filepath.Join(home, "logs", "safe-update.log"),
 		}
@@ -161,7 +169,7 @@ func mirrorFor(cfg *config.Config, env *environment, log *slog.Logger) (*mirror.
 	if in.Home == "" {
 		return nil, fmt.Errorf("%w: the Hermes home could not be determined", apperr.ErrLauncherMissing)
 	}
-	return newMirror(cfg, env, in, log), nil
+	return newMirror(cfg, env, in, log, nil), nil
 }
 
 func mirrorStatus(_ context.Context, _ options, cfg *config.Config, env *environment, log *slog.Logger) error {

@@ -11,15 +11,16 @@ import "time"
 // Defaults); a YAML file only needs the keys it changes. Maps merge key by
 // key with the defaults, lists replace the default list.
 type File struct {
-	Paths    Paths    `yaml:"paths"`
-	Tunables Tunables `yaml:"tunables"`
-	Theme    Theme    `yaml:"theme"`
-	Mirror   Mirror   `yaml:"mirror"`
-	Settings Settings `yaml:"settings"`
-	Desktop  Desktop  `yaml:"desktop"`
-	Update   Update   `yaml:"update"`
-	Hooks    []Hook   `yaml:"hooks"`
-	Logging  Logging  `yaml:"logging"`
+	Paths     Paths     `yaml:"paths"`
+	Tunables  Tunables  `yaml:"tunables"`
+	Theme     Theme     `yaml:"theme"`
+	Mirror    Mirror    `yaml:"mirror"`
+	Settings  Settings  `yaml:"settings"`
+	Desktop   Desktop   `yaml:"desktop"`
+	Update    Update    `yaml:"update"`
+	Preflight Preflight `yaml:"preflight"`
+	Hooks     []Hook    `yaml:"hooks"`
+	Logging   Logging   `yaml:"logging"`
 }
 
 // Paths overrides auto-detected locations. Empty = detect. `~` and `$VAR` /
@@ -189,6 +190,28 @@ const (
 // Update configures which Hermes update channel a run follows.
 type Update struct {
 	Channel string `yaml:"channel"` // follow | stable | main
+}
+
+// Pre-flight check modes (Preflight.ACLCheck, Preflight.ARM64Toolchain).
+const (
+	// PreflightStop ends the run before anything is closed (exit 4) when the
+	// check finds the problem.
+	PreflightStop = "stop"
+	// PreflightWarn shows a WARN row and goes on.
+	PreflightWarn = "warn"
+	// PreflightOff skips the check.
+	PreflightOff = "off"
+)
+
+// Preflight configures checks that run before Hermes is closed.
+type Preflight struct {
+	// ACLCheck: tools\ entries your account cannot open (left behind by an
+	// elevated install or update). stop (default) | warn | off.
+	ACLCheck string `yaml:"acl_check"`
+	// ARM64Toolchain: Windows ARM64 only, when Python dependencies will be
+	// rebuilt and clang or the ARM64 C++ tools are missing. warn (default) |
+	// stop | off.
+	ARM64Toolchain string `yaml:"arm64_toolchain"`
 }
 
 // HookWhen names the point in the flow at which a hook runs.

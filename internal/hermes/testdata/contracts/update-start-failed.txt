@@ -1,0 +1,5 @@
+✗ Gateway start via Scheduled Task FAILED — no stable gateway process detected within the verification window.
+  (The process may have been created and then killed — e.g. by a parent Job Object, #91675.)
+  Check the log for startup errors:
+    type C:\hermes-home\logs\gateway.log
+  Recovery: schtasks /Run /TN Hermes_Gateway_work   (starts the gateway outside any Job Object)

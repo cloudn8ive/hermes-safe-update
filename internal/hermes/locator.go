@@ -2,6 +2,7 @@ package hermes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -54,6 +55,11 @@ type RealLocator struct {
 	Cfg   config.Paths
 	// LookPath finds git on PATH; default exec.LookPath.
 	LookPath func(string) (string, error)
+	// AllowDirect lets Locate (and ResolveLauncher) fall back to running
+	// Hermes through its managed Python when no launcher works. Only the
+	// update flow sets it: it wires the matching LauncherRoute; commands that
+	// run the located launcher directly must keep failing with exit 2.
+	AllowDirect bool
 }
 
 var _ Locator = (*RealLocator)(nil)
@@ -113,11 +119,11 @@ func (l *RealLocator) Locate(ctx context.Context) (Install, error) {
 	}
 	in.Kind = KindCheckout
 
-	launcher, err := l.pickLauncher(ctx, in)
+	launcher, prefix, err := l.ResolveLauncher(ctx, in)
 	if err != nil {
 		return in, err
 	}
-	in.Launcher = launcher
+	in.Launcher, in.LauncherPrefix = launcher, prefix
 	in.Python = ManagedPython(l.Paths, home)
 	in.Git = l.findGit(home)
 	in.Electron = l.findElectron(in.Checkout)
@@ -140,6 +146,28 @@ func ManagedPython(paths platform.Paths, home string) string {
 		return ""
 	}
 	return pickManaged(home, "python", paths.ManagedPythonGlobs(home))
+}
+
+// ResolveLauncher finds the program that runs `hermes ...` for a located
+// checkout, now. It is the launcher the platform lists (the first one that
+// runs and belongs to this checkout); when there is none and AllowDirect is
+// set it is the launcher-free route through Hermes' managed Python
+// (prefix != nil: the command that stands in for launcher, which is then the
+// first candidate path and does not need to exist). apperr.ErrLauncherMissing
+// when neither works. Safe Update calls it again after the update, because the
+// update can replace or delete the launcher.
+func (l *RealLocator) ResolveLauncher(ctx context.Context, in Install) (launcher string, prefix []string, err error) {
+	launcher, err = l.pickLauncher(ctx, in)
+	if err == nil || !errors.Is(err, apperr.ErrLauncherMissing) || !l.AllowDirect {
+		return launcher, nil, err
+	}
+	cands := l.Paths.LauncherCandidates(l.Env, in.Home, in.Checkout)
+	python := ManagedPython(l.Paths, in.Home)
+	pre, derr := DirectPrefix(ctx, l.Run, python, in.Home, in.Checkout)
+	if derr != nil || len(cands) == 0 {
+		return "", nil, fmt.Errorf("%w (and Hermes cannot be run through its managed Python either: %v)", err, derr)
+	}
+	return cands[0], pre, nil
 }
 
 // pickLauncher returns the first existing candidate whose `--version`

@@ -257,7 +257,7 @@ func confirmSwitch(ctx context.Context, cfg *config.Config, env *environment, wa
 		return refuse("%s Nothing was changed. Run this in a terminal to confirm, or pass --yes.", warn)
 	}
 	a, err := ui.NewPlain(env.stderr, env.platform.Console).Prompt(ctx, ui.PromptSpec{
-		Text:         fmt.Sprintf("%s Press Y to switch to stable anyway, N to leave the channel as it is (auto-cancel in %ds).", warn, cfg.Tunables.ConfirmTimeoutS),
+		Text:         fmt.Sprintf("%s Press Y to switch to stable anyway, N to leave the channel as it is (auto-cancel in %s).", warn, ui.CountdownText(cfg.Tunables.ConfirmTimeoutS)),
 		Keys:         []rune{'y', 'n'},
 		Timeout:      cfg.Tunables.ConfirmTimeout(),
 		AbortOnCtrlC: true,

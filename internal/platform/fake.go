@@ -21,6 +21,9 @@ func NewFake() *Platform {
 		Progress:  &FakeProgress{},
 		Autostart: &FakeAutostart{},
 		Disk:      &FakeDisk{FreeBytes: 100e9},
+		Locks:     &FakeLockProbe{},
+		Elevation: FakeElevation{},
+		Access:    &FakeAccess{},
 	}
 }
 
@@ -273,6 +276,9 @@ type FakeAutostart struct {
 	ElevateErr  error
 	OnElevate   func(argv []string) // e.g. update Tasks to simulate success
 	Elevated    [][]string
+	RunTaskErr  error    // returned by RunTask
+	TasksRun    []string // every RunTask name, in order
+	OnRunTask   func(name string)
 }
 
 func (a *FakeAutostart) Supported() bool { return a.Tasks != nil }
@@ -280,6 +286,14 @@ func (a *FakeAutostart) Supported() bool { return a.Tasks != nil }
 func (a *FakeAutostart) TaskExecutable(_ context.Context, name string) (string, bool, error) {
 	exe, ok := a.Tasks[name]
 	return exe, ok, nil
+}
+
+func (a *FakeAutostart) RunTask(_ context.Context, name string) error {
+	a.TasksRun = append(a.TasksRun, name)
+	if a.OnRunTask != nil {
+		a.OnRunTask(name)
+	}
+	return a.RunTaskErr
 }
 
 func (a *FakeAutostart) RunElevated(_ context.Context, argv []string) (int, string, error) {

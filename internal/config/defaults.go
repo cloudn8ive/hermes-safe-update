@@ -9,7 +9,7 @@ func Defaults() File {
 			IdleWindowS:     180,
 			IdlePollS:       60,
 			IdleWaitMaxS:    1800,
-			ConfirmTimeoutS: 30,
+			ConfirmTimeoutS: 600,
 			GracefulCloseS:  30,
 			UpdateTimeoutS:  5400,
 			SilentWarnS:     600,
@@ -105,8 +105,9 @@ func Defaults() File {
 				"hermes.desktop.toolDisclosure.v1",
 			},
 		},
-		Desktop: Desktop{Relaunch: RelaunchAuto},
-		Update:  Update{Channel: ChannelFollow},
-		Logging: Logging{Level: "info", MaxSizeMB: 5, Keep: 3},
+		Desktop:   Desktop{Relaunch: RelaunchAuto},
+		Update:    Update{Channel: ChannelFollow},
+		Preflight: Preflight{ACLCheck: PreflightStop, ARM64Toolchain: PreflightWarn},
+		Logging:   Logging{Level: "info", MaxSizeMB: 5, Keep: 3},
 	}
 }

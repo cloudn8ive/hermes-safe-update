@@ -10,7 +10,7 @@ running: gateway, backend
 gateway pause check: OK (default (pid 8211))
 == 2/5 Close Hermes
 desktop app: not running; gateway, backend will still be stopped
-Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 30s).
+Hermes will close for the update. The update takes about 8 min (rough: no earlier runs like this; uses defaults). Press Y to continue now, any other key to abort (auto-abort in 10 min).
 stopping leftover backend pid 5310
 == 3/5 Update
 command: hermes update --yes --keep-stash --branch main

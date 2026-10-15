@@ -33,11 +33,15 @@ type Install struct {
 	Home     string // HERMES_HOME (default profile)
 	Checkout string // <home>/hermes-agent
 	Launcher string // hermes CLI launcher (verified to exist for KindCheckout)
-	Python   string // Hermes' managed Python ("" = not found: D7 degrade)
-	Git      string // bundled git, else PATH git (D4); "" = none
-	Electron string // apps/desktop/node_modules/electron/dist/<leaf>
-	Desktop  string // source-built desktop executable
-	UserData string // Electron userData of the desktop app
+	// LauncherPrefix, when set, replaces the launcher: no launcher works, and
+	// Hermes is run through its managed Python as "<python> -I -c <bootstrap>"
+	// (Launcher is then only the name callers pass, and may not exist).
+	LauncherPrefix []string
+	Python         string // Hermes' managed Python ("" = not found: D7 degrade)
+	Git            string // bundled git, else PATH git (D4); "" = none
+	Electron       string // apps/desktop/node_modules/electron/dist/<leaf>
+	Desktop        string // source-built desktop executable
+	UserData       string // Electron userData of the desktop app
 	// StepAside is the user-facing advice when Kind != KindCheckout
 	// ("Hermes.app updates itself: use Check for Updates in the app").
 	StepAside string
@@ -52,6 +56,14 @@ func (i Install) MarkerPath() string { return joinPath(i.Home, MarkerFile) }
 // Locator finds the install. Overrides from config.Paths win over detection.
 type Locator interface {
 	Locate(ctx context.Context) (Install, error)
+}
+
+// LauncherResolver is the optional part of a Locator that finds the launcher
+// of an install again (the update can replace or delete it): the program to
+// run and, for the launcher-free route, the command prefix that stands in for
+// it.
+type LauncherResolver interface {
+	ResolveLauncher(ctx context.Context, in Install) (launcher string, prefix []string, err error)
 }
 
 // Session is one busy session (or an unreadable DB, which counts as busy).
@@ -91,7 +103,14 @@ type Gateway interface {
 	// Probe runs the pause-gate probe under Hermes' managed Python
 	// (Windows only; other OSes return GateNotApplicable).
 	Probe(ctx context.Context) (GateResult, string)
-	Stop(ctx context.Context) error  // `gateway stop`, then `--all`, then force
+	Stop(ctx context.Context) error // `gateway stop`, then `--all`, then force
+	// StopStale stops the one gateway with that pid (`gateway stop`, then a
+	// kill of that pid): never `--all`, never another process.
+	StopStale(ctx context.Context, pid int) error
+	// StartAfterStale starts the gateway StopStale stopped, even though other
+	// gateways (other profiles) are running: a plain `gateway start`, never
+	// `--all`. It succeeds only when a new gateway process appears.
+	StartAfterStale(ctx context.Context, stalePID int) error
 	Start(ctx context.Context) error // `gateway start --all` (Windows), `gateway start` (macOS/Linux)
 }
 

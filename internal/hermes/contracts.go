@@ -2,6 +2,7 @@ package hermes
 
 import (
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -139,6 +140,67 @@ func ConcurrentUpdateNote(rc int, out string) string {
 	}
 	return "Hermes refused to start the update: another update or Hermes instance holds the install. Wait for it to finish, then run Safe Update again"
 }
+
+// ---- pre-flight probes (Safe Update v0.4.0) ----
+//
+// What Safe Update reads from Hermes BEFORE it closes anything. Nothing here
+// is scraped from `hermes update` output; these are file names, byte ranges
+// and tool locations Hermes uses, each pinned by a synthetic fixture under
+// testdata/contracts/.
+
+const (
+	// CheckoutLockName is Hermes' checkout lock inside the git common dir
+	// (update_lock.py GIT_CHECKOUT_LOCK_NAME): a kernel lock `hermes update`
+	// holds for its whole process tree.
+	CheckoutLockName = "hermes-update.lock"
+	// CheckoutLockNameNoGit is the lock of an install with no .git (a ZIP
+	// install), kept in the install root (CHECKOUT_LOCK_NAME).
+	CheckoutLockNameNoGit = ".hermes-update.lock"
+	// CheckoutLockOffset and CheckoutLockLength are the Windows byte range
+	// of the lock (_WINDOWS_LOCK_OFFSET = 1 << 20; the owner's byte plus
+	// _LEASE_SLOTS = 16 lease bytes). scripts/desktop-update/marker.ps1
+	// probes exactly this with Lock(1048576, 17). A range far past the holder
+	// record keeps the record readable while the lock is held.
+	CheckoutLockOffset = 1 << 20
+	CheckoutLockLength = 1 + 16
+)
+
+// ARM64 build tools (scripts/windows-build-deps.ps1: Get-HermesClang,
+// Get-HermesArm64VisualStudio, Initialize-HermesArm64BuildTools). The update
+// on a win32-arm64 host runs that script whenever a Python dependency set is
+// rebuilt; it installs Visual Studio Build Tools (several GB, a UAC prompt)
+// when either the ARM64 C++ tools or clang.exe is missing.
+const (
+	// ARM64Target is the target name in the managed Python folder
+	// (tools/python-<version>-win32-arm64, pm/store.py current_target).
+	ARM64Target = "win32-arm64"
+	// ARM64ClangExe and ARM64ClangFormatExe: the half-installed Clang
+	// component leaves clang-format.exe without clang.exe.
+	ARM64ClangExe       = "clang.exe"
+	ARM64ClangFormatExe = "clang-format.exe"
+	// ARM64VswhereEnv is the environment variable whose folder holds
+	// `Microsoft Visual Studio\Installer\vswhere.exe` (${env:ProgramFiles(x86)}).
+	ARM64VswhereEnv = "ProgramFiles(x86)"
+	// ARM64WingetLLVM is the winget package the issue's reporter used to fix
+	// a missing clang.exe (unverified by Safe Update, which installs nothing).
+	ARM64WingetLLVM = "LLVM.LLVM"
+)
+
+var (
+	// ARM64VswhereRel is vswhere's place under ProgramFiles(x86).
+	ARM64VswhereRel = []string{"Microsoft Visual Studio", "Installer", "vswhere.exe"}
+	// ARM64VswhereArgs asks for the newest Visual Studio with the ARM64 C++
+	// tools (-latest -products * -requires ...VC.Tools.ARM64).
+	ARM64VswhereArgs = []string{"-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.ARM64", "-property", "installationPath"}
+	// ARM64ClangLLVMRel is clang.exe under ProgramFiles (standalone LLVM).
+	ARM64ClangLLVMRel = []string{"LLVM", "bin"}
+	// ARM64ClangVSRels are the folders under the Visual Studio install, in
+	// the script's order, that may hold clang.exe.
+	ARM64ClangVSRels = [][]string{
+		{"VC", "Tools", "Llvm", "ARM64", "bin"},
+		{"VC", "Tools", "Llvm", "bin"},
+	}
+)
 
 // UpdateCompleteRe captures "<old> → <new>" from the final update line.
 var UpdateCompleteRe = regexp.MustCompile(`Update complete! \((.+?) → (.+?)\)`)
@@ -645,3 +707,163 @@ func ReleaseTag(version string) string {
 // prints on success: "Update channel for <install id>: <name>" (followed, for
 // stable and canary, by a generic back-up warning that is not matched).
 var SetChannelDoneRe = regexp.MustCompile(`(?m)^[ \t]*Update channel for ([0-9a-f]{16}): ([a-z0-9][a-z0-9-]*)[ \t\r]*$`)
+
+// ---- Truthful verify (Safe Update v0.4.0) ----
+//
+// What Hermes prints when its own gateway relaunch or restart goes wrong, and
+// the commands behind them. Hermes v0.21.6 and later (update_cmd_windows.py,
+// gateway_windows.py, update_cmd_fleet.py). All patterns match the ASCII
+// tail of a line, not the leading glyph, and tolerate CRLF.
+
+// RelaunchUnverifiedMarkers are the wordings of one failure family: the
+// updater's own check of the gateway it relaunched failed (#123971). They
+// are substrings, any of them marks a line as "this is that family":
+//
+//   - "Windows gateway relaunch after update was not verified alive" is the
+//     RuntimeError of _verify_relaunched_gateways_alive;
+//   - "Windows gateway restart could not be verified" is the warning line
+//     printed just before it;
+//   - "Windows gateway recovery failed:" is the follow-up Hermes records when
+//     the resume itself raised.
+//
+// In #123971 (an updater older than v0.21.6) this error ended `hermes update`
+// with exit 1 after "Update complete!". Since v0.21.6 a failure after the
+// commit point is an owed follow-up with exit 0 (Safe Update shows it as a
+// "Not finished" row), so this family only reaches an exit code through an
+// updater that is older than the code it installs, or before the commit point
+// (then there is no "Update complete!" and it is never tolerated).
+var RelaunchUnverifiedMarkers = []string{
+	"Windows gateway relaunch after update was not verified alive",
+	"Windows gateway restart could not be verified",
+	"Windows gateway recovery failed:",
+}
+
+// UpdateDoneMarker is the line `hermes update` prints when the code update
+// finished (also the "restart" step trigger).
+const UpdateDoneMarker = "Update complete!"
+
+// failureLineRe matches a line that reports a failure: a "✗" line, the last
+// line of a Python traceback ("RuntimeError: …", "OSError: …"), or a bare
+// "Error: …" / "fatal: …" at the start of a line (git, node and shell tools
+// print those).
+var failureLineRe = regexp.MustCompile(`✗|^[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*\.)*[A-Za-z_][A-Za-z0-9_]*(?:Error|Exception|Exit):|^(?:Error|ERROR|error|fatal|FATAL):`)
+
+func hasRelaunchMarker(line string) bool {
+	for _, m := range RelaunchUnverifiedMarkers {
+		if strings.Contains(line, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// ToleratedRelaunchExit reports whether the output of a `hermes update` that
+// exited 1 is explained by the relaunch-unverified family alone: the update
+// finished ("Update complete!"), at least one line carries a marker, and every
+// failure line (a "✗" line or a traceback's exception line) carries one too. A
+// single unexplained failure line returns false. line is the first marker
+// line, trimmed, for the summary.
+func ToleratedRelaunchExit(out string) (line string, ok bool) {
+	if !strings.Contains(out, UpdateDoneMarker) {
+		return "", false
+	}
+	for _, l := range strings.Split(out, "\n") {
+		l = strings.TrimSpace(l)
+		switch {
+		case hasRelaunchMarker(l):
+			if line == "" {
+				line = strings.TrimLeft(l, "⚠\uFE0F✗✓ ") // without the glyph
+			}
+		case failureLineRe.MatchString(l):
+			return "", false
+		}
+	}
+	return line, line != ""
+}
+
+// GatewayHeldRe reads "⚠ Paused gateway(s) left stopped: <why>." Hermes prints
+// it when it deliberately did not restart the gateways it paused (the checkout
+// tree is not whole); its next `hermes` command (or `hermes update`) restarts
+// them.
+var GatewayHeldRe = regexp.MustCompile(`(?m)Paused gateway\(s\) left stopped:[ \t]*(.*?)\.?[ \t\r]*$`)
+
+// ParseGatewayHeld returns Hermes' reason when the output says the paused
+// gateways were left stopped on purpose.
+func ParseGatewayHeld(out string) (why string, ok bool) {
+	m := GatewayHeldRe.FindStringSubmatch(out)
+	if m == nil {
+		return "", false
+	}
+	return shortReason(m[1]), true
+}
+
+// GatewayStartFailedRe reads "✗ Gateway start via <how> FAILED — no stable
+// gateway process detected": `hermes gateway start` could not bring a gateway
+// up (for example a parent Job Object killed it).
+var GatewayStartFailedRe = regexp.MustCompile(`Gateway start via (.+?) FAILED`)
+
+// gatewayTaskRunRe reads the recovery hint `hermes gateway start` prints next
+// to that failure when a Scheduled Task is registered: "Recovery: schtasks
+// /Run /TN Hermes_Gateway …". The name is the profile-scoped one Hermes itself
+// uses, so it is read here and never assumed.
+var gatewayTaskRunRe = regexp.MustCompile(`schtasks /Run /TN ([^\s"'<>|]+)`)
+
+// ParseGatewayTask returns the Scheduled Task name from Hermes' recovery hint
+// ("" when no task is registered or the hint is absent). A token that starts
+// with "/" or "-" is a switch of schtasks, never a task name, and is refused.
+func ParseGatewayTask(out string) string {
+	if m := gatewayTaskRunRe.FindStringSubmatch(out); m != nil && !strings.HasPrefix(m[1], "/") && !strings.HasPrefix(m[1], "-") {
+		return m[1]
+	}
+	return ""
+}
+
+// GatewayStartFailed reports whether a `gateway start` run failed: a non-zero
+// exit code, or Hermes' own "Gateway start via … FAILED" line.
+func GatewayStartFailed(rc int, out string) bool {
+	return rc != 0 || GatewayStartFailedRe.MatchString(out)
+}
+
+// The two "Restarting … gateway profile(s)" lines of `hermes update`. Hermes
+// prints one for the fleet watcher (manual gateways) and one for the Windows
+// resume; both listing the same profile means it was relaunched twice
+// (#126821).
+var (
+	restartingManualRe  = regexp.MustCompile(`(?m)Restarting manual gateway profile\(s\):[ \t]*(.+?)[ \t\r]*$`)
+	restartingWindowsRe = regexp.MustCompile(`(?m)Restarting Windows gateway profile\(s\):[ \t]*(.+?)[ \t\r]*$`)
+)
+
+// DoubleRelaunchProfiles returns the profiles (sorted) that both lines name.
+// Different profiles in the two lines are legitimate and give nil.
+func DoubleRelaunchProfiles(out string) []string {
+	names := func(re *regexp.Regexp) map[string]bool {
+		set := map[string]bool{}
+		for _, m := range re.FindAllStringSubmatch(out, -1) {
+			for _, p := range strings.Split(m[1], ",") {
+				if p = strings.TrimSpace(p); p != "" {
+					set[p] = true
+				}
+			}
+		}
+		return set
+	}
+	manual, win := names(restartingManualRe), names(restartingWindowsRe)
+	var both []string
+	for p := range manual {
+		if win[p] {
+			both = append(both, p)
+		}
+	}
+	sort.Strings(both)
+	return both
+}
+
+// Hermes' machine boundary for "how do I run hermes without its launcher":
+// `<managed python> -I <checkout>/hermes_cli/_launchers.py
+// --print-runtime-command -- <args>` prints the argv as one JSON array
+// (_launchers.py print_runtime_command; the dashboard runs its own update that
+// way). RuntimeArgv (launcherroute.go) validates what comes back.
+const (
+	LaunchersScript    = "hermes_cli/_launchers.py"
+	RuntimeCommandFlag = "--print-runtime-command"
+)

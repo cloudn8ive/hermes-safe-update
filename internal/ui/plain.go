@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -200,21 +201,30 @@ func (p *Plain) Prompt(ctx context.Context, spec PromptSpec) (Answer, error) {
 	return readAnswer(ctx, p.con, spec)
 }
 
-// countdown prints "  <N>s" whenever the seconds left reach a multiple of
-// the interval (10 s), like the Python's plain prompt.
+// countdown prints a line whenever the seconds left reach a multiple of the
+// interval (10 s), like the Python's plain prompt, but only once a minute
+// while more than two minutes are left (see countdownLine).
 func (p *Plain) countdown(ctx context.Context, deadline time.Time) {
 	every := int(p.countEvery.Seconds())
 	if every < 1 {
 		every = 1
 	}
 	last := -1
+	first := true
 	t := time.NewTicker(p.pollEvery)
 	defer t.Stop()
 	for {
-		left := int(deadline.Sub(p.clk.Now()).Seconds())
-		if left >= 0 && left%every == 0 && left != last {
+		rem := deadline.Sub(p.clk.Now()).Seconds()
+		left := int(rem)
+		if first {
+			// A first line at the start whatever the timeout (150 s is not on
+			// the minute grid), worded from the rounded-up time left so that
+			// 599.9 s reads as 10 min.
+			first, last = false, left
+			p.printUnlessDone(ctx, "  "+CountdownText(int(math.Ceil(rem))))
+		} else if line, due := countdownLine(left, every); due && left != last {
 			last = left
-			p.printUnlessDone(ctx, fmt.Sprintf("  %ds", left))
+			p.printUnlessDone(ctx, line)
 		}
 		select {
 		case <-ctx.Done():
@@ -222,6 +232,25 @@ func (p *Plain) countdown(ctx context.Context, deadline time.Time) {
 		case <-t.C:
 		}
 	}
+}
+
+// countdownMinutesFrom: above this many seconds left the countdown prints once
+// a minute, at or below it every interval. It is the point where
+// CountdownText switches from minutes to seconds.
+const countdownMinutesFrom = 120
+
+// countdownLine says whether a countdown line is due with left seconds to go
+// (every is the print interval in seconds) and what it reads. A ten-minute
+// prompt prints "10 min", "9 min" ... "2 min", then every 10 s, instead of
+// sixty lines of seconds.
+func countdownLine(left, every int) (string, bool) {
+	if left < 0 || left%every != 0 {
+		return "", false
+	}
+	if left > countdownMinutesFrom && left%60 != 0 {
+		return "", false
+	}
+	return "  " + CountdownText(left), true
 }
 
 func (p *Plain) Complete(ok *bool) {

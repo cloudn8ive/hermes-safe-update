@@ -576,7 +576,7 @@ func (r *Run) rollbackGuard(ctx context.Context, ch hermes.ChannelCheck, dir rel
 		return stopErr
 	}
 	tun := r.Config.Tunables
-	text := fmt.Sprintf("%s Press Y to %s, N to stop (auto-stop in %ds).", msg, yesText, tun.ConfirmTimeoutS)
+	text := fmt.Sprintf("%s Press Y to %s, N to stop (auto-stop in %s).", msg, yesText, ui.CountdownText(tun.ConfirmTimeoutS))
 	a, err := r.ask(ctx, text, []rune{'y', 'n', 'a', 'q', '\r', 0x1b}, tun.ConfirmTimeout(), "auto-stop in")
 	if err != nil {
 		r.joinEarly(ctx)

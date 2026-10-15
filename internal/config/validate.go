@@ -145,6 +145,17 @@ func (f File) Validate() error {
 		add("update.channel", "must be one of follow, stable, main (got %q)", f.Update.Channel)
 	}
 
+	switch f.Preflight.ACLCheck {
+	case PreflightStop, PreflightWarn, PreflightOff:
+	default:
+		add("preflight.acl_check", "must be one of stop, warn, off (got %q)", f.Preflight.ACLCheck)
+	}
+	switch f.Preflight.ARM64Toolchain {
+	case PreflightStop, PreflightWarn, PreflightOff:
+	default:
+		add("preflight.arm64_toolchain", "must be one of stop, warn, off (got %q)", f.Preflight.ARM64Toolchain)
+	}
+
 	names := map[string]bool{}
 	for i, h := range f.Hooks {
 		base := fmt.Sprintf("hooks[%d]", i)

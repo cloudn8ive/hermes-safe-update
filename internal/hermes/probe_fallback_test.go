@@ -238,7 +238,17 @@ func TestRecordChannelByPath(t *testing.T) {
 		{"empty checkout path", cfg(record(idA, co, "stable")), "", true, "", ""},
 		{"a record without a path", cfg(record(idA, "", "stable")), co, true, "", ""},
 	}
+	// A backslash and a trailing `\` are path separators only on Windows;
+	// elsewhere filepath (rightly) treats them as ordinary characters.
+	windowsSeparators := map[string]bool{
+		"trailing separator on the record":   true,
+		"trailing separator on the checkout": true,
+		"slashes against backslashes":        true,
+	}
 	for _, c := range cases {
+		if windowsSeparators[c.name] && filepath.Separator != '\\' {
+			continue
+		}
 		id, ch, ok := RecordChannelByPath(c.cfg, c.checkout, c.fold)
 		if (ok != (c.wantID != "")) || id != c.wantID || ch != c.wantCh {
 			t.Errorf("%s: got (%q, %q, %v), want (%q, %q)", c.name, id, ch, ok, c.wantID, c.wantCh)

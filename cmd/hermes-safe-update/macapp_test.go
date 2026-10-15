@@ -12,7 +12,7 @@ import (
 // overwrite; the flow must see it as the desktop app (and so close it).
 func TestCheckSeesAnInstalledMacAppAsTheDesktop(t *testing.T) {
 	s := newSynthHome(t)
-	s.run.On([]string{s.launcher, "update", "--check"}, execx.Result{Output: "2 commits behind origin/main"})
+	s.run.On([]string{s.launcher, "update", "--check", "--branch", "main"}, execx.Result{Output: "2 commits behind origin/main"})
 	fp := s.plat.Paths.(*platform.FakePaths)
 	fp.Markers = []string{"/contents/macos/hermes"}
 	fp.Packaged = []platform.PackagedHint{{Kind: "macos-app", Path: "/Applications/Hermes.app"}}

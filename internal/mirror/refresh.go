@@ -95,7 +95,28 @@ func (s *Svc) APICompare(ctx context.Context, base string) *Compare {
 }
 
 func (s *Svc) apiCompare(ctx context.Context, base string, timeout time.Duration) *Compare {
-	body, ok := s.apiGet(ctx, "/repos/"+Repo+"/compare/"+base+"..."+Branch+"?per_page=1",
+	c := s.compareRefs(ctx, base, Branch, timeout)
+	if c == nil || (c.Status != "ahead" && c.Status != "identical") {
+		return nil
+	}
+	return c
+}
+
+// APICompareTo asks GitHub for base...target (15 s): base a full sha, target
+// a strict release tag or a full sha (anything else is nil without a
+// request). The statuses behind and diverged are answers too, but then only
+// the commit count is known: the file list GitHub gives is not the change
+// from base to target, so it is left out and "unchanged" is never inferred.
+func (s *Svc) APICompareTo(ctx context.Context, base, target string) *Compare {
+	if !shaRe.MatchString(base) || !(stableTagRe.MatchString(target) || shaRe.MatchString(target)) {
+		return nil
+	}
+	return s.compareRefs(ctx, base, target, 15*time.Second)
+}
+
+// compareRefs is one compare request. base and target have been validated.
+func (s *Svc) compareRefs(ctx context.Context, base, target string, timeout time.Duration) *Compare {
+	body, ok := s.apiGet(ctx, "/repos/"+Repo+"/compare/"+base+"..."+target+"?per_page=1",
 		"application/vnd.github+json", timeout, 16<<20)
 	if !ok {
 		return nil
@@ -107,14 +128,20 @@ func (s *Svc) apiCompare(ctx context.Context, base string, timeout time.Duration
 			Filename string `json:"filename"`
 		} `json:"files"`
 	}
-	if json.Unmarshal(body, &data) != nil || data.AheadBy == nil || (data.Status != "ahead" && data.Status != "identical") {
+	if json.Unmarshal(body, &data) != nil || data.AheadBy == nil {
 		return nil
 	}
-	c := &Compare{Commits: *data.AheadBy}
-	for _, f := range data.Files {
-		c.Files = append(c.Files, f.Filename)
+	c := &Compare{Commits: *data.AheadBy, Status: data.Status}
+	switch data.Status {
+	case "ahead", "identical":
+		for _, f := range data.Files {
+			c.Files = append(c.Files, f.Filename)
+		}
+		c.FilesComplete = len(c.Files) < 300
+	case "behind", "diverged":
+	default:
+		return nil
 	}
-	c.FilesComplete = len(c.Files) < 300
 	return c
 }
 
@@ -181,7 +208,13 @@ func (s *Svc) CronRefresh(ctx context.Context) int {
 		return 0 // an update is running; it refreshes the mirror itself
 	}
 	if target, ok := s.APIMainSHA(ctx); ok && s.head(ctx, path) == target {
-		return 0 // already current: no git round trip at all
+		// Main's tip is unchanged, but a release tag can be pushed onto a
+		// commit the mirror already has: that moves no branch, so look at the
+		// release tags too (one cheap ls-remote) before calling it current.
+		if !s.releaseTagsBehind(ctx, path) {
+			return 0
+		}
+		s.logf("mirror: a new release tag appeared, refreshing")
 	}
 	err := s.refreshAt(ctx, path, netTimeout, 0)
 	switch {

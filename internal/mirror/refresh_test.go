@@ -225,6 +225,15 @@ func TestCronRefresh(t *testing.T) {
 			t.Fatalf("code = %d calls = %v", code, e.runner.Calls())
 		}
 	})
+	t.Run("update running, v2 marker (ct and delegate lines): exit 0 without git", func(t *testing.T) {
+		e, _, _ := setup(t)
+		e.alive[777] = true
+		_ = os.WriteFile(filepath.Join(e.home, ".hermes-update-in-progress"),
+			[]byte("777\r\n1790000000\r\nct:1789999000.123\r\ndelegate:888 ct:1789999100.000\r\n"), 0o644)
+		if code := New(e.deps()).CronRefresh(ctx); code != 0 || len(e.runner.Calls()) != 0 {
+			t.Fatalf("code = %d calls = %v", code, e.runner.Calls())
+		}
+	})
 	t.Run("dead marker pid does not block", func(t *testing.T) {
 		e, api, _ := setup(t)
 		d := e.deps()

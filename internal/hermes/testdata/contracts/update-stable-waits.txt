@@ -1,0 +1,4 @@
+☤ Updating Hermes Agent...
+→ Update channel: stable
+→ Release: stable v0.22.0; this checkout is newer and waits for the next release (`hermes update --set-channel main` follows every commit)
+✓ Already up to date! [main @ 0123456789]

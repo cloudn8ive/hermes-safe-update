@@ -74,7 +74,7 @@ func (s *synthHome) cli(args ...string) int {
 
 func TestCheckRunsTheFlowAndChangesNothing(t *testing.T) {
 	s := newSynthHome(t)
-	s.run.On([]string{s.launcher, "update", "--check"}, execx.Result{Output: "2 commits behind origin/main"})
+	s.run.On([]string{s.launcher, "update", "--check", "--branch", "main"}, execx.Result{Output: "2 commits behind origin/main"})
 	s.plat.Procs.(*platform.FakeProcs).Add(platform.Process{PID: 77, Name: "Hermes.exe",
 		Cmdline: filepath.Join(s.checkout, "apps", "desktop", "release", "win-unpacked", "Hermes.exe")})
 	start := time.Now()
@@ -114,7 +114,7 @@ func TestCheckRunsTheFlowAndChangesNothing(t *testing.T) {
 
 func TestUpToDateExitsZero(t *testing.T) {
 	s := newSynthHome(t)
-	s.run.On([]string{s.launcher, "update", "--check"}, execx.Result{Output: "Already up to date"})
+	s.run.On([]string{s.launcher, "update", "--check", "--branch", "main"}, execx.Result{Output: "Already up to date"})
 	if code := s.cli("--plain", "--unattended"); code != 0 {
 		t.Fatalf("exit %d\n%s", code, s.errb.String())
 	}

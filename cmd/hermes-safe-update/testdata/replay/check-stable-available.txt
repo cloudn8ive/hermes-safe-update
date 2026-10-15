@@ -1,0 +1,34 @@
+Hermes Update Check · v1.2.3-test
+== Pre-flight
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+Using the stable channel (Hermes' default for this checkout); asking Hermes whether a release is waiting.
+update --check (rc=0): → Update channel: stable | → Selected release available: stable v0.22.1 (abcdef012345) | Run `hermes update` to install it.
+release stable v0.22.1 is not in the checkout yet and GitHub could not compare it: commit count and package changes are unknown
+updates: release v0.22.1 available (Hermes release check)
+python deps: unknown
+node packages: unknown
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+sessions: 1 active
+   20260101_000000_aaaaaa  Planning the week  (last activity 46s ago)
+== Dependency generation cleanup (dry run)
+  REMOVE (~310 MB) environments/1f2e3d4c
+  REMOVE (~302 MB) environments/9a8b7c6d
+cua-driver: logon task current
+Pre-flight passed; check mode, Hermes was not touched.
+
+Update available. Hermes was not touched.
+  Channel      stable (Hermes default)
+  Available    release v0.22.1
+  Python deps  unknown
+  Node packages unknown
+  Checked via  Hermes release check (channel stable)
+  Update time  about 9 min once Hermes closes (rough: no earlier runs like this; uses defaults)
+  Running      desktop, gateway, backend
+  Gateway      update can pause it
+  Sessions     1 active in the last 3 min (the update waits for them)
+  Cleanup      2 old dependency set(s), ~612 MB to free
+  cua-driver   current
+  Mirror       none (optional; updates check GitHub directly)

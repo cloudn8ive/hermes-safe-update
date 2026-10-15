@@ -44,6 +44,7 @@ cua-driver: 0.21.0, logon task current
 
 Hermes is updated and verified.
   Version      v0.21.5 → v0.21.6  (3 commits)
+  Channel      main (set in Hermes)
   Time         8:29 for the update  (estimate was 7:44)
   Hermes app   not reopened (it was closed when the update started; set desktop.relaunch: always to reopen it)
   Source       GitHub (checked via the API)

@@ -1,0 +1,9 @@
+usage: hermes update [-h] [--gateway] [--yes] [--keep-stash] [--check]
+                     [--branch BRANCH]
+
+options:
+  -h, --help            show this help message and exit
+  --yes                 Accept every prompt
+  --keep-stash          Keep the stash
+  --check               Check for updates without applying them
+  --branch BRANCH       Update from this branch

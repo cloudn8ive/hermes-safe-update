@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -102,17 +103,70 @@ func (r *GitRepo) CommitCount(ctx context.Context, from, to string) (int, bool) 
 	return n, true
 }
 
+// IsAncestor is `git merge-base --is-ancestor <ancestor> <descendant>`: exit
+// 0 = yes, 1 = no, anything else (a missing object, a timeout, no git) =
+// ok=false. A commit is its own ancestor. ancestor must be a full 40-digit
+// sha; descendant that or the word HEAD, so no argument can be read as an
+// option. It looks only at what is local (no lazy fetch).
+func (r *GitRepo) IsAncestor(ctx context.Context, ancestor, descendant string) (yes, ok bool) {
+	if !fullHexRe.MatchString(ancestor) || (descendant != "HEAD" && !fullHexRe.MatchString(descendant)) {
+		return false, false
+	}
+	if r.Git == "" {
+		return false, false
+	}
+	res, err := r.Run.Run(ctx, execx.Cmd{
+		Argv:    r.argv("merge-base", "--is-ancestor", ancestor, descendant),
+		Env:     map[string]string{"GIT_NO_LAZY_FETCH": "1"},
+		Timeout: gitTimeout,
+	})
+	if err != nil || res.TimedOut {
+		return false, false
+	}
+	switch res.Code {
+	case 0:
+		return true, true
+	case 1:
+		return false, true
+	}
+	return false, false
+}
+
+// IsShallow is `git rev-parse --is-shallow-repository`. A shallow clone lacks
+// history, so "this commit is not here" proves nothing about it; a partial
+// clone (blob:none) has every commit and is not shallow. ok=false when git
+// cannot say.
+func (r *GitRepo) IsShallow(ctx context.Context) (shallow, ok bool) {
+	res, err := r.run(ctx, gitTimeout, "rev-parse", "--is-shallow-repository")
+	if err != nil || res.TimedOut || res.Code != 0 {
+		return false, false
+	}
+	switch strings.TrimSpace(res.Output) {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	}
+	return false, false
+}
+
 // DiffKinds decides from `git diff --quiet` exit codes only (rule 18: stderr
 // carries unrelated pack warnings, so output is never parsed). 0 = unchanged,
-// 1 = changed, anything else (including a timeout) = unknown.
-func (r *GitRepo) DiffKinds(ctx context.Context) (npm, pydeps *bool) {
-	npm = r.diffQuiet(ctx, ":(glob)**/package.json", ":(glob)**/package-lock.json")
-	pydeps = r.diffQuiet(ctx, PyFilesPathspecs...)
+// 1 = changed, anything else (including a timeout) = unknown. ref is what the
+// update would install: MainRef, a release tag `refs/tags/vX.Y.Z` or a full
+// commit sha; anything else (an option, a name that could be misread) is
+// unknown without running git.
+func (r *GitRepo) DiffKinds(ctx context.Context, ref string) (npm, pydeps *bool) {
+	if !validDiffRef(ref) {
+		return nil, nil
+	}
+	npm = r.diffQuiet(ctx, ref, ":(glob)**/package.json", ":(glob)**/package-lock.json")
+	pydeps = r.diffQuiet(ctx, ref, PyFilesPathspecs...)
 	return npm, pydeps
 }
 
-func (r *GitRepo) diffQuiet(ctx context.Context, paths ...string) *bool {
-	args := append([]string{"diff", "--quiet", "HEAD", "origin/main", "--"}, paths...)
+func (r *GitRepo) diffQuiet(ctx context.Context, ref string, paths ...string) *bool {
+	args := append([]string{"diff", "--quiet", "HEAD", ref, "--"}, paths...)
 	res, err := r.run(ctx, gitDiffTimeout, args...)
 	if err != nil || res.TimedOut {
 		return nil
@@ -126,6 +180,76 @@ func (r *GitRepo) diffQuiet(ctx context.Context, paths ...string) *bool {
 		return &v
 	}
 	return nil
+}
+
+// MainRef is what a main update installs, as DiffKinds takes it.
+const MainRef = "origin/main"
+
+var (
+	fullHexRe   = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	hexPrefixRe = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+)
+
+// validDiffRef is the whitelist of DiffKinds targets: never an option, never
+// a name git could read as something else.
+func validDiffRef(ref string) bool {
+	if ref == MainRef || fullHexRe.MatchString(ref) {
+		return true
+	}
+	tag, ok := strings.CutPrefix(ref, "refs/tags/")
+	return ok && StableTagRe.MatchString(tag)
+}
+
+// ResolveRelease finds the commit of a release in this checkout, offline:
+//
+//  1. the tag, when it exists here and (if Hermes named a commit) points at
+//     that commit: ref = "refs/tags/<tag>";
+//  2. else the commit Hermes named (sha12, a 7-40 digit prefix), when exactly
+//     one commit here starts with it: ref = the full sha;
+//  3. else nothing ("", ""): the caller treats the prediction as unknown. It
+//     never falls back to the main diff or to a guess, and an ambiguous
+//     prefix is "nothing".
+//
+// sha is always the full 40-digit commit, for counting. Lazy fetching from a
+// partial clone's remote is switched off: this only looks at what is local.
+func (r *GitRepo) ResolveRelease(ctx context.Context, tag, sha12 string) (ref, sha string) {
+	if tag != "" && !StableTagRe.MatchString(tag) {
+		tag = ""
+	}
+	if sha12 != "" && !hexPrefixRe.MatchString(sha12) {
+		sha12 = ""
+	}
+	if tag != "" {
+		if full := r.commitOf(ctx, "refs/tags/"+tag); full != "" && (sha12 == "" || strings.HasPrefix(full, sha12)) {
+			return "refs/tags/" + tag, full
+		}
+	}
+	if sha12 != "" {
+		if full := r.commitOf(ctx, sha12); full != "" {
+			return full, full
+		}
+	}
+	return "", ""
+}
+
+// commitOf is the full sha of the commit a validated name resolves to, or "".
+func (r *GitRepo) commitOf(ctx context.Context, name string) string {
+	if r.Git == "" {
+		return ""
+	}
+	res, err := r.Run.Run(ctx, execx.Cmd{
+		Argv:    r.argv("rev-parse", "--verify", "--quiet", name+"^{commit}"),
+		Env:     map[string]string{"GIT_NO_LAZY_FETCH": "1"},
+		Timeout: gitTimeout,
+	})
+	if err != nil || res.TimedOut || res.Code != 0 {
+		return ""
+	}
+	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(res.Output), "\n", 2)[0])
+	if fullHexRe.MatchString(line) {
+		return line
+	}
+	return ""
 }
 
 // ClassifyChanged says whether Node packages / Python dependencies changed

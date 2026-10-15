@@ -65,6 +65,9 @@ type VerifyResult struct {
 	CodeOK          bool // gateway reports the new HEAD and is alive
 	KnownFalseFleet bool // OK only because of the known false fleet warning
 	Line            string
+	// Note explains a PROBLEM whose cause Hermes' exit code names (rc 2: another
+	// update holds the install); "" otherwise. Shown next to Line, not in it.
+	Note string
 }
 
 // EvaluateUpdate decides RESULT OK / PROBLEM. The known false fleet
@@ -83,6 +86,7 @@ func EvaluateUpdate(in VerifyInput) VerifyResult {
 		}
 	default:
 		r.Line = fmt.Sprintf("RESULT: PROBLEM (update rc=%d, gateway on new code=%t, desktop verify rc=%d)", in.RC, r.CodeOK, in.VerifyRC)
+		r.Note = ConcurrentUpdateNote(in.RC, in.Output)
 	}
 	return r
 }

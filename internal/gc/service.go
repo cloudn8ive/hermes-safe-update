@@ -27,10 +27,14 @@ var ErrOutputChanged = errors.New("hermes output changed: generation cleanup out
 
 // Deps of the collector.
 type Deps struct {
-	Runner   execx.Runner
-	Python   string // hermes.Install.Python; "" = not found (D7)
-	Home     string // HERMES_HOME of the default profile
-	Checkout string // default <Home>/hermes-agent
+	Runner execx.Runner
+	Python string // hermes.Install.Python; "" = not found (D7)
+	// PythonNow, when set, finds the managed Python when the cleanup runs
+	// (after the update, which can replace the interpreter); Python is the
+	// fallback.
+	PythonNow func() string
+	Home      string // HERMES_HOME of the default profile
+	Checkout  string // default <Home>/hermes-agent
 	// Applicable is false off Windows: the hardlink/image-lock problem is
 	// Windows-only, so the step is N/A there.
 	Applicable bool
@@ -58,14 +62,20 @@ func (s *Service) Run(ctx context.Context, dryRun bool) (Result, error) {
 	if !s.d.Applicable {
 		return Result{Skipped: "not needed on this OS"}, nil
 	}
-	if s.d.Python == "" {
+	python := s.d.Python
+	if s.d.PythonNow != nil {
+		if p := s.d.PythonNow(); p != "" {
+			python = p
+		}
+	}
+	if python == "" {
 		return Result{Skipped: "managed Python not found"}, nil
 	}
 	script, err := s.writeScript()
 	if err != nil {
 		return Result{}, fmt.Errorf("generation cleanup: write helper script: %w", err)
 	}
-	argv := []string{s.d.Python, "-I", script, "--home", s.d.Home, "--checkout", s.d.Checkout}
+	argv := []string{python, "-I", script, "--home", s.d.Home, "--checkout", s.d.Checkout}
 	if dryRun {
 		argv = append(argv, "--dry-run")
 	}

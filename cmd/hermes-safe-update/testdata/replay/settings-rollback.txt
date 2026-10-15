@@ -46,6 +46,7 @@ cua-driver: 0.21.0, logon task current
 
 Hermes is updated and verified.
   Version      v0.21.5 → v0.21.6  (3 commits)
+  Channel      main (set in Hermes)
   Time         8:23 until Hermes reopened  (estimate was 7:44)
   Source       GitHub (checked via the API)
   Cleanup      removed 2 old dependency set(s), freed 612 MB

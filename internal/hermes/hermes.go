@@ -109,11 +109,25 @@ type UpdateCheck struct {
 type Repo interface {
 	Head(ctx context.Context) (short, full string, err error)
 	DirtyCount(ctx context.Context) (int, error)
-	// DiffKinds classifies HEAD..origin/main by exit codes only (rule 18).
-	DiffKinds(ctx context.Context) (npm, pydeps *bool)
+	// DiffKinds classifies HEAD..ref by exit codes only (rule 18). ref is
+	// MainRef, a release tag ("refs/tags/vX.Y.Z") or a full commit sha;
+	// anything else is unknown.
+	DiffKinds(ctx context.Context, ref string) (npm, pydeps *bool)
+	// ResolveRelease finds a release's commit locally: the tag when it is
+	// here (and matches the commit Hermes named), else the commit starting
+	// with sha12. ref feeds DiffKinds, sha (40 hex) CommitCount. ("", "") =
+	// not available locally or ambiguous: the prediction is unknown.
+	ResolveRelease(ctx context.Context, tag, sha12 string) (ref, sha string)
 	// CommitCount is `git rev-list --count from..to` (ok=false when git
 	// cannot say, e.g. an object is missing). Read-only.
 	CommitCount(ctx context.Context, from, to string) (n int, ok bool)
+	// IsAncestor is `git merge-base --is-ancestor ancestor descendant`
+	// (descendant: a full sha or "HEAD"); ok=false when git cannot say.
+	// Decides whether updating to a release would move the checkout back.
+	IsAncestor(ctx context.Context, ancestor, descendant string) (yes, ok bool)
+	// IsShallow reports a shallow clone (`rev-parse --is-shallow-repository`);
+	// ok=false when git cannot say.
+	IsShallow(ctx context.Context) (shallow, ok bool)
 }
 
 // Verifier runs `hermes --run-module hermes_cli.desktop_update_verify` (D17).

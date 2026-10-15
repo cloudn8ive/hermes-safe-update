@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -132,14 +131,15 @@ func (l *RealLocator) Locate(ctx context.Context) (Install, error) {
 }
 
 // ManagedPython looks for Hermes' managed Python under home right now: the
-// last existing match of the platform's globs, "" if there is none. It reads
-// the disk each time, so a caller that asks after `hermes update` sees the
-// interpreter the update installed (the folder name carries a version).
+// folder tools/facts.json names for "python", else the highest version among
+// the platform's glob matches (see pickManaged), "" if there is none. It
+// reads the disk each time, so a caller that asks after `hermes update` sees
+// the interpreter the update installed (the folder name carries a version).
 func ManagedPython(paths platform.Paths, home string) string {
 	if paths == nil || home == "" {
 		return ""
 	}
-	return lastGlob(paths.ManagedPythonGlobs(home))
+	return pickManaged(home, "python", paths.ManagedPythonGlobs(home))
 }
 
 // pickLauncher returns the first existing candidate whose `--version`
@@ -174,7 +174,7 @@ func (l *RealLocator) pickLauncher(ctx context.Context, in Install) (string, err
 
 // findGit prefers Hermes' bundled git, then PATH (D4).
 func (l *RealLocator) findGit(home string) string {
-	if g := lastGlob(l.Paths.BundledGitGlobs(home)); g != "" {
+	if g := pickManaged(home, "git", l.Paths.BundledGitGlobs(home)); g != "" {
 		return g
 	}
 	lp := l.LookPath
@@ -208,27 +208,6 @@ func (l *RealLocator) findElectron(checkout string) string {
 func exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
-}
-
-// lastGlob returns the last (sorted) existing match over all patterns, "" if none.
-func lastGlob(patterns []string) string {
-	var all []string
-	for _, pat := range patterns {
-		m, err := filepath.Glob(pat)
-		if err != nil {
-			continue
-		}
-		for _, p := range m {
-			if exists(p) {
-				all = append(all, p)
-			}
-		}
-	}
-	if len(all) == 0 {
-		return ""
-	}
-	sort.Strings(all)
-	return all[len(all)-1]
 }
 
 func samePath(a, b string) bool {

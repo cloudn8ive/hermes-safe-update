@@ -1,0 +1,9 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+Using the stable channel (Hermes' default for this checkout); asking Hermes whether a release is waiting.
+update --check (rc=1): → Update channel: stable | ✗ Could not resolve the stable source channel: Connection to api.github.com failed (timed out) — check your connection, firewall or proxy.
+STOP Hermes could not resolve the stable release: Connection to api.github.com failed (timed out) — check your connection, firewall or proxy. Nothing was changed. Try again later, or set update.channel: main to follow main instead.
+hermes-safe-update: pre-flight stopped the update; nothing was changed: Hermes could not resolve the stable release: Connection to api.github.com failed (timed out) — check your connection, firewall or proxy

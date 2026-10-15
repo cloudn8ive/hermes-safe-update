@@ -24,7 +24,11 @@ const MarkerStaleAfterS = 20 * 60
 // GatewayStateFile is read for code_sha and pid.
 const GatewayStateFile = "gateway_state.json"
 
-// UpdateArgv is the only way the tool runs the update (rule 6: no --gateway).
+// UpdateArgv is the update argv of the main channel: `--branch main` beats
+// Hermes' own channel on every version, so this is also what runs on a
+// Hermes without release channels. It is the legacy argv from before channels
+// and stays byte for byte as it was. Runs use BuildUpdateArgv (channel.go),
+// which returns exactly this for main (rule 6: no --gateway).
 var UpdateArgv = []string{"update", "--yes", "--keep-stash", "--branch", "main"}
 
 // VerifyModuleArgv verifies the desktop build (D17).
@@ -43,9 +47,13 @@ var UpdateTriggers = []Trigger{
 	{"→ Pulling updates", "pull"},
 	{"Resolving Python dependencies…", "pydeps"},
 	{"Installing Python dependencies…", "pydeps"},
+	// Older Hermes printed this line; v0.22 only publishes it to a status file
+	// (never stdout), so it is a harmless no-op there. The two lines above
+	// carry the step on v0.22.
 	{"Updating Python dependencies", "pydeps"},
 	{"Preparing Node dependencies…", "frontend"},
 	{"Building the TUI…", "frontend"},
+	{"Building the web UI…", "frontend"}, // source_build.py: label of the web UI build
 	{"Building desktop packaged app…", "desktop"},
 	{"Packaging the desktop app…", "package"},
 	{"Code updated!", "finalize"},
@@ -84,6 +92,53 @@ var PauseGateErr = regexp.MustCompile(`Could not (?:map Windows gateway PIDs to 
 
 // PauseGateRe finds that error in `hermes update` output.
 var PauseGateRe = regexp.MustCompile(`RuntimeError: (` + PauseGateErr.String() + `[^\n]*)`)
+
+// The update marker (update_lock.py, format v2; electron/update-marker.ts):
+//
+//	line 1  <pid>
+//	line 2  <started_at, unix seconds>
+//	line 3  ct:<owner creation time, unix seconds, 3 decimals>      (absent = v1)
+//	line 4+ delegate:<pid> ct:<ct>   and   run:<id>                 (optional)
+//
+// An owner is live while its pid is alive AND its creation time still matches
+// (MarkerCreateTimeToleranceS); a marker without the ct line is v1 and only
+// ages out after MarkerStaleAfterS. The line shapes are matched case-sensitively
+// per line, after BOM/CRLF/space-and-tab trimming.
+var (
+	MarkerCreateTimeRe = regexp.MustCompile(`^ct:([0-9]+(?:\.[0-9]+)?)$`)
+	MarkerDelegateRe   = regexp.MustCompile(`^delegate:([0-9]+) ct:([0-9]+(?:\.[0-9]+)?)$`)
+)
+
+// MarkerCreateTimeToleranceS is the clock difference Hermes allows between a
+// recorded and a probed process creation time (CREATE_TIME_TOLERANCE_SECONDS).
+const MarkerCreateTimeToleranceS = 2.0
+
+// UpdateExitConcurrent is `hermes update`'s exit code when another update (or
+// instance) owns the install (UPDATE_EXIT_CONCURRENT in update_lock.py): the
+// update did not start. Hermes prints one of two lines first.
+const UpdateExitConcurrent = 2
+
+var (
+	// ConcurrentUpdateRe: "✗ Another Hermes update is already running (started 3m 4s ago, process 123)."
+	ConcurrentUpdateRe = regexp.MustCompile(`Another Hermes update is already running[^\r\n]*`)
+	// CannotLockRe: "✗ Cannot lock this install for the update: <reason>."
+	CannotLockRe = regexp.MustCompile(`Cannot lock this install for the update:[ \t]*([^\r\n]*)`)
+)
+
+// ConcurrentUpdateNote explains an exit code 2 of `hermes update` in one
+// clause for the RESULT line ("" when rc is not 2).
+func ConcurrentUpdateNote(rc int, out string) string {
+	if rc != UpdateExitConcurrent {
+		return ""
+	}
+	if m := ConcurrentUpdateRe.FindString(out); m != "" {
+		return "another Hermes update is running (" + strings.TrimRight(strings.TrimSpace(m), ".") + "); it holds the update lock, so this run's update did not start. Wait for it to finish, then run Safe Update again"
+	}
+	if m := CannotLockRe.FindStringSubmatch(out); m != nil {
+		return "Hermes could not lock the install for the update: " + strings.TrimRight(strings.TrimSpace(m[1]), ".")
+	}
+	return "Hermes refused to start the update: another update or Hermes instance holds the install. Wait for it to finish, then run Safe Update again"
+}
 
 // UpdateCompleteRe captures "<old> → <new>" from the final update line.
 var UpdateCompleteRe = regexp.MustCompile(`Update complete! \((.+?) → (.+?)\)`)
@@ -239,17 +294,102 @@ func ParseUnfinished(line string) (Unfinished, bool) {
 	return Unfinished{What: strings.TrimSpace(m[1]), Reason: shortReason(reason), Hint: hint}, true
 }
 
-// UnfinishedSteps lists every "did not finish" line in update output, deduplicated.
+// Hermes' other "owed work" wordings (update_completion.py, update_receipt.py,
+// source_build.py, main_desktop.py). Each is one whole line; `hermes update`
+// still exits 0 after them, so they are warnings, never a failed update.
+var (
+	// owedLineRes: line shape -> what is owed. Group 1 is the reason text.
+	owedLineRes = []struct {
+		re   *regexp.Regexp
+		what string
+	}{
+		{regexp.MustCompile(`^[ 	]*(?:⚠[ 	]*)?Desktop app build owed:[ 	]*(.*?)[ 	\r]*$`), "Desktop app build owed"},
+		{regexp.MustCompile(`^[ 	]*⚠[ 	]*Gateway restart still owed:[ 	]*(.*?)[ 	\r]*$`), "Gateway restart still owed"},
+		{regexp.MustCompile(`^[ 	]*⚠[ 	]*Interrupted after the code was updated:[ 	]*(.*?)[ 	\r]*$`), "Interrupted after the code was updated"},
+		{regexp.MustCompile(`^[ 	]*⚠[ 	]*Skipped rebuilding the desktop app:[ 	]*(.*?)[ 	\r]*$`), "Skipped rebuilding the desktop app"},
+	}
+	// stepFailedRe is source_build.py's "  ⚠ <name> failed: <reason>" (one line
+	// per product that did not build; names have no colon).
+	stepFailedRe = regexp.MustCompile(`^[ 	]*⚠[ 	]*([^:⚠]+?) failed:[ 	]*(.*?)[ 	\r]*$`)
+)
+
+// ParseOwed reads one line of the owed-work vocabulary other than "did not
+// finish": "Desktop app build owed: …", "⚠ <name> failed: …", "⚠ Gateway
+// restart still owed: …", "⚠ Interrupted after the code was updated: …",
+// "⚠ Skipped rebuilding the desktop app: …". ok=false otherwise.
+func ParseOwed(line string) (Unfinished, bool) {
+	if UnfinishedRe.MatchString(line) {
+		return Unfinished{}, false // ParseUnfinished's wording
+	}
+	for _, o := range owedLineRes {
+		if m := o.re.FindStringSubmatch(line); m != nil {
+			reason := strings.TrimRight(strings.TrimSpace(m[1]), ".,")
+			return Unfinished{What: o.what, Reason: shortReason(reason)}, true
+		}
+	}
+	if m := stepFailedRe.FindStringSubmatch(line); m != nil {
+		reason := shortReason(m[2])
+		if CommandDumpStartRe.MatchString(line) {
+			reason = "command details in the log" // as the screen filter shows it
+		}
+		return Unfinished{What: strings.TrimSpace(m[1]) + " failed", Reason: reason}, true
+	}
+	return Unfinished{}, false
+}
+
+// UnfinishedSteps lists every part of the update that Hermes reported as not
+// finished or still owed, deduplicated: "did not finish" follow-ups first,
+// then the other owed-work lines (ParseOwed). A line that only repeats a
+// follow-up already listed is dropped, so one failure is one row.
 func UnfinishedSteps(out string) []Unfinished {
 	var list []Unfinished
 	seen := map[string]bool{}
-	for _, l := range strings.Split(out, "\n") {
-		if u, ok := ParseUnfinished(l); ok && !seen[u.String()] {
+	add := func(u Unfinished) {
+		if !seen[u.String()] {
 			seen[u.String()] = true
 			list = append(list, u)
 		}
 	}
+	lines := strings.Split(out, "\n")
+	var followups strings.Builder // raw "did not finish" lines
+	for _, l := range lines {
+		if u, ok := ParseUnfinished(l); ok {
+			add(u)
+			followups.WriteString(l + "\n")
+		}
+	}
+	followupText := followups.String()
+	hasGatewayFollowup := strings.Contains(followupText, "'gateway_restart'")
+	var owed []Unfinished
+	for _, l := range lines {
+		if u, ok := ParseOwed(l); ok {
+			owed = append(owed, u)
+		}
+	}
+	for _, u := range owed {
+		name, failed := strings.CutSuffix(u.What, " failed")
+		switch {
+		case failed && strings.Contains(followupText, name+": "):
+			continue // the follow-up names this failure
+		case u.What == "Gateway restart still owed" && hasGatewayFollowup:
+			continue // the gateway_restart follow-up says the same
+		case u.What == "Desktop app build owed" && owedFailed(owed, u.Reason):
+			continue // the "⚠ <name> failed" line says why
+		}
+		add(u)
+	}
 	return list
+}
+
+// owedFailed reports whether owed holds a "⚠ <name> failed" row matching the
+// reason of a "Desktop app build owed: <name> failed" line.
+func owedFailed(owed []Unfinished, reason string) bool {
+	for _, o := range owed {
+		if o.What != "" && o.What == reason {
+			return true
+		}
+	}
+	return false
 }
 
 // shortReason keeps "web UI build" from "web UI build: <long command line>"
@@ -302,3 +442,206 @@ var VersionMethodRe = regexp.MustCompile(`(?m)^Install method:[ \t]*(.+?)[ \t\r]
 // ElectronPathFile names the file in node_modules/electron holding the
 // platform leaf of the Electron executable.
 const ElectronPathFile = "path.txt"
+
+// ---- Release channels (Hermes v0.21.6+; Safe Update v0.3.0) ----
+//
+// What `hermes update --check` and `hermes update` print on a release
+// channel. Hermes at 1f6c02c07c (update_cmd_check.py, source_releases.py).
+// All patterns match the ASCII tail of a line, not the leading glyph
+// (→ ✓ ⚕ ✗ may be mangled by a console code page), and tolerate CRLF.
+
+// UpdateChannelRe reads the channel from "→ Update channel: stable". Both
+// `--check` and the apply print it (absent with an explicit --branch).
+var UpdateChannelRe = regexp.MustCompile(`(?m)Update channel:[ \t]*([a-z0-9][a-z0-9-]*)[ \t\r]*$`)
+
+// The release verdict lines of `update --check`. Labels read
+// "<channel> v<version> (<sha12>)", e.g. "stable v0.22.1 (abcdef012345)".
+var (
+	checkAvailableRe  = regexp.MustCompile(`Selected release available:[ \t]*([a-z0-9][a-z0-9-]*) v(\S+) \(([0-9a-f]{7,40})\)`)
+	checkUpToDateRe   = regexp.MustCompile(`Up to date with the latest release \(([a-z0-9][a-z0-9-]*) v(\S+) \(([0-9a-f]{7,40})\)\)`)
+	checkWaitsRe      = regexp.MustCompile(`No newer release:[ \t]*([a-z0-9][a-z0-9-]*) v([^\s;()]+)`)
+	checkRollbackRe   = regexp.MustCompile(`This checkout is newer than the selected release:[ \t]*([a-z0-9][a-z0-9-]*) v(\S+) \(([0-9a-f]{7,40})\)`)
+	checkRollbackTail = "moves it back to that release"
+	checkUnresolvedRe = regexp.MustCompile(`(?m)Could not resolve the (\S+) source channel:[ \t]*(.*?)[ \t\r]*$`)
+)
+
+// CheckVerdict is what `hermes update --check` concluded.
+type CheckVerdict int
+
+const (
+	// VerdictUnknown: none of the known wordings matched. Never read this as
+	// "up to date": callers warn and stop.
+	VerdictUnknown CheckVerdict = iota
+	// VerdictAvailable: a newer release (or, on main, newer commits) exists.
+	VerdictAvailable
+	// VerdictUpToDate: the checkout is at the selected release (or main's tip).
+	VerdictUpToDate
+	// VerdictWaitsForNext: "No newer release: …; this checkout is newer and
+	// waits for the next release" (forward-only default channel).
+	VerdictWaitsForNext
+	// VerdictRollback: "This checkout is newer than the selected release":
+	// `hermes update` would move the checkout BACK to that release.
+	VerdictRollback
+	// VerdictUnresolved: "Could not resolve the <channel> source channel:
+	// <reason>" (GitHub unreachable, rate limited, ...); exit code 1.
+	VerdictUnresolved
+)
+
+func (v CheckVerdict) String() string {
+	switch v {
+	case VerdictAvailable:
+		return "available"
+	case VerdictUpToDate:
+		return "up-to-date"
+	case VerdictWaitsForNext:
+		return "waits-for-next-release"
+	case VerdictRollback:
+		return "rollback"
+	case VerdictUnresolved:
+		return "unresolved"
+	}
+	return "unknown"
+}
+
+// ChannelCheck is `hermes update --check` output, parsed.
+type ChannelCheck struct {
+	Channel string // "→ Update channel: X" ("" when the line is absent, e.g. with --branch)
+	Verdict CheckVerdict
+	Release string // channel named in the release label ("stable")
+	Version string // "0.22.1" (no leading v)
+	SHA12   string // the commit as printed, at most 12 hex digits
+	Commits *int   // main-style output only: "N commits behind origin/main"
+	Reason  string // Unresolved: Hermes' reason text
+}
+
+// Label is "stable v0.22.1" ("" when the output carried no release label).
+func (c ChannelCheck) Label() string {
+	if c.Release == "" || c.Version == "" {
+		return ""
+	}
+	return c.Release + " v" + c.Version
+}
+
+func (c *ChannelCheck) label(m []string) {
+	c.Release, c.Version = m[1], m[2]
+	if len(m) > 3 {
+		c.SHA12 = m[3][:min(12, len(m[3]))]
+	}
+}
+
+// ParseChannelCheck reads the output of `hermes update --check` (exit codes
+// are the caller's: Unresolved comes with rc 1). Order matters: the rollback
+// and "waits" lines are release verdicts too and must not read as "available".
+// Main-channel output ("Update available: N commits behind origin/main.",
+// "Already up to date.") is understood as Available / UpToDate; text that
+// matches nothing is VerdictUnknown.
+func ParseChannelCheck(out string) ChannelCheck {
+	var c ChannelCheck
+	if m := UpdateChannelRe.FindStringSubmatch(out); m != nil {
+		c.Channel = m[1]
+	}
+	switch {
+	case checkUnresolvedRe.MatchString(out):
+		m := checkUnresolvedRe.FindStringSubmatch(out)
+		c.Verdict, c.Release, c.Reason = VerdictUnresolved, m[1], m[2]
+	case checkRollbackRe.MatchString(out):
+		c.Verdict = VerdictRollback
+		c.label(checkRollbackRe.FindStringSubmatch(out))
+	case strings.Contains(out, checkRollbackTail):
+		c.Verdict = VerdictRollback
+	case checkWaitsRe.MatchString(out):
+		c.Verdict = VerdictWaitsForNext
+		c.label(checkWaitsRe.FindStringSubmatch(out))
+	case checkUpToDateRe.MatchString(out):
+		c.Verdict = VerdictUpToDate
+		c.label(checkUpToDateRe.FindStringSubmatch(out))
+	case checkAvailableRe.MatchString(out):
+		c.Verdict = VerdictAvailable
+		c.label(checkAvailableRe.FindStringSubmatch(out))
+	default:
+		// main channel (or an old Hermes)
+		lower := strings.ToLower(out)
+		switch {
+		case CheckSaysBehind(out):
+			c.Verdict = VerdictAvailable
+			if m := CheckCommitsRe.FindStringSubmatch(out); m != nil {
+				if n, err := strconv.Atoi(m[1]); err == nil {
+					c.Commits = &n
+				}
+			}
+		case strings.Contains(lower, "up to date"):
+			c.Verdict = VerdictUpToDate
+		}
+	}
+	return c
+}
+
+// UpdateRelease is what the output of a release-channel `hermes update`
+// tells about the target.
+type UpdateRelease struct {
+	Channel   string // "→ Update channel: X" ("" when absent)
+	Release   string // channel in the release label
+	Version   string // "0.22.1"
+	SHA12     string // from "→ Latest release: stable v0.22.1 (<sha12>)"
+	Waits     bool   // "→ Release: …; this checkout is newer and waits for the next release"
+	SwitchSHA string // "→ Switching to source commit <sha10>"
+}
+
+// Label is "stable v0.22.1" ("" when no release line was printed).
+func (u UpdateRelease) Label() string {
+	if u.Release == "" || u.Version == "" {
+		return ""
+	}
+	return u.Release + " v" + u.Version
+}
+
+var (
+	releaseLineRe = regexp.MustCompile(`(?m)(?:Latest release|Release):[ \t]*([a-z0-9][a-z0-9-]*) v([^\s;()]+)(?:[ \t]*\(([0-9a-f]{7,40})\))?(;[ \t]*this checkout is newer and waits)?`)
+	switchingRe   = regexp.MustCompile(`Switching to source commit ([0-9a-f]{7,40})`)
+)
+
+// ParseUpdateRelease reads the channel and release lines of `hermes update`
+// output. On a release channel "Found N new commit(s)" is never printed, so
+// ParseFoundCommits is optional there.
+func ParseUpdateRelease(out string) UpdateRelease {
+	var u UpdateRelease
+	if m := UpdateChannelRe.FindStringSubmatch(out); m != nil {
+		u.Channel = m[1]
+	}
+	if m := releaseLineRe.FindStringSubmatch(out); m != nil {
+		u.Release, u.Version, u.Waits = m[1], m[2], m[4] != ""
+		if m[3] != "" {
+			u.SHA12 = m[3][:min(12, len(m[3]))]
+		}
+	}
+	if m := switchingRe.FindStringSubmatch(out); m != nil {
+		u.SwitchSHA = m[1]
+	}
+	return u
+}
+
+// ---- release tags (the target of a stable update) ----
+
+// StableTagRe is Hermes' STABLE_TAG_RE (update_channel.py): a stable release
+// tag is strict `vX.Y.Z`, the major part at most three digits, no suffix.
+// CalVer tags (v2026.9.24), canary tags (v0.22.0+canary.<ts>) and rc tags are
+// not releases and never a target. internal/mirror keeps an identical copy
+// (it cannot import this package); a parity test pins the two together.
+var StableTagRe = regexp.MustCompile(`^v(?:0|[1-9]\d{0,2})\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$`)
+
+// ReleaseTag is the git tag of a release version printed by Hermes
+// ("0.22.1" -> "v0.22.1"), or "" when it is not a strict stable tag. A
+// version is never turned into a tag any other way, and tags are never
+// sorted to find a release: Hermes names the target, we only look it up.
+func ReleaseTag(version string) string {
+	tag := "v" + strings.TrimPrefix(version, "v")
+	if StableTagRe.MatchString(tag) {
+		return tag
+	}
+	return ""
+}
+
+// SetChannelDoneRe reads the confirmation `hermes update --set-channel X`
+// prints on success: "Update channel for <install id>: <name>" (followed, for
+// stable and canary, by a generic back-up warning that is not matched).
+var SetChannelDoneRe = regexp.MustCompile(`(?m)^[ \t]*Update channel for ([0-9a-f]{16}): ([a-z0-9][a-z0-9-]*)[ \t\r]*$`)

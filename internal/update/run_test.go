@@ -112,27 +112,83 @@ func (g *fakeGateway) Start(context.Context) error {
 type fakeRepo struct {
 	mu   sync.Mutex
 	head string
-	// CommitCount answers; countOK=false = git cannot say.
+	// CommitCount answers for old..new; countOK=false = git cannot say.
 	count   int
 	countOK bool
-	counted [][2]string // every CommitCount(from, to)
+	back    int               // CommitCount(new, old): commits only the old HEAD has (0 = the new HEAD descends from it)
+	pairs   map[[2]string]int // other CommitCount(from, to) answers
+	counted [][2]string       // every CommitCount(from, to)
+
+	// the prediction against a release: what ResolveRelease finds locally
+	// ("" = nothing) and what DiffKinds says about each ref.
+	relRef, relSHA  string
+	diffNPM, diffPy *bool
+	diffRefs        []string    // every DiffKinds(ref)
+	resolved        [][2]string // every ResolveRelease(tag, sha12)
+
+	// release direction: IsAncestor(ancestor, descendant) is true for the pairs
+	// in ancestors (default: not an ancestor); ancestorErr = git cannot say.
+	// IsShallow answers shallow / shallowErr.
+	ancestors    map[[2]string]bool
+	ancestorErr  bool
+	ancestorAsks [][2]string
+	shallow      bool
+	shallowErr   bool
+	shallowAsks  int
+	headErr      bool // Head fails: the installed commit stays unknown
 }
 
 func (r *fakeRepo) Head(context.Context) (string, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.headErr {
+		return "", "", errors.New("git rev-parse HEAD failed")
+	}
 	return r.head[:7], r.head, nil
 }
 func (r *fakeRepo) DirtyCount(context.Context) (int, error) { return 0, nil }
-func (r *fakeRepo) DiffKinds(context.Context) (*bool, *bool) {
+func (r *fakeRepo) DiffKinds(_ context.Context, ref string) (*bool, *bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.diffRefs = append(r.diffRefs, ref)
+	if r.diffNPM != nil || r.diffPy != nil {
+		return r.diffNPM, r.diffPy
+	}
 	f := false
 	return &f, &f
+}
+func (r *fakeRepo) ResolveRelease(_ context.Context, tag, sha12 string) (string, string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resolved = append(r.resolved, [2]string{tag, sha12})
+	return r.relRef, r.relSHA
 }
 func (r *fakeRepo) CommitCount(_ context.Context, from, to string) (int, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.counted = append(r.counted, [2]string{from, to})
+	if n, ok := r.pairs[[2]string{from, to}]; ok {
+		return n, true
+	}
+	if from == newSHA && to == oldSHA {
+		return r.back, true
+	}
 	return r.count, r.countOK
+}
+func (r *fakeRepo) IsAncestor(_ context.Context, a, d string) (bool, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ancestorAsks = append(r.ancestorAsks, [2]string{a, d})
+	if r.ancestorErr {
+		return false, false
+	}
+	return r.ancestors[[2]string{a, d}], true
+}
+func (r *fakeRepo) IsShallow(context.Context) (bool, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.shallowAsks++
+	return r.shallow, !r.shallowErr
 }
 func (r *fakeRepo) set(h string) { r.mu.Lock(); r.head = h; r.mu.Unlock() }
 
@@ -248,12 +304,16 @@ type harness struct {
 	spawn     func(context.Context) error // SpawnMirrorSetup (nil = macOS/Linux)
 	ctx       context.Context
 	wrap      execx.Runner      // replaces runner when set
+	cards     *[]ui.Card        // when set, every summary card is appended here
 	logSink   io.Writer         // receives the run's log (default: discarded)
 	env       map[string]string // updater's environment (nil = empty)
 	selfPID   int               // the updater's pid in the fake process table (0 = real)
 	exists    func(string) bool // FileExists (nil = everything exists)
 
 	managedPython func() string // Deps.ManagedPython (nil = the install's value)
+
+	mainCheck string     // answer of `hermes update --check --branch main` (default: 3 commits behind)
+	onRun     func(*Run) // called with the Run before it executes (tests read its facts)
 }
 
 func desktopProc() platform.Process {
@@ -294,7 +354,8 @@ func newHarness(t *testing.T) *harness {
 	h.procs.Add(desktopProc())
 	h.procs.Add(gatewayProc())
 	// update available
-	h.runner.On([]string{tLauncher, "update", "--check"}, execx.Result{Output: "3 commits behind origin/main"})
+	h.mainCheck = "3 commits behind origin/main"
+	h.runner.OnFunc([]string{tLauncher, "update", "--check", "--branch", "main"}, func(execx.Cmd) execx.Result { return execx.Result{Output: h.mainCheck} })
 	// a successful `hermes update`: moves HEAD and the gateway to the new code
 	h.onUpdate(0, "→ Fetching updates\nInstalling Python dependencies…\nBuilding desktop packaged app…\nUpdate complete! (v1.0 → v1.1)", true)
 	h.runner.OnFunc([]string{tLauncher, "update", "--yes"}, func(c execx.Cmd) execx.Result {
@@ -348,7 +409,7 @@ func (h *harness) run(flags ...string) error {
 		Log:      h.logger(),
 		Platform: h.plat,
 		Runner:   runner,
-		UI:       ui.NewPlain(&h.out, h.con),
+		UI:       h.newUI(),
 		Clock:    h.clock,
 		Sleep: func(ctx context.Context, dd time.Duration) error {
 			h.slept += dd
@@ -382,6 +443,9 @@ func (h *harness) run(flags ...string) error {
 		LogPath:       tHome + `\logs\safe-update.log`,
 	}
 	r := NewRun(d)
+	if h.onRun != nil {
+		h.onRun(r)
+	}
 	ctx := h.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -707,7 +771,7 @@ func TestLowDiskExits4(t *testing.T) {
 
 func TestCheckFailedExits4(t *testing.T) {
 	h := newHarness(t)
-	h.runner = rebuild(h.runner, []string{tLauncher, "update", "--check"}, execx.Result{Code: 1, Output: "fatal: unable to access"})
+	h.runner = rebuild(h.runner, []string{tLauncher, "update", "--check", "--branch", "main"}, execx.Result{Code: 1, Output: "fatal: unable to access"})
 	err := h.run()
 	if !errors.Is(err, apperr.ErrPreflightStop) {
 		t.Fatalf("err=%v\n%s", err, h.output())
@@ -724,7 +788,7 @@ func rebuild(_ *execx.Fake, argv []string, res execx.Result) *execx.Fake {
 
 func TestUpToDateExits0(t *testing.T) {
 	h := newHarness(t)
-	h.runner = rebuild(h.runner, []string{tLauncher, "update", "--check"}, execx.Result{Output: "Already up to date."})
+	h.runner = rebuild(h.runner, []string{tLauncher, "update", "--check", "--branch", "main"}, execx.Result{Output: "Already up to date."})
 	if err := h.run(); err != nil {
 		t.Fatalf("err=%v", err)
 	}
@@ -908,6 +972,17 @@ type fakeMirror struct {
 	newerHead     string
 	newerCheckout string
 	newerDeadline bool // the context had a deadline of a few seconds
+
+	// release channel
+	relSeed       *mirror.ReleaseSeed // SeedRelease answer (nil = "no mirror set up")
+	relSeeds      [][3]string         // every SeedRelease(checkout, tag, sha12)
+	relCompare    *mirror.Compare     // APICompareTo answer (nil = unavailable)
+	relCompares   [][2]string         // every APICompareTo(base, target)
+	newerRel      mirror.NewerRelease // NewerRelease answer
+	newerRelOK    bool
+	newerRelCalls int
+	newerRelHead  string
+	newerRelDl    bool
 }
 
 func (m *fakeMirror) Status() mirror.Status {
@@ -922,6 +997,24 @@ func (m *fakeMirror) Seed(context.Context, string) mirror.SeedResult {
 		return *m.seed
 	}
 	return mirror.SeedResult{Reason: "no mirror set up"}
+}
+func (m *fakeMirror) SeedRelease(_ context.Context, checkout, tag, sha12 string) mirror.ReleaseSeed {
+	m.relSeeds = append(m.relSeeds, [3]string{checkout, tag, sha12})
+	if m.relSeed != nil {
+		return *m.relSeed
+	}
+	return mirror.ReleaseSeed{SeedResult: mirror.SeedResult{Reason: "no mirror set up"}}
+}
+func (m *fakeMirror) APICompareTo(_ context.Context, base, target string) *mirror.Compare {
+	m.relCompares = append(m.relCompares, [2]string{base, target})
+	return m.relCompare
+}
+func (m *fakeMirror) NewerRelease(ctx context.Context, head string) (mirror.NewerRelease, bool) {
+	m.newerRelCalls++
+	m.newerRelHead = head
+	dl, ok := ctx.Deadline()
+	m.newerRelDl = ok && time.Until(dl) <= 10*time.Second
+	return m.newerRel, m.newerRelOK
 }
 func (m *fakeMirror) NewerThan(ctx context.Context, checkout, head string) (mirror.Newer, bool) {
 	m.newerCalls++
@@ -1371,4 +1464,23 @@ func TestCloseAsksTheMainProcessOnceAndNeverAHelper(t *testing.T) {
 	if len(closes) != 1 || closes[0] != "close 100" {
 		t.Errorf("close/force calls = %v, want exactly [close 100]", closes)
 	}
+}
+
+// cardSpy records the summary card next to the real (plain) UI.
+type cardSpy struct {
+	ui.Renderer
+	cards *[]ui.Card
+}
+
+func (c cardSpy) Summary(card ui.Card) {
+	*c.cards = append(*c.cards, card)
+	c.Renderer.Summary(card)
+}
+
+func (h *harness) newUI() ui.Renderer {
+	u := ui.NewPlain(&h.out, h.con)
+	if h.cards != nil {
+		return cardSpy{Renderer: u, cards: h.cards}
+	}
+	return u
 }

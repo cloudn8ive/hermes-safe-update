@@ -30,10 +30,14 @@ type CLIGateway struct {
 	Home     string // HERMES_HOME (gateway_state.json, process classification)
 	Launcher string
 	Python   string // managed Python; "" = probe unavailable (D7)
-	Checkout string
-	Run      execx.Runner
-	Procs    platform.Procs
-	GOOS     string // "windows" runs the probe; anything else = not needed
+	// PythonNow, when set, finds the managed Python at probe time. An update
+	// can replace the interpreter (its folder name carries a version), so a
+	// probe after it must not run an interpreter looked up before it.
+	PythonNow func() string
+	Checkout  string
+	Run       execx.Runner
+	Procs     platform.Procs
+	GOOS      string // "windows" runs the probe; anything else = not needed
 	// Sleep waits between polls; default time.Sleep. Tests inject a fake.
 	Sleep func(time.Duration)
 }
@@ -68,11 +72,17 @@ func (g *CLIGateway) Probe(ctx context.Context) (GateResult, string) {
 	if g.GOOS != "windows" {
 		return GateNotApplicable, "not needed on this platform"
 	}
-	if g.Python == "" {
+	python := g.Python
+	if g.PythonNow != nil {
+		if p := g.PythonNow(); p != "" {
+			python = p
+		}
+	}
+	if python == "" {
 		return GateUnknown, "managed Python not found"
 	}
 	res, err := g.Run.Run(ctx, execx.Cmd{
-		Argv:    []string{g.Python, "-I", "-c", GateProbeScript, g.Checkout},
+		Argv:    []string{python, "-I", "-c", GateProbeScript, g.Checkout},
 		Timeout: probeTimeout,
 		Env:     utf8Env,
 	})

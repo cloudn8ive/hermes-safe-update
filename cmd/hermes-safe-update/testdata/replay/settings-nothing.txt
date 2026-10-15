@@ -46,6 +46,7 @@ cua-driver: 0.21.0, logon task current
 
 Hermes is updated and verified.
   Version      v0.21.5 → v0.21.6  (3 commits)
+  Channel      main (set in Hermes)
   Time         8:19 until Hermes reopened  (estimate was 7:44)
   Source       GitHub (checked via the API)
   Settings     nothing to migrate (only http://127.0.0.1:47891 holds keys)

@@ -2,7 +2,7 @@
 
 Status: architecture of v0.1.0. The tool grew out of a set of personal
 Python scripts and keeps their behaviour where it was sound; binding
-decisions are numbered D1-D18 below. For a user-level
+decisions are numbered D1-D19 below. For a user-level
 description see [how-it-works.md](how-it-works.md); for settings see
 [settings-migration.md](settings-migration.md).
 
@@ -14,7 +14,7 @@ install without cutting off running work:
 1. checks that an update exists and that it is safe to start,
 2. waits until no session is busy (asks before stopping anything),
 3. closes the desktop app gracefully (force only after a timeout),
-4. runs `hermes update --yes --keep-stash --branch main`,
+4. runs `hermes update --yes --keep-stash` for the update channel in use (`--branch main` on main; D19),
 5. verifies the result (a gateway that ran before runs the new code, desktop build verified),
 6. backs up and migrates the desktop's UI settings when the renderer origin
    changed,
@@ -55,9 +55,9 @@ warning and asks for confirmation once per machine: a Y (or
 `--accept-untested`) is remembered in `safe-update.json` (`accepted_untested`,
 per OS), so later runs, scheduled ones included, do not ask again. Without a
 remembered answer, `--unattended` needs `--accept-untested` once (otherwise
-exit 3). Only commands that close, update or write ask: `run`, `mirror setup`
-and the settings commands that change something (`migrate-settings`,
-`backup-settings`, `revert-settings`). `check`, `list-backups`,
+exit 3). Only commands that close, update or write ask: `run`, `mirror setup`,
+`channel set` and the settings commands that change something (`migrate-settings`,
+`backup-settings`, `revert-settings`). `check`, `channel`, `list-backups`,
 `migrate-settings --dry-run`, `mirror refresh` (run by the Hermes cron job,
 which cannot pass the flag), `mirror status`, `version` and `--help` never
 ask: they close and update nothing. (`check` may `git fetch` into the
@@ -109,11 +109,11 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 |---|---|---|---|---|
 | 0 | stepAside | - | install kind != checkout -> advice | `ErrNotCheckout` (5) |
 | 0 | - | - | launcher missing | `ErrLauncherMissing` (2) |
-| 1 | local | Check | marker held by a live pid?; free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
-| 2 | remote | Check | mirror -> GitHub API -> `hermes update --check`; npm/pydeps prediction | up to date: exit 0; check failed: 4 |
+| 1 | local | Check | marker held by a live pid (v1 or v2: a recorded creation time must match, a live `delegate:` pid counts)?; free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
+| 2 | remote | Check | main: mirror -> GitHub API -> `hermes update --check --branch main`; npm/pydeps prediction against `origin/main`. Release channel: Hermes' own `--check` is the verdict; for an available release the target is the release commit, never main: `Mirror.SeedRelease` puts the tag into the checkout (mirror refreshed first if it lacks the tag), then git (`ResolveRelease`: the tag if local and at the commit Hermes named, else the commit by its 12-digit prefix, ambiguity = unknown) or `compare/<HEAD>...<tag>` gives the commit count and the npm/pydeps change; nothing resolvable = unknown, never a guess | up to date: exit 0; check failed: 4 |
 | 3 | procs | Check | process classes (desktop/gateway/backend/kernel); Windows pause-gate probe | - |
 | 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s`; then Y confirm unless `--yes`/`--unattended` | `ErrCancelled` (3) |
-| 5 | close | Close Hermes | pre-close hooks; graceful close; force after `graceful_close_s` with blocker diagnosis; leftover backends/kernels; **claim the marker only now** | `ErrCancelled` (3) if the app will not exit |
+| 5 | close | Close Hermes | pre-close hooks; graceful close; force after `graceful_close_s` with blocker diagnosis; leftover backends/kernels; **claim the marker only now** (Hermes' format v2 with our creation time where it is readable in Hermes' clock, i.e. Windows; else v1) | `ErrCancelled` (3) if the app will not exit |
 | 6 | gateway_stop .. restart | Update, Build, Finish | `hermes update` (no `--gateway`), timeout `update_timeout_s`, gate retry once | - |
 | 7 | verify | Finish | gateway `code_sha` == HEAD and alive, only if a gateway ran before the update (pre-flight process list or a live pid in `gateway_state.json`; none before = not required, not started); `desktop_update_verify` (D17); known false fleet warning | sets `Facts.Verified`; never flipped later |
 | 8 | settings | Finish | if verified and `auto_migrate`: backup -> migrate (Hermes is closed now) | WARN only |
@@ -121,7 +121,7 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 | 10 | relaunch | Finish | `desktop.relaunch`: `auto` = if the desktop was running; `always` = also if it was closed at the start, but only verified and not `--unattended`; `never` = no; never with `--no-relaunch`. Then post-relaunch hooks (whatever the result) | WARN only |
 | 11 | cleanup | Finish | dependency-generation GC (verified only; Windows) | WARN only |
 | 12 | cua | Finish | cua-driver refresh when the update deferred it (verified only) | WARN only |
-| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. The Version row counts HEAD_before..HEAD_after with git (fallback: the `Found N new commit(s)` contract, then the forecast); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row: any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened | exit 0 verified / 1 problem |
+| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. The Version row counts HEAD_before..HEAD_after with git only when the new HEAD descends from the old one (a rewind says `moved back N commits`; diverged histories get no number); fallback: the `Found N new commit(s)` contract, then (main only) the forecast. The `Channel` row (after Version, also in the check card) names the channel and why: the update output's `Update channel:` line, else the check's, else the plan (`--channel`, `update.channel in safe-update.yaml`, `set in Hermes`, `Hermes default`); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row (on a release channel `Mirror.NewerRelease` instead: GitHub `releases/latest`, strict `vX.Y.Z`, not a draft or prerelease, then `compare/<HEAD>...<tag>` status `ahead` = "release vX was published while this ran"; main moving is never reported there): any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened | exit 0 verified / 1 problem |
 
 Closing on Linux (stage 5) is one `SIGTERM` to the Electron main process (never
 a `--type=` helper, never twice), then the `graceful_close_s` wait, then
@@ -189,6 +189,7 @@ mirror / gc / cua / settings services ─────┘        ├─> ui.Rende
 | `backups/settings-<stamp>/` | tool | Local Storage copy + UI json + `manifest.json`; newest 3 kept |
 | `state.db`, `profiles/*/state.db` | Hermes | read-only SQLite (`mode=ro`, busy timeout); unreadable = busy |
 | `gateway_state.json` | Hermes | read: `code_sha`, `pid` |
+| `config.yaml` | Hermes | read-only: `update.installs.<id>.channel` (D19); never written by a run |
 
 Missing and broken files:
 
@@ -216,7 +217,7 @@ Errors are wrapped with `%w`; callers use `errors.Is/As`. One function,
 | 1 | the update ran but needs attention (RESULT PROBLEM), or an unexpected error |
 | 2 | the hermes launcher was not found |
 | 3 | cancelled before anything changed (user, timeout, idle wait exceeded, app would not exit, untested platform declined, Ctrl+C) |
-| 4 | pre-flight stop: another update holds the marker, low disk, update check failed (D1) |
+| 4 | pre-flight stop: another update holds the marker, low disk, update check failed (D1); `update.channel: stable` on a Hermes without channels, or a release check that cannot resolve or read (D19); the rollback guard said no (D19); `channel set` refused or failed |
 | 5 | not a managed source checkout: nothing changed, advice printed |
 | 6 | settings command refused because the desktop app is running |
 | 64 | bad command line or invalid configuration |
@@ -276,6 +277,43 @@ Binding decisions:
   native process snapshots. D16 elevation only behind `--unattended` /
   `--no-elevate` guards, quoted argv. D17 `desktop_update_verify` rc 0 +
   empty output = verified. D18 every flag of the earlier scripts is kept.
+  D19 update channels (Hermes v0.21.6+: `stable` = the latest published
+  release, `main` = every commit; `--branch` beats `--channel` beats the
+  per-install record beats Hermes' default): `update.channel` is `follow`
+  (default), `stable` or `main`, `--channel` beats the file. `main` is the
+  argv of v0.2.0 byte for byte (`update --yes --keep-stash --branch main`,
+  check `update --check --branch main`) and works on every Hermes. `stable`
+  adds `--channel stable` and needs `--channel` in `hermes update --help`
+  (probe: UTF-8, 45 s, run beside the install-id read; when the help cannot
+  be read the checkout's `hermes_cli/update_channel.py` plus a quoted
+  `"--channel"` in `hermes_cli/subcommands/update.py` answer; neither =
+  no capabilities, and only then a Hermes counts as one from before
+  channels), else a pre-flight
+  stop (exit 4). `follow` reads Hermes' channel offline and read-only: the id
+  from `hermes update --install-id` (if that fails, the one `installs` record
+  whose `path` is the checkout), then `update.installs.<id>.channel` in
+  the root `config.yaml`; no record = stable for an official GitHub `origin`
+  in `.git/config`, else main. Follow resolving to main behaves exactly as
+  `main` (so a misread costs at worst v0.2.0 behaviour, never an unasked
+  rollback); any other channel passes no channel flag and Hermes' `--check`
+  is the only judge (no mirror, no GitHub comparison, no prediction against
+  main); an unreadable record asks the bare `update --check` and takes the
+  channel from its first line; a Hermes without channels gets the main argv.
+  A checkout newer than the selected release is a rollback: stop before
+  anything closes, attended asks for an explicit `Y` naming both versions
+  (`--yes` does not skip it), unattended exits 4 naming the manual command,
+  because Hermes' CLI does not ask under `--yes`. Hermes before v0.22.0 words
+  an older release "available", so the rollback is decided by git as well
+  (`merge-base --is-ancestor <release> HEAD`; a release not in a full clone
+  is forward, in a shallow clone it is unproven and asks / stops), and a
+  release check that fails or times out stops with or without `--force`. Safe Update never writes
+  Hermes' config and never passes `--set-channel` in a run; the explicit
+  `channel set stable|main` command is the only exception and goes through
+  `hermes update --set-channel` (never an edit of `config.yaml`), after a
+  read-only `update --check --channel stable` that warns about a rollback
+  (`Y` needed attended; `--yes` goes ahead; unattended or without a
+  terminal it refuses; a check that cannot run still needs the `Y`). A
+  stable channel is not a timing-pool dimension.
 
 ## 9. Package notes
 
@@ -455,7 +493,10 @@ Short notes on how individual packages work.
   the hidden `--appid <hwnd>` flag (§6.3). Logon tasks: `schtasks /Query /XML`
   (UTF-16 handled); `RunElevated` = `ShellExecuteEx` "runas" with
   `windows.EscapeArg` quoting.
-- `cmd`: `run`/`check` = the flow; `mirror setup|refresh|status`;
+- `cmd`: `run`/`check` = the flow; `channel` (offline; exempt from the
+  untested-platform question) and `channel set stable|main` (`channel_cmd.go`:
+  `hermes.ProbeCaps`, `ResolveChannel`, `CheckStable`, `SetChannel`; Hermes'
+  exit 2 and text are shown with exit 4); `mirror setup|refresh|status`;
   `migrate-settings [--dry-run] [--origin]`, `backup-settings`,
   `revert-settings [--backup ID]`, `list-backups`. `mirror refresh` is
   silent (cron) and never prompts. `safe-update.json` is read from the home

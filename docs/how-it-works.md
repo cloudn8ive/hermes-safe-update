@@ -14,18 +14,62 @@ mirror and fetch new commits and `v*` tags into the checkout's git data
 |---|---|---|---|
 | 0 | install check | Is this a managed source checkout with a `hermes` launcher? Packaged installs get advice instead. | exit 5; exit 2 if the launcher is missing |
 | 1 | local | Is another update's marker held by a live process? Free disk at least `min_free_gb`? Dirty checkout (information only)? Current commit. | exit 4 |
-| 2 | remote | Is there an update? Local mirror, then GitHub API, then `hermes update --check`. Predicts Python and Node dependency reinstalls. | up to date: exit 0. Check failed: exit 4 |
+| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back and the rollback guard asks). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). | up to date: exit 0. Check failed, release not resolvable, a stable request on a Hermes without channels, or an update that would move Hermes back to an older release (rollback guard; asks first when attended): exit 4 |
 | 3 | procs | Classify running processes: desktop, gateway, backend, kernel. On Windows, probe whether Hermes' own gateway pause would work. | |
 | 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`). | exit 3 |
 | 5 | close | `pre-close` hooks, graceful close with `graceful_close_s` to finish, force only after that, stop leftover backends and kernels, then claim the update-in-progress marker. | exit 3 if the app will not exit |
-| 6 | update | `hermes update --yes --keep-stash --branch main`, capped at `update_timeout_s`. Progress follows Hermes' own output lines. | |
+| 6 | update | `hermes update --yes --keep-stash` plus `--branch main` (main), `--channel stable` (`update.channel: stable`) or nothing (a release channel Hermes chose), capped at `update_timeout_s`. Progress follows Hermes' own output lines. | |
 | 7 | verify | If a gateway ran before the update: its `code_sha` equals the checkout commit and it is alive (restarted if not). No gateway before: none required, none started. `desktop_update_verify` passes. | result "problem": exit 1 |
 | 8 | settings | Back up and copy desktop settings to the origin the app uses now if it changed (workaround for settings lost when the renderer moved; see settings-migration.md). | warning only |
 | 9 | hooks | `post-update` hooks (verified only), while Hermes is still closed. | warning only |
 | 10 | relaunch | Reopen the desktop app as `desktop.relaunch` says: `auto` if it was running, `always` also if it was already closed (verified, attended runs), `never` not at all; `--no-relaunch` beats all three. Then run the `post-relaunch` hooks. | warning only |
 | 11 | cleanup | Remove old dependency sets (Windows, verified updates only). | warning only |
 | 12 | cua | Refresh cua-driver if the update deferred it (verified updates only). | warning only |
-| 13 | summary | Summary card, timing history saved, optional mirror offer. The `Version` row counts the commits really installed (git on the old and new HEAD). After a verified update, a quick best-effort look (API, then `git ls-remote`, a few seconds) adds a `Newer` row if `main` moved meanwhile; an app that was not reopened gets a `Hermes app` row. | exit 0 verified, 1 problem |
+| 13 | summary | Summary card, timing history saved, optional mirror offer. The `Version` row counts the commits really installed (git on the old and new HEAD). After a verified update, a quick best-effort look (API, then `git ls-remote`, a few seconds) adds a `Newer` row if `main` moved meanwhile; a `Channel` row names the channel and why; on a release channel the `Newer` row reports a newer published release, never main moving; an app that was not reopened gets a `Hermes app` row. | exit 0 verified, 1 problem |
+
+## Which channel a run uses
+
+Hermes updates from `stable` (the latest published release) or `main` (every
+commit). `update.channel` in `safe-update.yaml` (`follow`, `stable` or `main`;
+`--channel` for one run) decides what Safe Update does about it:
+
+1. `main`: `--branch main`, as Safe Update always did before channels. It
+   works on every Hermes version.
+2. `stable`: `--channel stable`. A Hermes that does not list `--channel` in
+   `hermes update --help` stops the run in the pre-flight (exit 4) before
+   anything is closed.
+3. `follow` (the default): read Hermes' own choice, offline and read-only. The
+   install id comes from `hermes update --install-id`, the record from
+   `update.installs.<id>.channel` in the Hermes home's `config.yaml`; with no
+   record Hermes uses stable for a checkout whose `origin` is the official
+   GitHub repository and main otherwise. Main (or a Hermes without channels)
+   behaves exactly like mode `main`. Any other channel passes no channel flag
+   and Hermes' `--check` is the judge. If the offline read fails, the bare
+   `hermes update --check` names the channel on its first line.
+
+A run never writes Hermes' channel setting. Only `hermes-safe-update channel
+set stable|main` does, and it asks Hermes to (`hermes update --set-channel`).
+
+On a release channel the stage 2 verdicts are Hermes': an available release
+proceeds; "up to date" and "no newer release ... waits for the next release"
+end the run with exit 0 (nothing to do); `Could not resolve the stable source
+channel` (GitHub unreachable) is a pre-flight stop with Hermes' reason; text
+that matches nothing is a warning and a stop, never a silent success.
+
+### Rollback guard
+
+If Hermes says the checkout is newer than the selected release, or git does
+(`git merge-base --is-ancestor <release> HEAD`; Hermes v0.21.6 and v0.21.7
+call an older release "available"), updating would move it back to that
+release, and Hermes does not ask first. The git test runs in stage 2, before
+anything is closed. A release commit that is not in the checkout is a forward
+update in a full clone; in a shallow clone a move back cannot be ruled out. Safe Update
+stops before it closes anything. Attended, it asks for an explicit `Y` naming
+both versions (`--yes` does not skip it; any other key or a timeout is exit
+4). `--unattended` never rolls back: exit 4, and the message names the
+command to do it by hand (`hermes-safe-update run`, attended, or `hermes
+update`). `--force` does not skip it, and a release check that fails or times
+out stops the run (exit 4) with or without `--force`.
 
 ## Nothing changes before the point of no return
 
@@ -71,7 +115,14 @@ A run is a success only when:
 
 Hermes sometimes exits 1 with "Fleet version check returned no rows" even
 though the update is fine. If both checks above pass, the tool reports OK
-and notes it. Anything else is reported as a problem, with the log path.
+and notes it. On Hermes v0.22 that line is a follow-up with exit code 0 and
+shows as a "Not finished" row instead. Anything else is reported as a
+problem, with the log path.
+
+Hermes v0.22 folds several per-profile gateways into one on its first update;
+only the main Hermes home's `gateway_state.json` is verified. A Hermes desktop
+app from the MSIX or Store package running next to a source checkout is not
+closed by Safe Update.
 
 ## After the update
 
@@ -103,6 +154,8 @@ Under the Hermes home unless noted:
 | `installs/<install>/environments/<old generation>` (old dependency sets) | Hermes | **deleted** by dependency cleanup, see below |
 | `state.db`, `profiles/*/state.db` | Hermes | read-only |
 | `gateway_state.json` | Hermes | read-only |
+| `config.yaml` | Hermes | read-only: only the channel record `update.installs.<id>.channel`. Never written by a run; `channel set` asks Hermes to write it |
+| `hermes-agent/.git/config` | Hermes/git | read-only: whether `origin` is the official GitHub repository (Hermes' default channel) |
 | the desktop `Local Storage` folder | Hermes | read for plans; written only by the verified swap |
 
 Dependency cleanup (stage 10, Windows only, verified updates only) **deletes**

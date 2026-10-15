@@ -73,20 +73,21 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger) func(he
 			return hermes.ClassifyIn(proc, in.Home, in.Checkout, markers, appDirs)
 		}
 		d.Sessions = &hermes.SQLiteSessions{Home: in.Home, Now: env.now}
-		gw := &hermes.CLIGateway{Home: in.Home, Launcher: in.Launcher, Python: in.Python, Checkout: in.Checkout,
-			Run: r, Procs: p.Procs, GOOS: p.OS}
+		managedPython := func() string { return hermes.ManagedPython(p.Paths, in.Home) }
+		gw := &hermes.CLIGateway{Home: in.Home, Launcher: in.Launcher, Python: in.Python, PythonNow: managedPython,
+			Checkout: in.Checkout, Run: r, Procs: p.Procs, GOOS: p.OS}
 		if env.sleep != nil {
 			gw.Sleep = func(dur time.Duration) { _ = env.sleep(context.Background(), dur) }
 		}
 		d.Gateway = gw
 		d.Repo = &hermes.GitRepo{Git: in.Git, Checkout: in.Checkout, Run: r}
 		d.Verifier = &hermes.CLIVerifier{Launcher: in.Launcher, Run: r}
-		d.Marker = &hermes.Marker{Home: in.Home, Pid: os.Getpid(), Procs: p.Procs, Now: env.now}
-		d.GC = gc.New(gc.Deps{Runner: r, Python: in.Python, Home: in.Home, Checkout: in.Checkout, Applicable: p.OS == "windows"})
+		d.Marker = &hermes.Marker{Home: in.Home, Pid: os.Getpid(), Procs: p.Procs, Now: env.now, Created: platform.ProcessCreated}
+		d.GC = gc.New(gc.Deps{Runner: r, Python: in.Python, PythonNow: managedPython, Home: in.Home, Checkout: in.Checkout, Applicable: p.OS == "windows"})
 		d.CUA = cua.New(cua.Deps{Runner: r, Launcher: in.Launcher, Autostart: p.Autostart, Home: in.Home,
 			Log: func(s string) { log.Info(s) }})
 		d.Mirror = newMirror(cfg, env, in, log)
-		d.ManagedPython = func() string { return hermes.ManagedPython(p.Paths, in.Home) }
+		d.ManagedPython = managedPython
 		d.Hooks = &update.ExecHooks{Runner: r, Hooks: cfg.Hooks, Dir: in.Home, Procs: p.Procs}
 		if spawnsOwnWindow {
 			d.SpawnMirrorSetup = func(ctx context.Context) error { return spawnMirrorSetup(env.exe()) }

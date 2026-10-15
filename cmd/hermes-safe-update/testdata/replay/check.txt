@@ -17,6 +17,7 @@ cua-driver: logon task current
 Pre-flight passed; check mode, Hermes was not touched.
 
 Update available. Hermes was not touched.
+  Channel      main (set in Hermes)
   Available    3 new commit(s)
   Python deps  unchanged
   Node packages changed, will be reinstalled (slower build)

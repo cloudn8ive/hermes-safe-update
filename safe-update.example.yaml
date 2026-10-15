@@ -171,6 +171,20 @@ desktop:
   # --no-relaunch overrides all three for one run.
   relaunch: "auto"
 
+update:
+  # Which Hermes update channel a run follows (--channel overrides it for one run):
+  #   "follow"  the channel Hermes itself uses for this install (default). Hermes
+  #             decides: a per-install record (Settings, About, or
+  #             `hermes update --set-channel`), else "stable" for a checkout of
+  #             the official GitHub repo and "main" for a fork. Safe Update only
+  #             reads that choice; it never writes it.
+  #   "stable"  always the latest published release (needs a Hermes with release
+  #             channels, v0.21.6 or newer); a checkout that is ahead of it waits
+  #   "main"    always the tip of main (`--branch main`), as before channels existed
+  # A run that would move the checkout back to an older release stops and asks
+  # first (--unattended refuses).
+  channel: "follow"
+
 # Hooks: your own commands at fixed points of the flow.
 #   when: "pre-close"      before Hermes is closed (after the confirmation)
 #         "post-update"    after a verified update, before Hermes reopens

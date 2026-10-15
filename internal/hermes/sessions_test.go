@@ -22,7 +22,12 @@ type sessRow struct {
 
 func f64(v float64) *float64 { return &v }
 
-const sessionsDDL = `create table sessions (id text primary key, title text, last_activity_at real, ended_at real, source text)`
+// sessionsDDL is the part of Hermes' schema the busy check reads (hermes_state_common.py
+// SCHEMA_VERSION 31): sessions with its heartbeat/start columns, and messages with the
+// idx_messages_session index.
+const sessionsDDL = `create table sessions (id text primary key, title text, last_activity_at real, ended_at real, source text, started_at real);
+create table messages (id integer primary key autoincrement, session_id text not null, role text, timestamp real not null);
+create index idx_messages_session on messages(session_id, timestamp)`
 
 // makeStateDB writes a synthetic state.db and returns an open writer
 // connection (closed at test end) so WAL tests can keep it open.
@@ -54,7 +59,7 @@ func makeStateDB(t *testing.T, path string, ddl string, rows []sessRow, wal bool
 		if r.source != "" {
 			src = r.source
 		}
-		if _, err := db.Exec(`insert into sessions values (?,?,?,?,?)`, r.id, r.title, r.last, ended, src); err != nil {
+		if _, err := db.Exec(`insert into sessions (id, title, last_activity_at, ended_at, source) values (?,?,?,?,?)`, r.id, r.title, r.last, ended, src); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -178,7 +183,7 @@ func TestBusyReadsWALWhileWriterOpenWithoutWriting(t *testing.T) {
 		t.Error("main database file changed by a read-only check")
 	}
 	// The writer can still write: we did not hold a lock.
-	if _, err := w.Exec(`insert into sessions values ('more','',?,null,null)`, nowEpoch()); err != nil {
+	if _, err := w.Exec(`insert into sessions (id, title, last_activity_at, ended_at, source) values ('more','',?,null,null)`, nowEpoch()); err != nil {
 		t.Errorf("writer blocked after check: %v", err)
 	}
 }
@@ -193,7 +198,7 @@ func TestBusyNeverWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec(`insert into sessions values ('x','',1,null,null)`); err == nil {
+	if _, err := db.Exec(`insert into sessions (id, title, last_activity_at, ended_at, source) values ('x','',1,null,null)`); err == nil {
 		t.Fatal("insert succeeded on a read-only connection")
 	}
 }

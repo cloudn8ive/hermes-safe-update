@@ -340,4 +340,5 @@ type runState struct {
 	logRows       map[string]string // summary row key -> text for the log (screen keeps the real value)
 	uiStarted     bool
 	completed     bool
+	chanProbe     chan chanProbe // capability probe + offline channel read, started in the local stage
 }

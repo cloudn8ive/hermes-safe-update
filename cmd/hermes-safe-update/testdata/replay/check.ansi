@@ -112,6 +112,7 @@
   [38;5;78;1m √ [0mFinished[K
    [38;5;78m√ Local[0m[38;5;240m ── [0m[38;5;78m√ Updates[0m[38;5;240m ── [0m[38;5;78m√ Hermes[0m[38;5;240m ── [0m[38;5;78m√ Housekeeping[0m                            [38;5;250m all stages done[0m[K[4A[J  
      [38;5;80;1mi Update available. Hermes was not touched.[0m
+     [38;5;242m● [0m[38;5;110mChannel        [0mmain (set in Hermes)
      [38;5;221m● [0m[38;5;110mAvailable      [0m[1m3[0m new commit(s)
      [38;5;78m● [0m[38;5;110mPython deps    [0munchanged
      [38;5;221m● [0m[38;5;110mNode packages  [0mchanged, will be reinstalled (slower build)

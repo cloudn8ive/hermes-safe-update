@@ -1,10 +1,12 @@
 package hermes
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path"
 	"regexp"
@@ -243,13 +245,27 @@ func FormatCounts(counts map[string]int) string {
 	return strings.Join(parts, ", ")
 }
 
-// Marker is the update-in-progress file shared with Hermes (format
-// "<pid>\n<epoch>\n"; Hermes treats it as stale after MarkerStaleAfterS).
+// Marker is the update-in-progress file shared with Hermes. It is written in
+// Hermes' format v2 ("<pid>\n<epoch>\nct:<creation time>\n", see
+// MarkerCreateTimeRe) whenever our own creation time can be read in Hermes'
+// clock, so a reused pid cannot fake liveness and the claim does not age out
+// after MarkerStaleAfterS; otherwise in format v1 ("<pid>\n<epoch>\n"). It
+// reads both formats, including "delegate:" lines another updater appended.
 type Marker struct {
 	Home  string
 	Pid   int // our pid
 	Procs platform.Procs
 	Now   func() time.Time
+	// Created reads a process's creation time in the clock Hermes uses
+	// (platform.ProcessCreated). nil or ok=false means unknown: the marker is
+	// then written as v1 and a holder's creation time is not checked. A ct we
+	// could not read with Hermes' precision is never written, because Hermes
+	// would judge a mismatching claim dead.
+	Created func(pid int) (time.Time, bool)
+
+	// afterRead is a test seam: called by Refresh between its first read and
+	// the re-read before the write (where another writer can slip in).
+	afterRead func()
 }
 
 func (m *Marker) path() string { return joinPath(m.Home, MarkerFile) }
@@ -261,52 +277,188 @@ func (m *Marker) now() time.Time {
 	return time.Now()
 }
 
+// markerInfo is what a marker file says (see contracts.go for the format).
+type markerInfo struct {
+	pid         int      // line 1 (first token); 0 = unreadable
+	ct          *float64 // line 3 "ct:<s>"; nil = format v1
+	delegatePid int      // first well-formed "delegate:<pid> ct:<s>" line; 0 = none
+	delegateCT  float64
+}
+
+// parseMarker reads marker bytes leniently: BOM, CRLF and spaces/tabs around
+// a line are tolerated (as Hermes does), and the first token of line 1 is the
+// pid. An unreadable pid leaves info.pid at 0.
+func parseMarker(b []byte) markerInfo {
+	text := strings.TrimPrefix(string(b), "\ufeff")
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = strings.Trim(strings.TrimSuffix(lines[i], "\r"), " \t")
+	}
+	var info markerInfo
+	if f := strings.Fields(lines[0]); len(f) > 0 {
+		if n, err := strconv.Atoi(f[0]); err == nil && n > 0 {
+			info.pid = n
+		}
+	}
+	if len(lines) > 2 {
+		if c := MarkerCreateTimeRe.FindStringSubmatch(lines[2]); c != nil {
+			if v, err := strconv.ParseFloat(c[1], 64); err == nil {
+				info.ct = &v
+			}
+		}
+	}
+	if len(lines) > 3 {
+		for _, l := range lines[3:] {
+			d := MarkerDelegateRe.FindStringSubmatch(l)
+			if d == nil {
+				continue
+			}
+			pid, e1 := strconv.Atoi(d[1])
+			v, e2 := strconv.ParseFloat(d[2], 64)
+			if e1 == nil && e2 == nil && pid > 0 {
+				info.delegatePid, info.delegateCT = pid, v
+				break
+			}
+		}
+	}
+	return info
+}
+
+// readInfo returns the parsed marker; exists tells a file was there, ok that
+// it names a pid.
+func (m *Marker) readInfo() (info markerInfo, exists, ok bool) {
+	b, err := os.ReadFile(m.path())
+	if err != nil {
+		return markerInfo{}, !errors.Is(err, fs.ErrNotExist), false
+	}
+	info = parseMarker(b)
+	return info, true, info.pid > 0
+}
+
 // readPid returns the first token as a pid; ok=false when the file is
 // missing, empty or unparseable. exists tells a file was there.
 func (m *Marker) readPid() (pid int, exists, ok bool) {
-	b, err := os.ReadFile(m.path())
-	if err != nil {
-		return 0, !errors.Is(err, fs.ErrNotExist), false
-	}
-	f := strings.Fields(string(b))
-	if len(f) == 0 {
-		return 0, true, false
-	}
-	n, err := strconv.Atoi(f[0])
-	if err != nil || n <= 0 {
-		return 0, true, false
-	}
-	return n, true, true
+	info, exists, ok := m.readInfo()
+	return info.pid, exists, ok
 }
 
-// Holder returns the pid of a live process that holds the marker. stale is
-// true when a marker file exists but its owner is dead or unreadable (the
-// next claim replaces it).
+// identityLive: pid is alive and, when the marker recorded a creation time
+// and we can read the process's, it is the same incarnation (within Hermes'
+// 2 s tolerance). A creation time we cannot read proves nothing against the
+// pid, so the process counts as the holder (never guess it away).
+func (m *Marker) identityLive(pid int, ct *float64) bool {
+	if pid <= 0 || !m.Procs.Alive(pid) {
+		return false
+	}
+	if ct == nil || m.Created == nil {
+		return true
+	}
+	actual, ok := m.Created(pid)
+	if !ok || actual.IsZero() {
+		return true
+	}
+	return math.Abs(float64(actual.UnixNano())/1e9-*ct) <= MarkerCreateTimeToleranceS
+}
+
+// Holder returns the pid of a live process that holds the marker: the owner,
+// else the delegate a v2 marker names. stale is true when a marker file exists
+// but nobody live holds it (owner dead, pid reused by another process, or
+// unreadable): the next claim replaces it.
 func (m *Marker) Holder() (pid int, stale bool) {
-	p, exists, ok := m.readPid()
+	info, exists, ok := m.readInfo()
 	if !exists {
 		return 0, false
 	}
-	if ok && m.Procs.Alive(p) {
-		return p, false
+	if ok && m.identityLive(info.pid, info.ct) {
+		return info.pid, false
+	}
+	if ok && info.delegatePid > 0 && m.identityLive(info.delegatePid, &info.delegateCT) {
+		return info.delegatePid, false
 	}
 	return 0, true
 }
 
+// ownCT is our creation time as the marker's "ct:" text (unix seconds, three
+// decimals, like Hermes' f"{ct:.3f}"), or ok=false when it cannot be read.
+func (m *Marker) ownCT() (string, bool) {
+	if m.Created == nil {
+		return "", false
+	}
+	t, ok := m.Created(m.Pid)
+	if !ok || t.IsZero() {
+		return "", false
+	}
+	ms := (t.UnixNano() + 500_000) / 1_000_000
+	return fmt.Sprintf("%d.%03d", ms/1000, ms%1000), true
+}
+
 func (m *Marker) content() []byte {
-	return []byte(fmt.Sprintf("%d\n%d\n", m.Pid, m.now().Unix()))
+	body := fmt.Sprintf("%d\n%d\n", m.Pid, m.now().Unix())
+	if ct, ok := m.ownCT(); ok {
+		body += "ct:" + ct + "\n"
+	}
+	return []byte(body)
 }
 
 // Claim writes the marker atomically. Call it only after the point of no
 // return (the close step), so an abort leaves no marker.
 func (m *Marker) Claim() error { return fsx.WriteFileAtomic(m.path(), m.content(), 0o644) }
 
-// Refresh rewrites the marker if it is still ours; otherwise it does nothing.
+// Refresh renews the started-at line of the marker if it is still ours and
+// leaves every other line byte for byte as it is: the "ct:" line (our
+// creation time never changes) and any "delegate:" or "run:" line that
+// Hermes or another updater wrote in.
+//
+// Hermes appends its "delegate:" line under its own marker mutex, which we do
+// not hold, so the write is compare-and-write: the file is read again right
+// before the atomic replace, and if it changed since the first read (a line
+// was appended, the marker was replaced) the refresh starts over from the new
+// content. A line written by someone else is never dropped. What is left is
+// the instant between that second read and the rename; if the file keeps
+// changing the refresh is skipped for this tick (the next one, two minutes
+// later, retries; the stale limit is twenty).
 func (m *Marker) Refresh() error {
-	if p, _, ok := m.readPid(); !ok || p != m.Pid {
-		return nil
+	for attempt := 0; attempt < 3; attempt++ {
+		b, err := os.ReadFile(m.path())
+		if err != nil {
+			return nil
+		}
+		if info := parseMarker(b); info.pid != m.Pid {
+			return nil
+		}
+		next := m.withStartedAt(b)
+		if m.afterRead != nil {
+			m.afterRead()
+		}
+		cur, err := os.ReadFile(m.path())
+		if err != nil {
+			return nil
+		}
+		if !bytes.Equal(cur, b) {
+			continue // changed under us: redo from what is there now
+		}
+		return fsx.WriteFileAtomic(m.path(), next, 0o644)
 	}
-	return fsx.WriteFileAtomic(m.path(), m.content(), 0o644)
+	return nil
+}
+
+// withStartedAt returns marker bytes b with line 2 replaced by the current
+// epoch. A marker without a line 2 is written afresh.
+func (m *Marker) withStartedAt(b []byte) []byte {
+	epoch := strconv.FormatInt(m.now().Unix(), 10)
+	nl1 := bytes.IndexByte(b, '\n')
+	if nl1 < 0 {
+		return m.content()
+	}
+	head, rest := b[:nl1+1], b[nl1+1:]
+	if nl2 := bytes.IndexByte(rest, '\n'); nl2 >= 0 {
+		eol := "\n"
+		if nl2 > 0 && rest[nl2-1] == '\r' {
+			eol = "\r\n"
+		}
+		return append(append(append([]byte{}, head...), epoch+eol...), rest[nl2+1:]...)
+	}
+	return append(append([]byte{}, head...), epoch+"\n"...)
 }
 
 // Release deletes the marker only if it is ours. released reports whether

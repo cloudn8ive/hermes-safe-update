@@ -332,3 +332,25 @@ var fileEpoch = time.Unix(1_000_000_000, 0)
 
 func isFile(p string) bool { st, err := os.Stat(p); return err == nil && st.Mode().IsRegular() }
 func isDir(p string) bool  { st, err := os.Stat(p); return err == nil && st.IsDir() }
+
+// `hermes update` can replace the managed Python before the cleanup runs: the
+// cleanup uses the interpreter found when it runs, and keeps the pre-update
+// one when that lookup finds nothing.
+func TestRunLooksUpPythonWhenItRuns(t *testing.T) {
+	f := &execx.Fake{}
+	c, _ := newCollector(t, f)
+	f.OnPrefix([]string{"py-new"}, execx.Result{Output: "  aaaa1111: keep (selected)\n"})
+	f.OnPrefix([]string{"py-under-test"}, execx.Result{Output: "  aaaa1111: keep (selected)\n"})
+	c.d.PythonNow = func() string { return "py-new" }
+	if _, err := c.Run(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	c.d.PythonNow = func() string { return "" }
+	if _, err := c.Run(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	calls := f.Calls()
+	if len(calls) != 2 || calls[0].Argv[0] != "py-new" || calls[1].Argv[0] != "py-under-test" {
+		t.Errorf("interpreters used: %v", calls)
+	}
+}

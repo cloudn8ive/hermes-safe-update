@@ -4,6 +4,131 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
+### Changed
+
+- **The default is now `update.channel: follow`.** Safe Update used to pass
+  `--branch main` on every run, which silently moved a user who had chosen
+  Hermes' `stable` channel (the latest published release) onto `main`, and
+  it ignored Settings → About. Now it follows the channel Hermes uses for the
+  install: if that is `stable`, a run updates to the latest release (a
+  checkout that is already newer waits for the next one only if you never
+  chose stable yourself; if you did, the update would move it back and the
+  rollback guard asks first); if it is
+  `main`, or your Hermes is older than v0.21.6 and has no channels, a run
+  is exactly what it was before (`hermes update --yes --keep-stash --branch main`).
+  If you want main whatever Hermes says, set `update.channel: main` in
+  `safe-update.yaml` (or pass `--channel main` for one run). `stable` pins
+  the latest release the same way.
+- On Windows the update marker is written in Hermes' format v2 (with this
+  process' creation time), so a reused pid can't fake it and it never ages
+  out mid-update; holders are checked by creation time and `delegate:` lines
+  are honoured. Other systems keep v1.
+
+### Added
+
+- New setting `update.channel` (`follow` | `stable` | `main`, default
+  `follow`) and a `--channel` flag for `run` and `check` that beats it for one
+  run. `follow` reads Hermes' choice offline and read-only (the install id
+  from `hermes update --install-id`, the record in Hermes' `config.yaml`, else
+  stable for a checkout of the official GitHub repository and main for any
+  other origin). Safe Update never writes Hermes' setting during a run.
+- New command `hermes-safe-update channel`: shows the channel Hermes uses for
+  this install and where that comes from, what `update.channel` is set to,
+  and what the next run will do, with a short explanation of stable and main.
+  No network; it never asks the untested-platform question.
+- New command `hermes-safe-update channel set stable|main`: switches the
+  channel through Hermes' own `hermes update --set-channel` (Safe Update never
+  edits Hermes' configuration itself), prints Hermes' confirmation and the new
+  state. It refuses any other name, and a Hermes that cannot switch (exit 4,
+  with the reason). Before switching to stable it runs a read-only release
+  check; if the checkout is newer than the latest release, the next update
+  would move Hermes back, so it says so and asks for a `Y` (`--yes` goes
+  ahead; `--unattended` or no terminal refuses; a check that cannot run still
+  asks). If `safe-update.yaml` forces a channel it says Safe Update keeps using it.
+- A new rollback guard: a run that would move the checkout back to an older
+  release stops before anything is closed. Attended, it asks for an explicit
+  `Y` that names both versions; `--yes` does not skip it, and any other key or
+  no answer is exit 4. `--unattended` never rolls back (exit 4, and the
+  message names the command to do it by hand).
+- The rollback guard asks git, not only Hermes' wording: Hermes v0.21.6 and
+  v0.21.7 print "Selected release available" for a release that is older than
+  the checkout and then move it back without asking. Before anything is
+  closed, Safe Update checks `git merge-base --is-ancestor <release> HEAD`;
+  an ancestor is a rollback and goes through the guard (with the number of
+  commits). A release that is not an ancestor (or not in the checkout at all)
+  is a forward update in a full clone (also a partial one); a shallow clone
+  cannot prove that either way, so an attended run asks ("might move Hermes
+  BACK") and an unattended run stops, unless GitHub's compare (when a mirror is
+  set up) says the release is not behind (ahead, identical or diverged). If the
+  installed commit is unknown, Safe Update says so in neutral words instead of
+  claiming a move back, and asks or stops the same way.
+- `--force` no longer skips the stop when the release check fails or times
+  out: without a readable check Safe Update cannot tell a rollback from a
+  forward update, so it stops (exit 4) with or without `--force`.
+- A slow Hermes start-up no longer reads as "this Hermes has no channels":
+  the `update --help` and `--install-id` probes get 45 s (they were 15 s) and
+  run side by side. If the help still cannot be read, the checkout's own
+  files answer (`hermes_cli/update_channel.py` exists and
+  `hermes_cli/subcommands/update.py` names `--channel`); only when neither
+  shows channels is the Hermes treated as one from before channels. If
+  `--install-id` fails, the channel record whose `path` is this checkout is
+  used. The log says whether `help`, `source files` or `none` decided.
+- `hermes-safe-update channel` and `channel set` read the help and the
+  install id at the same time (one Hermes start-up of waiting instead of two),
+  and a switch no longer asks the help a second time.
+- The update marker is re-read right before each refresh write, so a `delegate:`
+  (or any other) line Hermes appended earlier is kept; only a line appended in
+  the instant between that re-read and the write can still be lost (a very
+  small window).
+- `update.channel: stable` on a Hermes without release channels stops in the
+  pre-flight (exit 4) with the reason, before anything is closed.
+- On a release channel, Hermes' own `hermes update --check` is the judge:
+  "up to date" and "no newer release ... waits for the next release" end the
+  run with exit 0 and name the release; `Could not resolve the stable source
+  channel` is a pre-flight stop (exit 4) with Hermes' reason; wording this tool
+  does not recognise is a warning and a stop, never silent success. Main's
+  mirror and GitHub comparison are skipped there.
+- Summary: a new `Channel` row (after `Version`, and in the check card) names
+  the update channel and why. On release channels the `Available`/`updates`
+  rows name the release (`release v0.22.1 available, 7 commits`), and the
+  npm/Python-deps prediction is made against the release commit, not
+  `origin/main`. `Version` counts commits only when the new HEAD descends
+  from the old one; a rewind says `moved back N commits`. `Newer` on a release
+  channel reports a newer published release (`releases/latest`), never main
+  movement.
+- Mirror: a release tag is seeded into the checkout when the stable channel
+  has an update, the mirror refreshes when only a release tag is new, and the
+  4-hourly job fetches when a new stable tag appears even if main did not move.
+- Docs: README "Update channel (stable or main)", how-it-works, configuration
+  and design (D19); the new known limitations: Hermes v0.22 folds
+  multi-profile gateways into one on its first update and only the root
+  `gateway_state.json` is verified, and an MSIX/Store Hermes desktop running
+  next to a source checkout is not closed by Safe Update.
+
+### Fixed
+
+- The fallback update check (no mirror and no GitHub API) ran without
+  `--branch main` and so answered for Hermes' channel instead of main (a false
+  "Nothing to update" for a user on main). It now asks for main.
+- A Python or git folder left behind by an older pin no longer wins over the
+  live one: read from Hermes' `tools/facts.json`, with a version-aware
+  fallback. The GC step and the gate probe use the interpreter found when
+  they run.
+- The "is a chat busy?" check uses the freshest of the heartbeat, the newest
+  message and the start time, and ignores garbage timestamps, as Hermes does;
+  sessions with no heartbeat yet are no longer missed.
+- `hermes update` exit code 2 now says another Hermes update is running (or
+  why Hermes could not lock the install).
+- The progress bar knows the "Building the web UI…" step, and the summary
+  lists Hermes' other "owed work" lines (desktop app build owed, gateway
+  restart still owed, interrupted after the code was updated, skipped desktop
+  rebuild, `<name> failed`) as amber "Not finished" rows; they never change
+  the verdict or exit code. On Hermes v0.22 the known "Fleet version check
+  returned no rows" warning is such a follow-up with exit 0; the older exit-1
+  form is still tolerated.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added
@@ -378,7 +503,8 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
-[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.0...v0.1.1

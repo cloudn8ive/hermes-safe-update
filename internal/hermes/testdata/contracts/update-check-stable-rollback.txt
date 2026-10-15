@@ -1,0 +1,3 @@
+→ Update channel: stable
+→ This checkout is newer than the selected release: stable v0.22.0 (0123456789ab).
+  `hermes update` moves it back to that release (`hermes update --set-channel main` follows every commit).

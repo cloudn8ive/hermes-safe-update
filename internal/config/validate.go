@@ -139,6 +139,12 @@ func (f File) Validate() error {
 		add("desktop.relaunch", "must be one of auto, always, never (got %q)", f.Desktop.Relaunch)
 	}
 
+	switch f.Update.Channel {
+	case ChannelFollow, ChannelStable, ChannelMain:
+	default:
+		add("update.channel", "must be one of follow, stable, main (got %q)", f.Update.Channel)
+	}
+
 	names := map[string]bool{}
 	for i, h := range f.Hooks {
 		base := fmt.Sprintf("hooks[%d]", i)

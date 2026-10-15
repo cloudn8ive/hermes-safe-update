@@ -1,0 +1,19 @@
+→ Fetching updates...
+→ Pulling updates...
+  → Preparing Node dependencies…
+  ✓ Preparing Node dependencies
+  → Building the TUI…
+  ⚠ TUI build failed: node /home/you/hermes-agent/scripts/build/tui.mjs exited 2
+  → Building the web UI…
+  ⚠ desktop app build failed: node /home/you/hermes-agent/scripts/build/desktop.mjs exited 1
+  Desktop app build owed: desktop app build failed
+  ⚠ Skipped rebuilding the desktop app: this update is running inside it (pid 4242),
+    and Windows locks a running app's files. Quit the app and run `hermes desktop`
+    from a terminal, or use Update now in Settings, to rebuild and reopen it.
+  Desktop app build owed: the update completion did not finish
+✓ Update complete! (v1.0 → v1.1)
+
+⚠ Gateway restart still owed: 2 gateway(s) still running the old code (or stopped).
+  Run `hermes gateway restart` (or `hermes -p <profile> gateway restart` for a named
+  profile), then `hermes gateway status` to confirm.
+⚠ Interrupted after the code was updated: the new code is in place; its remaining steps are owed and the next launch or `hermes update` finishes them.

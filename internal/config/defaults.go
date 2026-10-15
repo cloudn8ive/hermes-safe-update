@@ -106,6 +106,7 @@ func Defaults() File {
 			},
 		},
 		Desktop: Desktop{Relaunch: RelaunchAuto},
+		Update:  Update{Channel: ChannelFollow},
 		Logging: Logging{Level: "info", MaxSizeMB: 5, Keep: 3},
 	}
 }

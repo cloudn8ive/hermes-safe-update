@@ -152,6 +152,7 @@ func stageLocal(ctx context.Context, r *Run) error {
 	r.rows(ui.Row{Key: "version", Value: versionValue(r.Facts.HeadShort, sha)})
 	r.Facts.VersionBefore = hermes.CurrentVersion(ctx, r.Runner, r.Facts.Install.Launcher)
 	r.startEarly(ctx)
+	r.startChannelProbe(ctx)
 	return nil
 }
 
@@ -182,14 +183,41 @@ func (r *Run) startEarly(ctx context.Context) {
 // ---- 2 remote (§2.3) ----
 
 func stageRemote(ctx context.Context, r *Run) error {
-	c := r.checkForUpdates(ctx)
-	r.Facts.Check = c
-	r.withEst(func(e *timings.Estimator) {
-		e.SetConditions(timings.Conditions{Source: c.Source, Mirror: ptr(c.Source == "mirror"), NPM: c.NPM, PyDeps: c.PyDeps, Commits: c.Commits})
-		if c.PyDeps != nil {
-			e.ExpectSkip("pydeps", !*c.PyDeps)
+	plan, err := r.channelPlan(ctx)
+	if err != nil {
+		return err // cancelled: never fall through to an update with a made-up plan
+	}
+	if plan.Stop != "" {
+		r.stop("%s", plan.Stop)
+		r.joinEarly(ctx)
+		return fmt.Errorf("%w: update.channel %s is not possible with this Hermes", apperr.ErrPreflightStop, plan.Mode)
+	}
+	var pre *releaseCheck
+	if plan.Pending {
+		// Hermes has channels but its own choice could not be read offline:
+		// the bare check names it on its first line.
+		rc := r.runReleaseCheck(ctx, plan)
+		pre = &rc
+		if line := rc.parsed.Channel; rc.err == nil && line != "" {
+			plan = plan.WithCheckedChannel(line)
+			r.Facts.Channel.Plan = plan
+			r.logPlan("channel resolved by `update --check`", plan)
+			if !plan.Release {
+				pre = nil // main: the main chain runs, exactly as in mode main
+			}
 		}
-	})
+	}
+	if plan.Release {
+		return r.remoteRelease(ctx, plan, pre)
+	}
+	c := r.checkForUpdates(ctx, plan)
+	r.noteCheck(c)
+	return r.verdict(ctx, c, "")
+}
+
+// verdict ends the remote stage from the check result. nothing is the line
+// for "no update" ("" = the main wording).
+func (r *Run) verdict(ctx context.Context, c hermes.UpdateCheck, nothing string) error {
 	if c.Behind != nil && *c.Behind {
 		return nil
 	}
@@ -198,7 +226,10 @@ func stageRemote(ctx context.Context, r *Run) error {
 		return nil
 	}
 	if c.Behind != nil {
-		r.info("Nothing to update (use --force to run anyway).")
+		if nothing == "" {
+			nothing = "Nothing to update."
+		}
+		r.info("%s (use --force to run anyway).", strings.TrimSuffix(nothing, "."))
 		r.joinEarly(ctx) // never leave the side job running
 		return errUpToDate
 	}
@@ -231,7 +262,7 @@ func (r *Run) reportCheck(c hermes.UpdateCheck, via string) {
 	r.rows(ui.Row{Key: "updates", Value: fmt.Sprintf("none, already up to date (%s)", via)})
 }
 
-func (r *Run) checkForUpdates(ctx context.Context) hermes.UpdateCheck {
+func (r *Run) checkForUpdates(ctx context.Context, plan hermes.Plan) hermes.UpdateCheck {
 	in := r.Facts.Install
 	if r.Mirror != nil {
 		st := r.Mirror.Status()
@@ -254,7 +285,7 @@ func (r *Run) checkForUpdates(ctx context.Context) hermes.UpdateCheck {
 					behind := *res.Commits > 0
 					c := hermes.UpdateCheck{Behind: &behind, Commits: res.Commits, Source: "mirror"}
 					if behind && r.Repo != nil {
-						c.NPM, c.PyDeps = r.Repo.DiffKinds(ctx)
+						c.NPM, c.PyDeps = r.Repo.DiffKinds(ctx, hermes.MainRef)
 					}
 					r.reportCheck(c, "local mirror")
 					return c
@@ -278,14 +309,17 @@ func (r *Run) checkForUpdates(ctx context.Context) hermes.UpdateCheck {
 			r.info("GitHub API unavailable; checking with git fetch")
 		}
 	}
-	res, err := r.Runner.Run(ctx, execx.Cmd{Argv: []string{in.Launcher, "update", "--check"}, Timeout: checkTimeout, Env: utf8Env})
+	// The fallback check asks for the same branch the update installs
+	// (`--branch main`): a bare `--check` follows Hermes' own channel, which
+	// is stable on an official checkout and would answer for the wrong target.
+	res, err := r.Runner.Run(ctx, execx.Cmd{Argv: append([]string{in.Launcher}, plan.CheckArgv...), Timeout: checkTimeout, Env: utf8Env})
 	if err != nil {
 		return hermes.UpdateCheck{Source: "git", Detail: err.Error()}
 	}
 	c := hermes.InterpretUpdateCheck(res.Output, res.Code)
 	r.info("%s", c.Detail)
 	if c.Behind != nil && *c.Behind && r.Repo != nil {
-		c.NPM, c.PyDeps = r.Repo.DiffKinds(ctx)
+		c.NPM, c.PyDeps = r.Repo.DiffKinds(ctx, hermes.MainRef)
 	}
 	if c.Behind != nil {
 		r.reportCheck(c, "git fetch")
@@ -720,6 +754,7 @@ func stageUpdate(ctx context.Context, r *Run) error {
 		}
 	}
 	r.Facts.UpdateRC, r.Facts.UpdateOutput = rc, out
+	r.Facts.Channel.Applied = hermes.ParseUpdateRelease(out)
 	if m := hermes.UpdateCompleteRe.FindStringSubmatch(out); m != nil {
 		r.Facts.Versions = [2]string{m[1], m[2]}
 	}
@@ -796,8 +831,8 @@ func displayLine(line string) string {
 }
 
 func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
-	argv := append([]string{r.Facts.Install.Launcher}, hermes.UpdateArgv...)
-	cmdline := "hermes " + strings.Join(hermes.UpdateArgv, " ")
+	argv := append([]string{r.Facts.Install.Launcher}, r.updateArgs()...)
+	cmdline := "hermes " + strings.Join(r.updateArgs(), " ")
 	r.UI.Command(cmdline)
 	r.Log.Info("== Running: " + cmdline)
 
@@ -963,6 +998,9 @@ func stageVerify(ctx context.Context, r *Run) error {
 	})
 	r.Facts.Verified = res.OK
 	r.Facts.VerifyLine = res.Line
+	if res.Note != "" {
+		r.stop("%s", res.Note)
+	}
 	if res.OK {
 		r.say(ui.LevelOK, "", "%s", res.Line)
 	} else {
@@ -1213,6 +1251,10 @@ func (r *Run) runHooks(ctx context.Context, when config.HookWhen, result string)
 // GitHub's tip says so, and only an unproven mirror falls back to the age
 // of its last refresh measured at that moment.
 func (r *Run) sourceLine() string {
+	if p := r.Facts.Channel.Plan; p.Release {
+		// the release path never fetches, mirrors or compares main
+		return "Hermes release check (channel " + r.channelNameForRow() + ")"
+	}
 	switch r.Facts.Check.Source {
 	case "mirror":
 		f := r.Facts
@@ -1263,35 +1305,62 @@ func ageText(d time.Duration) string {
 	}
 }
 
-// installedCommits is how many commits the update really brought in. The
-// pre-flight count is only a forecast: `hermes update` fetches GitHub itself,
-// a few minutes later, and main moves. Order of trust: git on the real old
-// and new HEAD, then the "Found N new commit(s)" line of `hermes update`,
-// then the pre-flight number.
-func (r *Run) installedCommits(ctx context.Context) (int, bool) {
+// versionNote is the parenthesis of the Version row: how far the update
+// moved the checkout. The pre-flight count is only a forecast (`hermes update`
+// fetches GitHub itself, a few minutes later, and main moves), so the order
+// of trust is: git on the real old and new HEAD, then the "Found N new
+// commit(s)" line of `hermes update`, then (main only) the pre-flight number.
+//
+// A count is only given when git can count before..after AND after descends
+// from before (nothing in before is missing from after). A checkout moved
+// back (a rollback the user confirmed) says "moved back N commits"; a move
+// that did neither (the two histories diverged) gets no number. A release
+// channel never falls back to a forecast: the pre-flight number is about a
+// different target.
+func (r *Run) versionNote(ctx context.Context) string {
 	f := r.Facts
 	if r.Repo != nil && f.HeadFull != "" && f.HeadAfter != "" && f.HeadFull != f.HeadAfter {
-		if n, ok := r.Repo.CommitCount(ctx, f.HeadFull, f.HeadAfter); ok && n > 0 {
-			r.Log.Info("installed commits", slog.Int("count", n), slog.String("from", "git"))
-			return n, true
+		fwd, okF := r.Repo.CommitCount(ctx, f.HeadFull, f.HeadAfter)
+		back, okB := r.Repo.CommitCount(ctx, f.HeadAfter, f.HeadFull)
+		if okF && okB {
+			switch {
+			case fwd > 0 && back == 0:
+				r.Log.Info("installed commits", slog.Int("count", fwd), slog.String("from", "git"))
+				return commitsText(fwd)
+			case fwd == 0 && back > 0:
+				r.Log.Info("installed commits: the checkout moved back", slog.Int("count", back), slog.String("from", "git"))
+				return "moved back " + commitsText(back)
+			}
+			r.Log.Info("installed commits: no count (the new HEAD does not descend from the old one)", slog.Int("ahead", fwd), slog.Int("behind", back))
+			return ""
 		}
 	}
 	if n, ok := hermes.ParseFoundCommits(f.UpdateOutput); ok {
 		r.Log.Info("installed commits", slog.Int("count", n), slog.String("from", "hermes update output"))
-		return n, true
+		return commitsText(n)
 	}
-	if f.Check.Commits != nil {
-		return *f.Check.Commits, true
+	if f.Check.Commits != nil && !f.Channel.Plan.Release {
+		return commitsText(*f.Check.Commits)
 	}
-	return 0, false
+	return ""
 }
 
-// newerBudget caps the whole "did main move while this ran" look.
+func commitsText(n int) string {
+	if n == 1 {
+		return "1 commit"
+	}
+	return fmt.Sprintf("%d commits", n)
+}
+
+// newerBudget caps the whole "did anything newer appear while this ran" look.
 var newerBudget = 6 * time.Second // a var so a test can shorten it
 
-// newerRow says, after a verified update, that main moved past what was
-// installed. It is a courtesy: best effort, a few seconds at most, silent
-// when anything fails, and it never touches Verified or the exit code.
+// newerRow says, after a verified update, that something newer than what was
+// installed appeared while the update ran: on main, that main moved; on a
+// release channel, that a newer release was published (main moving is not
+// news there: main is always ahead of a release). It is a courtesy: best
+// effort, a few seconds at most, silent when anything fails, and it never
+// touches Verified or the exit code.
 func (r *Run) newerRow(ctx context.Context) string {
 	head := r.Facts.HeadAfter
 	if !r.Facts.Verified || r.Mirror == nil || len(head) != 40 {
@@ -1299,6 +1368,19 @@ func (r *Run) newerRow(ctx context.Context) string {
 	}
 	cctx, cancel := context.WithTimeout(ctx, newerBudget)
 	defer cancel()
+	if r.Facts.Channel.Plan.Release {
+		n, ok := r.Mirror.NewerRelease(cctx, head)
+		switch {
+		case !ok:
+			r.Log.Debug("newer release: could not find out; row left out")
+			return ""
+		case !n.Ahead:
+			r.Log.Info("newer release: none, the latest release is not past what was installed", slog.String("latest", n.Tag))
+			return ""
+		}
+		r.Log.Info("newer release: published during the run", slog.String("tag", n.Tag))
+		return fmt.Sprintf("release %s was published while this ran; run Safe Update again when convenient", n.Tag)
+	}
 	n, ok := r.Mirror.NewerThan(cctx, r.Facts.Install.Checkout, head)
 	switch {
 	case !ok:
@@ -1378,11 +1460,12 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 	var rows []ui.Row
 	if f.Versions[0] != "" {
 		v := f.Versions[0] + " → " + f.Versions[1]
-		if n, ok := r.installedCommits(ctx); ok {
-			v += fmt.Sprintf("  (%d commits)", n)
+		if note := r.versionNote(ctx); note != "" {
+			v += "  (" + note + ")"
 		}
 		rows = addRow(rows, "Version", v)
 	}
+	rows = addRow(rows, "Channel", r.channelRow())
 	rows = addRow(rows, "Newer", r.newerRow(ctx))
 	if !f.TClose.IsZero() {
 		took := r.Facts.TReopen.Sub(f.TClose)
@@ -1501,8 +1584,12 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 	r.info("Pre-flight passed; check mode, Hermes was not touched.")
 	r.complete(true)
 	var rows []ui.Row
+	rows = addRow(rows, "Channel", r.channelRow())
 	avail := "yes"
-	if f.Check.Commits != nil {
+	switch {
+	case f.Channel.Plan.Release:
+		avail = r.releaseAvailable(f.Check.Commits)
+	case f.Check.Commits != nil:
 		avail = fmt.Sprintf("%d new commit(s)", *f.Check.Commits)
 	}
 	rows = addRow(rows, "Available", avail)

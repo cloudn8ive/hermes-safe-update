@@ -29,6 +29,7 @@ relaunched Hermes desktop
 post-update cleanup and cua-driver refresh skipped: update not verified
 
 The update needs attention: see RESULT above.
+  Channel      main (set in Hermes)
   Time         0:46 until Hermes reopened  (estimate was 7:44)
   Source       GitHub (checked via the API)
   Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

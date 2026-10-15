@@ -1,0 +1,2 @@
+→ Update channel: stable
+✓ Up to date with the latest release (stable v0.22.0 (0123456789ab)).

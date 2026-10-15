@@ -62,8 +62,9 @@ func TestVersionCountsTheInstalledCommitsNotThePreflightForecast(t *testing.T) {
 			if got := cardRow(h.output(), "Version"); got != c.want {
 				t.Errorf("Version = %q, want %q\n%s", got, c.want, h.output())
 			}
-			// asked about exactly the commits between the two real HEADs
-			if len(h.repo.counted) != 1 || h.repo.counted[0] != [2]string{oldSHA, newSHA} {
+			// asked about exactly the commits between the two real HEADs: how
+			// many came in, and whether the old HEAD is still all in the new one
+			if len(h.repo.counted) != 2 || h.repo.counted[0] != [2]string{oldSHA, newSHA} || h.repo.counted[1] != [2]string{newSHA, oldSHA} {
 				t.Errorf("CommitCount calls = %v", h.repo.counted)
 			}
 		})

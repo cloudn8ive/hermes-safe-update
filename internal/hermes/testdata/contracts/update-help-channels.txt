@@ -1,0 +1,14 @@
+usage: hermes update [-h] [--gateway] [--yes] [--keep-stash] [--check]
+                     [--branch BRANCH] [--channel CHANNEL]
+                     [--set-channel CHANNEL] [--install-id]
+
+options:
+  -h, --help            show this help message and exit
+  --yes                 Accept every prompt
+  --keep-stash          Keep the stash
+  --check               Check for updates without applying them
+  --branch BRANCH       Update from this branch
+  --channel CHANNEL     Update from this channel for this run only
+  --set-channel CHANNEL
+                        Persist the update channel for this install
+  --install-id          Print this install's id and exit

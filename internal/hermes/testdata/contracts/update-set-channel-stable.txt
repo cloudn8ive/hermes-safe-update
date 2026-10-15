@@ -1,0 +1,2 @@
+Update channel for 0f1e2d3c4b5a6978: stable
+Switching to an older stable release may not read state written by canary. Back up your data first.

@@ -15,13 +15,37 @@ import (
 )
 
 const (
-	stateDBFile    = "state.db"
-	rootProfile    = "hermes"
-	sqliteBusyMs   = 5000
-	titleMaxRunes  = 50
-	errTextMax     = 60
-	busySessionsQL = `select id, coalesce(title,''), last_activity_at from sessions
-where ended_at is null and last_activity_at > ? and coalesce(source,'') != 'cron'`
+	stateDBFile   = "state.db"
+	rootProfile   = "hermes"
+	sqliteBusyMs  = 5000
+	titleMaxRunes = 50
+	errTextMax    = 60
+	// Hermes' trusted-timestamp window (hermes_cli/timefmt.py EPOCH_MIN /
+	// EPOCH_MAX, `_SQL_IN_WINDOW` in hermes_state_common.py): a cell outside
+	// it (garbage doubles salvaged from a damaged page, 5e+246) is ignored.
+	epochMin = "0.0"
+	epochMax = "4200000000.0"
+	// busySessionsQL lists the open, non-cron sessions whose freshest sign of
+	// life is newer than ?. Like Hermes' own `_sql_session_last_active`, that
+	// is the later of last_activity_at (a heartbeat rate-limited to ~60 s, so
+	// it can lag a newer message and is NULL on a session that has not beaten
+	// yet) and the newest messages.timestamp of the session, and only when
+	// neither is trusted started_at. A missing table or column fails the
+	// query, and a failure counts as busy.
+	busySessionsQL = `select id, title, fresh from (
+ select s.id as id, coalesce(s.title,'') as title,
+  coalesce(
+   (select max(v) from (
+     select case when s.last_activity_at between ` + epochMin + ` and ` + epochMax + ` then s.last_activity_at end as v
+     union all
+     select max(m.timestamp) from messages m
+      where m.session_id = s.id and m.timestamp between ` + epochMin + ` and ` + epochMax + `
+    ) where v is not null),
+   case when s.started_at between ` + epochMin + ` and ` + epochMax + ` then s.started_at end
+  ) as fresh
+ from sessions s
+ where s.ended_at is null and coalesce(s.source,'') != 'cron'
+) where fresh > ?`
 )
 
 // SQLiteSessions implements Sessions over the Hermes state.db files. It only

@@ -26,6 +26,7 @@ type Run struct {
 	NoRelaunch     bool
 	Force          bool
 	NoElevate      bool
+	ChannelFlag    bool // --channel was given (update.channel holds its value)
 }
 
 // Sources records which files were actually loaded (empty = not present).
@@ -58,6 +59,7 @@ type Overrides struct {
 	Force           *bool
 	NoElevate       *bool
 	Origin          *string // migrate-settings --origin
+	Channel         *string // run/check --channel (beats update.channel)
 }
 
 // LoadOptions says where to read from. Empty paths are skipped. A missing
@@ -158,6 +160,10 @@ func applyFlags(cfg *Config, f Overrides) {
 	}
 	if f.Origin != nil {
 		cfg.Settings.Origin = *f.Origin
+	}
+	if f.Channel != nil {
+		cfg.Update.Channel = *f.Channel
+		cfg.Run.ChannelFlag = true
 	}
 	setB(&cfg.Run.Plain, f.Plain)
 	setB(&cfg.Run.Yes, f.Yes)

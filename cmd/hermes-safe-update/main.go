@@ -207,6 +207,9 @@ func loadConfig(o options, env *environment) (*config.Config, error) {
 	f.NoRelaunch = b("no-relaunch", &o.noRelaunch)
 	f.Force = b("force", &o.force)
 	f.NoElevate = b("no-elevate", &o.noElevate)
+	if o.set["channel"] {
+		f.Channel = &o.channel
+	}
 	cfg, err := config.Load(opt)
 	if err != nil {
 		return nil, err
@@ -248,14 +251,15 @@ func openLog(cfg *config.Config, env *environment) (*slog.Logger, func()) {
 // of Hermes, so the untested-platform question does not apply: `mirror
 // refresh` (what the Hermes cron job runs; with the gate it would exit 3,
 // silently, on every scheduled run on macOS/Linux), `mirror status`,
-// `check` (pre-flight only: reads the install, the process table and the
-// session databases, may `git fetch` into the checkout's git data, and
-// leaves HEAD, the working tree and the running app alone), `list-backups`
-// and `migrate-settings --dry-run`. Everything that closes, updates or
-// writes (run, the settings commands, mirror setup) stays gated.
+// `channel` (shows the channel, offline), `check` (pre-flight only: reads
+// the install, the process table and the session databases, may `git fetch`
+// into the checkout's git data, and leaves HEAD, the working tree and the
+// running app alone), `list-backups` and `migrate-settings --dry-run`.
+// Everything that closes, updates or writes (run, the settings commands,
+// mirror setup, channel set) stays gated.
 func gateExempt(o options) bool {
 	switch o.command {
-	case "mirror refresh", "mirror status", "check", "list-backups":
+	case "mirror refresh", "mirror status", "check", "list-backups", "channel":
 		return true
 	case "migrate-settings":
 		return o.dryRun

@@ -186,3 +186,33 @@ func TestEvaluateUpdateNoGatewayBefore(t *testing.T) {
 		})
 	}
 }
+
+// TestEvaluateUpdateV022FleetFollowup pins the two shapes of the fleet
+// warning: Hermes before v0.22 exits 1 on it (tolerated only when the gateway
+// runs the new code and the desktop build verified); v0.22 records a
+// follow-up and exits 0, which is a plain OK. The "did not finish" line is
+// surfaced separately (UnfinishedSteps), never by the verdict.
+func TestEvaluateUpdateV022FleetFollowup(t *testing.T) {
+	const head = "4e7403130ee278bd99c450fcd9f73c6b32135c95"
+	gw := GatewayState{CodeSHA: head, PID: 5}
+	v022 := readFixture(t, "update-fleet-followup.txt")
+	old := readFixture(t, "update-false-fleet.txt")
+
+	r := EvaluateUpdate(VerifyInput{RC: 0, Output: v022, Head: head, Gateway: gw, Alive: true})
+	if !r.OK || r.KnownFalseFleet || r.Line != "RESULT: OK" {
+		t.Errorf("v0.22 shape (rc 0 + follow-up): %+v", r)
+	}
+	r = EvaluateUpdate(VerifyInput{RC: 1, Output: old, Head: head, Gateway: gw, Alive: true})
+	if !r.OK || !r.KnownFalseFleet {
+		t.Errorf("pre-v0.22 shape (rc 1) must stay tolerated: %+v", r)
+	}
+	// v0.22 with a gateway that did NOT come back on the new code is not OK
+	// even though rc is 0: the follow-up must not paper over it.
+	r = EvaluateUpdate(VerifyInput{RC: 0, Output: v022, Head: head, Gateway: GatewayState{CodeSHA: "old", PID: 5}, Alive: true})
+	if r.OK {
+		t.Errorf("rc 0 with a stale gateway must be PROBLEM: %+v", r)
+	}
+	if len(UnfinishedSteps(v022)) != 1 {
+		t.Error("the follow-up line must be reported as not finished")
+	}
+}

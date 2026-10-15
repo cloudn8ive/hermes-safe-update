@@ -1,11 +1,14 @@
 package update
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/cloudn8ive/hermes-safe-update/internal/apperr"
 	"github.com/cloudn8ive/hermes-safe-update/internal/config"
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
+	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
 	"github.com/cloudn8ive/hermes-safe-update/internal/ui"
 )
@@ -135,5 +138,70 @@ func TestUnfinishedStepShownInSummary(t *testing.T) {
 		if strings.Contains(out, bad) {
 			t.Errorf("output still contains %q\n%s", bad, out)
 		}
+	}
+}
+
+// owedOut: every owed-work wording of Hermes v0.22 that is not a "did not
+// finish" follow-up (synthetic; shapes of source_build.py, main_desktop.py,
+// update_completion.py, update_receipt.py).
+const owedOut = `→ Fetching updates
+→ Pulling updates
+  → Building the web UI…
+  ⚠ desktop app build failed: node desktop.mjs exited 1
+  Desktop app build owed: desktop app build failed
+  ⚠ Skipped rebuilding the desktop app: this update is running inside it (pid 42),
+    and Windows locks a running app's files.
+Update complete! (v1.0 → v1.1)
+⚠ Gateway restart still owed: 1 gateway(s) still running the old code (or stopped).
+⚠ Interrupted after the code was updated: the new code is in place; its remaining steps are owed.`
+
+func TestOwedWorkIsAmberAndNeverFlipsTheVerdict(t *testing.T) {
+	h := newHarness(t)
+	var cards []ui.Card
+	h.cards = &cards
+	h.onUpdate(0, owedOut, true)
+	h.con.Keys = []platform.Key{key('y')}
+	if err := h.run(); err != nil {
+		t.Fatalf("owed work must not fail a verified run: %v\n%s", err, h.output())
+	}
+	h.mustContain("RESULT: OK", "but 4 steps did not finish.")
+	if len(cards) != 1 || cards[0].OK == nil || !*cards[0].OK {
+		t.Fatalf("cards = %+v, want one verified card", cards)
+	}
+	var got []string
+	for _, r := range cards[0].Rows {
+		if r.Key != "Not finished" {
+			continue
+		}
+		if r.Verdict == nil || *r.Verdict != ui.VerdictAttention {
+			t.Errorf("row %q is not amber", r.Value)
+		}
+		got = append(got, r.Value)
+	}
+	want := []string{
+		"desktop app build failed: node desktop.mjs exited 1",
+		"Skipped rebuilding the desktop app: this update is running inside it (pid 42)",
+		"Gateway restart still owed: 1 gateway(s) still running the old code (or stopped)",
+		"Interrupted after the code was updated: the new code is in place; its remaining steps are owed",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("Not finished rows:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// Hermes exits 2 when another update holds the install: the run says so
+// instead of a bare "rc=2" (the RESULT line itself stays the plain one).
+func TestConcurrentUpdateExitIsNamed(t *testing.T) {
+	h := newHarness(t)
+	h.onUpdate(hermes.UpdateExitConcurrent, "☤ Updating Hermes Agent...\n✗ Another Hermes update is already running (started 3m 4s ago, process 4711).", false)
+	h.con.Keys = []platform.Key{key('y')}
+	err := h.run()
+	if !errors.Is(err, apperr.ErrUpdateProblem) {
+		t.Fatalf("err = %v, want an update problem\n%s", err, h.output())
+	}
+	h.mustContain("another Hermes update is running (Another Hermes update is already running (started 3m 4s ago, process 4711))",
+		"RESULT: PROBLEM (update rc=2,")
+	if strings.Contains(h.output(), "Hermes is updated and verified") {
+		t.Errorf("claimed success\n%s", h.output())
 	}
 }

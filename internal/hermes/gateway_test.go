@@ -271,3 +271,25 @@ func TestStartNeverUsesAllOnPOSIX(t *testing.T) {
 		})
 	}
 }
+
+// An update can replace the managed Python; the probe after it runs the
+// interpreter looked up now, not the one found before the update. A lookup
+// that finds nothing keeps the earlier value.
+func TestProbeLooksUpPythonAtProbeTime(t *testing.T) {
+	g, run, _, _ := newGW(t)
+	ok := execx.Result{Output: probeLine(`{"ok": true, "gateways": [], "running_pids": []}`)}
+	run.OnPrefix([]string{`N:\python.exe`}, ok)
+	run.OnPrefix([]string{`P:\python.exe`}, ok)
+	g.PythonNow = func() string { return `N:\python.exe` }
+	if res, _ := g.Probe(context.Background()); res != GateOK {
+		t.Fatalf("res = %v", res)
+	}
+	g.PythonNow = func() string { return "" }
+	if res, _ := g.Probe(context.Background()); res != GateOK {
+		t.Fatalf("res = %v", res)
+	}
+	c := run.Calls()
+	if len(c) != 2 || c[0].Argv[0] != `N:\python.exe` || c[1].Argv[0] != `P:\python.exe` {
+		t.Errorf("interpreters used: %v", c)
+	}
+}

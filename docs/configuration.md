@@ -133,6 +133,49 @@ When the app is not reopened, the summary card has a `Hermes app` row that
 says why; when it was reopened there is no such row (the `Time` row says
 "until Hermes reopened").
 
+## update
+
+Which Hermes update channel a run follows. Hermes has two source channels:
+`stable` (the latest published GitHub release, installed as a detached
+checkout) and `main` (every commit). Hermes itself picks one per install; Safe
+Update either follows that choice or overrides it for its own runs. A run
+never writes Hermes' setting. The one way Safe Update changes it is the
+explicit command `hermes-safe-update channel set stable|main`, which asks
+Hermes to do it (`hermes update --set-channel`). `hermes-safe-update channel`
+shows Hermes' channel, this setting and what the next run will do.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `channel` | `"follow"` | `"follow"`: use the channel Hermes resolves for this install: its per-install record (Settings, About, or `hermes update --set-channel`), else `stable` for a checkout of the official GitHub repo and `main` for a fork or mirror origin. When that is `main` the run is exactly as before channels existed (`hermes update --yes --keep-stash --branch main`); for `stable` the run passes no channel flag and Hermes' own `--check` says whether a release is waiting. `"stable"`: always update to the latest release (`--channel stable`); a Hermes without release channels (older than v0.21.6) stops in the pre-flight, exit 4, before anything is closed. `"main"`: always the tip of main (`--branch main`), whatever Hermes' channel is; works on every Hermes version. Any other value is a configuration error (exit 64) that names the line. |
+
+`--channel follow|stable|main` on `run` and `check` overrides the key for one
+run.
+
+On a release channel, Hermes' check is the only judge of whether a release is
+waiting. If you never chose a channel in Hermes, a checkout that is already
+newer than the latest release is up to date ("waits for the next release",
+exit 0). If stable was chosen explicitly (a record in Hermes, or
+`update.channel: stable` / `--channel stable` over a main record or a fork
+origin), that checkout would be moved back instead (see below). `Could not
+resolve the stable source channel` (GitHub
+unreachable or rate limited) is a pre-flight stop, exit 4, with Hermes' reason.
+Main's commit mirror and GitHub comparison are not used for a release channel.
+
+If the checkout is *newer* than the selected release, updating would move it
+**back**. Hermes says so itself from v0.22.0 ("newer than the selected
+release"); Hermes v0.21.6 and v0.21.7 call such a release "available", so Safe
+Update also asks git whether the release commit is an ancestor of the
+checkout. Safe Update stops before closing anything: an attended run asks
+for an explicit `Y` that names both versions (`--yes` does not skip this
+question; any other key or a timeout stops with exit 4), and `--unattended`
+never rolls back (exit 4; the message names the command to do it by hand). If
+the release commit is not in a shallow checkout, a move back cannot be ruled
+out and the run asks (unattended: stops) the same way.
+
+If `update.channel` is `stable` or `main`, Safe Update keeps using it whatever
+Hermes is set to, including after `channel set`; the command says so. To
+follow Hermes again, set `follow` or remove the line.
+
 ## hooks
 
 A hook runs your own command at a fixed point of a run.

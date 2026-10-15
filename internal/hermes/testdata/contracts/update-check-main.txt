@@ -1,0 +1,4 @@
+→ Update channel: main
+→ Fetching from origin...
+⚕ Update available: 7 commits behind origin/main.
+  Run 'hermes update' to install.

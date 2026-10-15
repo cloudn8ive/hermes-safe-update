@@ -1,0 +1,2 @@
+→ Update channel: stable
+✗ Could not resolve the stable source channel: Connection to api.github.com failed (timed out) — check your connection, firewall or proxy.

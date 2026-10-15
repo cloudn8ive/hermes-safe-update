@@ -41,11 +41,11 @@ run on a real Linux kernel (WSL2) in an audit. Nobody has run a real Hermes
 update with it on macOS or Linux; on those systems the code paths are tested
 with fakes only.
 There it prints a warning and, before a command that closes, updates or
-writes something (`run`, `mirror setup`, the settings commands), asks you to
+writes something (`run`, `mirror setup`, `channel set`, the settings commands), asks you to
 confirm once. Your answer (Y, or `--accept-untested`) is remembered in
 `safe-update.json`, so later runs, scheduled ones included, do not ask again;
 `--unattended` needs `--accept-untested` the first time. The look-only
-commands (`--check`, `list-backups`, `migrate-settings --dry-run`) and the
+commands (`--check`, `channel`, `list-backups`, `migrate-settings --dry-run`) and the
 scheduled `mirror refresh` and `mirror status` never ask. Reports from
 testers are welcome.
 
@@ -175,6 +175,7 @@ cd $env:LOCALAPPDATA\Programs\hermes-safe-update
 .\hermes-safe-update.exe --check       # look only: leaves Hermes as it is (may fetch commits, like git fetch)
 .\hermes-safe-update.exe               # update, asking before anything is closed
 .\hermes-safe-update.exe --unattended  # for a scheduled task: never asks
+.\hermes-safe-update.exe channel       # which Hermes update channel (stable or main) this install uses
 ```
 
 On macOS and Linux, in a terminal (the binary is on your `PATH`, see
@@ -184,6 +185,7 @@ On macOS and Linux, in a terminal (the binary is on your `PATH`, see
 hermes-safe-update --check             # look only; never asks the untested-platform question
 hermes-safe-update                     # update; asks once that you accept the untested platform
 hermes-safe-update --unattended --accept-untested   # for cron, launchd or systemd (see FAQ)
+hermes-safe-update channel             # which Hermes update channel this install uses; never asks
 ```
 
 Or double-click the shims (`hermes-update-check.cmd` is the `--check` run;
@@ -224,9 +226,12 @@ and nothing has been changed.
    it says which updater to use and stops (exit 5).
 2. **Pre-flight.** Is another update running? Is there enough free disk
    (5 GB by default)? Is the checkout dirty? Then it asks whether an update
-   exists: a local mirror first if you set one up, then the GitHub API, then
-   `hermes update --check`. It predicts whether Python or Node dependencies
-   will be reinstalled, so the time estimate is closer.
+   exists. On the main channel: a local mirror first if you set one up, then
+   the GitHub API, then `hermes update --check --branch main`. On a release
+   channel (stable): Hermes' own `hermes update --check`, which names the
+   release. It predicts whether Python or Node dependencies will be
+   reinstalled, so the time estimate is closer. Which channel it uses is
+   explained in [Update channel](#update-channel-stable-or-main).
 3. **Look for running processes**: desktop app, gateway, backends, kernels.
 4. **Wait.** If anything is about to be stopped, it reads every profile's
    `state.db` (read-only) for sessions active in the last 3 minutes. While
@@ -236,14 +241,19 @@ and nothing has been changed.
    save its state. Only then is it force-closed, and the log says why it
    probably did not close (an open dialog, for example). Leftover backends
    and kernels are stopped.
-6. **Update.** It runs `hermes update --yes --keep-stash --branch main`
-   with a hard time limit (90 minutes). If Hermes' own gateway pause fails
-   before changing anything, it stops the gateway and retries once.
+6. **Update.** It runs `hermes update --yes --keep-stash` with a hard time
+   limit (90 minutes): with `--branch main` on the main channel, with
+   `--channel stable` when `update.channel` is `stable`, and with no channel
+   flag when it follows a release channel that Hermes chose (Hermes then
+   applies its own). If Hermes' own gateway pause fails before changing
+   anything, it stops the gateway and retries once.
 7. **Verify.** If a gateway was running before the update, it must report
    the new commit and be running (it is started again if it is not). If none
    was running, none is required and none is started. Hermes' own
    desktop-build check must pass. Hermes' known false "fleet
-   version" warning does not turn a good update into a failure.
+   version" warning does not turn a good update into a failure. (Hermes
+   v0.22 reports it as a follow-up with exit code 0; the summary then shows
+   it as a "Not finished" row.)
 8. **Settings.** Back up and migrate the desktop settings if the address
    changed (see above). Hermes is closed at this point.
 9. **Hooks, only after a verified update:** your `post-update` hooks run
@@ -257,11 +267,77 @@ and nothing has been changed.
     sets, refresh the cua-driver if the update asked for it. A failure in
     a hook or here is a warning; it never turns a verified update into a
     failed one.
-12. Print a summary card and exit. After a verified update it also says,
-    in one line each, if `main` moved while the update ran (`Newer`), and why
-    the desktop app was not reopened (`Hermes app`).
+12. Print a summary card and exit. The card has a `Channel` row (which
+    channel the run used and why). After a verified update it also says,
+    in one line each, if `main` moved while the update ran (`Newer`; on a
+    release channel: if a newer release was published), and why the desktop
+    app was not reopened (`Hermes app`).
 
 The stages in more detail: [docs/how-it-works.md](docs/how-it-works.md).
+
+## Update channel (stable or main)
+
+Hermes v0.21.6 and later update from one of two channels:
+
+- **stable**: only published, tested releases. Fewer updates. If you never
+  chose a channel in Hermes, a checkout that is already ahead of the latest
+  release waits for the next one. If you picked stable yourself (or Safe
+  Update's `stable` setting does it over a main record or a fork), the next
+  update moves the checkout back to that release; the rollback guard below
+  asks first.
+- **main**: every change the day it lands. The newest fixes, more risk.
+
+Hermes keeps the choice per install: Settings → About in the desktop app, or
+`hermes update --set-channel`. An install that was never set uses stable
+(Hermes v0.21.7 and later) if the checkout comes from the official GitHub
+repository and main if it comes from a fork or a mirror. A Hermes older than
+v0.21.6 has no channels and always follows main.
+
+**Safe Update follows Hermes' choice by default.** Before v0.3.0 it passed
+`--branch main` on every run, which put a stable user on main without telling
+them. Now `update.channel` in `safe-update.yaml` decides
+([details](docs/configuration.md#update)):
+
+| `update.channel` | What a run does |
+|---|---|
+| `follow` (default) | Reads Hermes' channel (offline, nothing written). On **main**, or on a Hermes without channels, the run is exactly as before: `--branch main`, the mirror and GitHub comparison. On **stable**, Hermes' own `hermes update --check` decides whether a release is waiting. |
+| `stable` | Always the latest release (`--channel stable`). A Hermes without release channels stops in the pre-flight with the reason (exit 4), before anything is closed. |
+| `main` | Always `--branch main`, whatever Hermes is set to. Works on every Hermes version. |
+
+`--channel follow|stable|main` on `run` or `check` overrides it for one run.
+If you use stable in Hermes, Safe Update now stays on stable. If you want
+main whatever Hermes says, set `update.channel: main`.
+
+**Look and switch.** `hermes-safe-update channel` prints the channel Hermes
+uses for this install, what `update.channel` is set to and what the next run
+will do. It needs no network and never asks the untested-platform question.
+`hermes-safe-update channel set stable` (or `main`) switches through Hermes'
+own `hermes update --set-channel`; the desktop's Settings → About switch does
+the same. Safe Update never edits Hermes' configuration itself, and a run
+never changes the channel. A switch updates nothing by itself; the next
+update uses the new channel. If `safe-update.yaml` forces a channel, the
+command says that Safe Update keeps using it. Exit codes: 0 done (or already
+set), 3 you answered no, 4 refused (a Hermes that cannot switch, Hermes
+refused, or a question that cannot be asked), 64 for any other name than
+`stable` or `main`.
+
+**Rollback guard.** On stable, your checkout can be *newer* than the selected
+release (for example after switching from main to stable). Updating would
+then move Hermes **back** to that release, and Hermes does
+not ask. Safe Update stops before it closes anything: an attended run asks
+for an explicit `Y` that names both versions (`--yes` does not skip this
+question; any other key, or no answer, exits 4 with nothing changed). An
+`--unattended` run never rolls back: exit 4, and the message names the
+command to do it by hand. Safe Update does not rely on Hermes' wording for
+this (Hermes v0.21.6 and v0.21.7 call an older release "available"): it asks
+git whether the release commit is an ancestor of the checkout. If that commit
+is not in the checkout, a full clone cannot have it as an ancestor and the
+update goes forward; a shallow clone cannot prove that, so the run asks (or,
+unattended, stops) with a message saying the move back cannot be ruled out.
+`channel set stable` warns the same way, before it
+writes anything; it runs a read-only release check first and asks for a `Y`
+(`--yes` goes ahead; without a terminal it refuses). If that check cannot run
+(offline), it says so and still asks.
 
 ## Safety rules
 
@@ -276,7 +352,8 @@ The stages in more detail: [docs/how-it-works.md](docs/how-it-works.md).
 - Closing is graceful first. Force comes after a timeout, and the tool
   refuses to kill its own process, its parents, or any tree it runs in.
 - `hermes update` runs without `--gateway`, and the checkout's `origin` is
-  never rewritten. Its environment is your own, except that `HERMES_HOME` is
+  never rewritten. A run only reads Hermes' channel; the one command that
+  changes it is the explicit `channel set`, and it asks Hermes to do it. Its environment is your own, except that `HERMES_HOME` is
   removed (for every command the tool starts, and it is not used to find the
   Hermes folder either, on any OS: use `paths.hermes_home`) and
   `PYTHONIOENCODING=utf-8`
@@ -358,6 +435,11 @@ newest 3 are kept (`settings.backup_retention`). Merge rules and revert:
   especially updates that change Node packages, can take longer than the
   estimate says. When the tool has fewer than 3 earlier runs like the current
   one, it adds "(rough: ...)" to the estimate.
+- Hermes v0.22 folds several per-profile gateways into one on its first
+  update. Safe Update verifies only the gateway of the main Hermes home
+  (`gateway_state.json` in the root folder), not one per profile.
+- An MSIX or Store build of the Hermes desktop app that runs next to a source
+  checkout is not closed by Safe Update, so close it yourself before an update.
 
 ## Exit codes
 
@@ -367,7 +449,7 @@ newest 3 are kept (`settings.backup_retention`). Merge rules and revert:
 | 1 | the update ran but needs attention, or an unexpected error |
 | 2 | the `hermes` launcher was not found |
 | 3 | cancelled before anything changed (you, a timeout, idle wait exceeded, the desktop app would not close, untested platform declined) |
-| 4 | pre-flight stop: another update running, low disk, update check failed, or started from inside a Hermes chat |
+| 4 | pre-flight stop: another update running, low disk, update check failed, started from inside a Hermes chat, `update.channel: stable` on a Hermes without release channels, an update that would move Hermes back to an older release (you answered no, or `--unattended`), or `channel set` refused |
 | 5 | not a managed source checkout: nothing changed |
 | 6 | settings command refused because the desktop app is running |
 | 64 | bad command line or invalid configuration |
@@ -571,6 +653,15 @@ unattended update started by a Windows scheduled task has run and verified
   failed (offline?), or the updater was started from inside a Hermes chat
   (run it from a normal terminal or a shortcut; updating would stop the
   process that runs it. `--check` works anywhere).
+- **Exit 4, "would move Hermes back".** Your checkout is newer than the latest
+  stable release. Nothing was changed. Run `hermes-safe-update channel` to see
+  the channel, `channel set main` to follow main, or run
+  `hermes-safe-update run` yourself and answer `Y` to go back on purpose.
+- **Exit 4 (or a question) on a release channel in a shallow clone.** A shallow
+  clone cannot prove that a release is newer than your checkout, so an
+  attended run asks before updating and an unattended run stops. Fix: make the
+  clone full with `git fetch --unshallow` in the Hermes folder, or set
+  `update.channel: main`.
 - **Exit 3 after waiting.** Sessions stayed busy for 30 minutes. Nothing was
   changed. Try again when idle, or raise `tunables.idle_wait_max_s`.
 - **Exit 6.** Close the Hermes desktop app, including any tray icon, and run

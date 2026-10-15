@@ -11,7 +11,7 @@ import (
 var (
 	badRe   = regexp.MustCompile(`(?i)\b(fail|error|dirty|missing|not found|refused|denied|timed out|NOT updated|too little)\b`)
 	calmRe  = regexp.MustCompile(`(?i)\bnone active\b|^0 active|^nothing|^none\b|up to date`)
-	attnRe  = regexp.MustCompile(`(?i)\b(\d+ new commit|will be reinstalled|stale|changed|waiting|still in use|\d+ active\b)`)
+	attnRe  = regexp.MustCompile(`(?i)\b(\d+ new commit|release\b.*\bavailable|will be reinstalled|stale|changed|waiting|still in use|\d+ active\b)`)
 	goodRe  = regexp.MustCompile(`(?i)^(clean|current|unchanged|none|nothing|ok|ready|verified|running the new code|already)|build verified|already points|logon task current|\(enough\)|\bready\b|up to date|√`)
 	tokenRe = regexp.MustCompile(`\b(v\d+\.\d+[\w.+-]*|[0-9a-f]{7,40}|\d{8}_\d{6}_[0-9a-f]{6})\b`)
 )

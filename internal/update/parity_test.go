@@ -13,12 +13,17 @@ import (
 // headRepo is a Repo whose HEAD is fixed.
 type headRepo struct{ head string }
 
-func (r headRepo) Head(context.Context) (string, string, error) { return "", r.head, nil }
-func (headRepo) DirtyCount(context.Context) (int, error)        { return 0, nil }
-func (headRepo) DiffKinds(context.Context) (*bool, *bool)       { return nil, nil }
+func (r headRepo) Head(context.Context) (string, string, error)   { return "", r.head, nil }
+func (headRepo) DirtyCount(context.Context) (int, error)          { return 0, nil }
+func (headRepo) DiffKinds(context.Context, string) (*bool, *bool) { return nil, nil }
+func (headRepo) ResolveRelease(context.Context, string, string) (string, string) {
+	return "", ""
+}
 func (headRepo) CommitCount(context.Context, string, string) (int, bool) {
 	return 0, false
 }
+func (headRepo) IsAncestor(context.Context, string, string) (bool, bool) { return false, false }
+func (headRepo) IsShallow(context.Context) (bool, bool)                  { return false, false }
 
 func TestParityNothingChanged(t *testing.T) {
 	var cases []struct {

@@ -549,6 +549,27 @@ func TestRowsAlignValuesAtColumn20AndColourDots(t *testing.T) {
 	}
 }
 
+// A release that is waiting is amber like new commits on main are; a release
+// that is already installed is calm.
+func TestReleaseRowsAreHighlighted(t *testing.T) {
+	h := newHarness(t, 100, true)
+	h.startUpdate(true)
+	for _, c := range []struct {
+		value string
+		dot   string
+	}{
+		{"release v0.22.1 available, 7 commits (Hermes release check)", "38;5;221"},
+		{"release v0.22.1 available (Hermes release check)", "38;5;221"},
+		{"none, already at release stable v0.22.1 (Hermes release check)", "38;5;78"},
+		{"none, checkout is newer than release stable v0.22.0; waits for the next release (Hermes release check)", "38;5;78"},
+	} {
+		got := rowOut(h, Row{Key: "updates", Value: c.value})
+		if !strings.Contains(got, "\x1b["+c.dot+"m● ") {
+			t.Errorf("%q: dot colour want %s in %q", c.value, c.dot, got)
+		}
+	}
+}
+
 func TestRowVerdictOverrideBeatsRegex(t *testing.T) {
 	h := newHarness(t, 100, true)
 	h.startUpdate(true)

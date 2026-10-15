@@ -1,0 +1,10 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+Using the stable channel (set in Hermes); asking Hermes whether a release is waiting.
+update --check (rc=0): → Update channel: stable | → This checkout is newer than the selected release: stable v0.21.4 (0123456789ab). | `hermes update` moves it back to that release (`hermes update --set-channel main` follows every commit).
+updates: checkout is newer than release stable v0.21.4; updating would move it back (Hermes release check)
+STOP Updating would move Hermes BACK from v0.21.5 to stable v0.21.4. An unattended run never rolls back, so nothing was changed. To do it on purpose, run `hermes-safe-update run` yourself (it asks first) or `hermes update`; to follow main instead, set update.channel: main.
+hermes-safe-update: pre-flight stopped the update; nothing was changed: updating would roll back v0.21.5 to stable v0.21.4

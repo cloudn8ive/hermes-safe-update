@@ -146,6 +146,39 @@ type Facts struct {
 	// state keeps the old "must run" behaviour.
 	GatewayKnown  bool
 	GatewayBefore bool
+
+	// Channel is how this run picked its Hermes update channel and what
+	// Hermes said about it (see ChannelFacts).
+	Channel ChannelFacts
+}
+
+// ChannelFacts records the release-channel side of a run. Filled by the
+// remote stage (Plan, Check) and the update stage (Applied).
+type ChannelFacts struct {
+	// Plan is the decision: configured mode, Hermes capabilities, Hermes' own
+	// channel (Plan.Resolved: record | default | unknown | check), whether
+	// this is a release channel (Plan.Release), the channel acted on
+	// (Plan.Effective, "" if still unknown) and the exact argv of the update
+	// (Plan.UpdateArgv) and of the check. Zero before the remote stage.
+	Plan hermes.Plan
+	// Check is the parsed `hermes update --check` of a release channel
+	// (verdict, release label "stable v0.22.1", version, sha12, reason).
+	// Zero on the main path.
+	Check hermes.ChannelCheck
+	// Applied is what the output of `hermes update` said about the channel and
+	// the release it switched to. Authoritative for the Channel row.
+	Applied hermes.UpdateRelease
+}
+
+// Name is the channel the run acted on, by decreasing authority: the update
+// output, the check line, the plan; "" when none of them knows.
+func (c ChannelFacts) Name() string {
+	for _, s := range []string{c.Applied.Channel, c.Check.Channel, c.Plan.Effective, c.Plan.Resolved.Channel} {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // Run is the state of one invocation shared by its stages.

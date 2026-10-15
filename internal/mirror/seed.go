@@ -79,23 +79,11 @@ func (s *Svc) seed(ctx context.Context, checkout string) SeedResult {
 	no := func(format string, a ...any) SeedResult {
 		return SeedResult{Reason: fmt.Sprintf(format, a...)}
 	}
-	path := s.mirrorPath()
-	if path == "" {
-		if st := s.loadMachine(); st.Mirror != nil && st.Mirror.Path != "" {
-			return no("mirror not found at %s", st.Mirror.Path)
-		}
-		return no("no mirror set up")
+	p, why := s.seedPrep(ctx, checkout)
+	if why != "" {
+		return no("%s", why)
 	}
-	origin, ok := s.cfgGet(ctx, checkout, "remote.origin.url")
-	if !ok || !isOfficial(origin) {
-		return no("checkout origin is not the official repo")
-	}
-	promisor, _ := s.cfgGet(ctx, checkout, "remote.origin.promisor")
-	partial := promisor == "true"
-	filter := ""
-	if partial {
-		filter, _ = s.cfgGet(ctx, checkout, "remote.origin.partialclonefilter")
-	}
+	path, partial := p.path, p.partial
 
 	target, haveTarget := s.APIMainSHA(ctx)
 	have := s.head(ctx, path)
@@ -119,18 +107,13 @@ func (s *Svc) seed(ctx context.Context, checkout string) SeedResult {
 		return no("%s", errNoMainBranch.Error())
 	}
 
-	rw := []string{"-c", "url." + filepath.ToSlash(path) + ".insteadOf=" + origin}
 	run := func(timeout time.Duration, env map[string]string, args ...string) (int, string) {
-		r, err := s.git(ctx, checkout, timeout, env, append(append([]string{}, rw...), args...)...)
-		if err != nil {
-			return 1, err.Error()
-		}
-		return r.Code, r.Output
+		return s.seedGit(ctx, checkout, p, timeout, env, args...)
 	}
 
 	fetchArgs := []string{"fetch", "--no-tags"}
-	if partial && filter != "" {
-		fetchArgs = append(fetchArgs, "--filter="+filter)
+	if partial && p.filter != "" {
+		fetchArgs = append(fetchArgs, "--filter="+p.filter)
 	}
 	fetchArgs = append(fetchArgs, "origin", "+refs/heads/"+Branch+":refs/remotes/origin/"+Branch)
 	rc, out := run(600*time.Second, nil, fetchArgs...)
@@ -163,4 +146,49 @@ func (s *Svc) seed(ctx context.Context, checkout string) SeedResult {
 		}
 	}
 	return out2
+}
+
+// seedSetup is what a seed learns about the mirror and the checkout before
+// it fetches anything.
+type seedSetup struct {
+	path    string   // the mirror
+	origin  string   // the checkout's origin URL (official GitHub)
+	partial bool     // the checkout is a partial clone
+	filter  string   // its partial-clone filter
+	rewrite []string // the one-shot `-c url.<mirror>.insteadOf=<origin>`
+}
+
+// seedPrep checks a seed can run: a mirror exists, the checkout's origin is
+// the official repo (Hermes treats any other origin as a fork, and we never
+// change it). why is the reason when it cannot.
+func (s *Svc) seedPrep(ctx context.Context, checkout string) (p seedSetup, why string) {
+	p.path = s.mirrorPath()
+	if p.path == "" {
+		if st := s.loadMachine(); st.Mirror != nil && st.Mirror.Path != "" {
+			return p, "mirror not found at " + st.Mirror.Path
+		}
+		return p, "no mirror set up"
+	}
+	origin, ok := s.cfgGet(ctx, checkout, "remote.origin.url")
+	if !ok || !isOfficial(origin) {
+		return p, "checkout origin is not the official repo"
+	}
+	p.origin = origin
+	promisor, _ := s.cfgGet(ctx, checkout, "remote.origin.promisor")
+	p.partial = promisor == "true"
+	if p.partial {
+		p.filter, _ = s.cfgGet(ctx, checkout, "remote.origin.partialclonefilter")
+	}
+	p.rewrite = []string{"-c", "url." + filepath.ToSlash(p.path) + ".insteadOf=" + origin}
+	return p, ""
+}
+
+// seedGit runs git in the checkout with the mirror substituted for origin on
+// this call only; it returns the exit code and output.
+func (s *Svc) seedGit(ctx context.Context, checkout string, p seedSetup, timeout time.Duration, env map[string]string, args ...string) (int, string) {
+	r, err := s.git(ctx, checkout, timeout, env, append(append([]string{}, p.rewrite...), args...)...)
+	if err != nil {
+		return 1, err.Error()
+	}
+	return r.Code, r.Output
 }

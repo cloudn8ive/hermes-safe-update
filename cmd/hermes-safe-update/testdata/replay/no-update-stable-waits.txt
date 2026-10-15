@@ -1,0 +1,12 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+Using the stable channel (Hermes' default for this checkout); asking Hermes whether a release is waiting.
+update --check (rc=0): → Update channel: stable | ✓ No newer release: stable v0.22.0; this checkout is newer and waits for the next release (`hermes update --set-channel main` follows every commit).
+updates: none, checkout is newer than release stable v0.22.0; waits for the next release (Hermes release check)
+Nothing to update: this checkout is newer than the latest release (stable v0.22.0) and waits for the next release (use --force to run anyway).
+
+Hermes is up to date
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

@@ -17,6 +17,7 @@ type File struct {
 	Mirror   Mirror   `yaml:"mirror"`
 	Settings Settings `yaml:"settings"`
 	Desktop  Desktop  `yaml:"desktop"`
+	Update   Update   `yaml:"update"`
 	Hooks    []Hook   `yaml:"hooks"`
 	Logging  Logging  `yaml:"logging"`
 }
@@ -167,6 +168,27 @@ const (
 // Desktop configures what happens to the desktop app after the update.
 type Desktop struct {
 	Relaunch string `yaml:"relaunch"` // auto | always | never
+}
+
+// Update channel modes (Update.Channel, --channel). Hermes has two source
+// channels: stable (the latest published GitHub release) and main (every
+// commit). Safe Update never writes Hermes' own channel setting.
+const (
+	// ChannelFollow updates from whatever channel Hermes resolves for this
+	// install (its per-install record, else stable for an official GitHub
+	// checkout and main for a fork). The default.
+	ChannelFollow = "follow"
+	// ChannelStable always updates to the latest release (needs a Hermes
+	// with release channels).
+	ChannelStable = "stable"
+	// ChannelMain always updates to the tip of main (`--branch main`), as
+	// Safe Update did before channels existed.
+	ChannelMain = "main"
+)
+
+// Update configures which Hermes update channel a run follows.
+type Update struct {
+	Channel string `yaml:"channel"` // follow | stable | main
 }
 
 // HookWhen names the point in the flow at which a hook runs.

@@ -98,7 +98,7 @@ func TestParityBusySessions(t *testing.T) {
 			if r.Ended {
 				ended = f.Now - 1
 			}
-			if _, err := db.Exec(`insert into sessions values (?,?,?,?,?)`, r.ID, title, last, ended, src); err != nil {
+			if _, err := db.Exec(`insert into sessions (id, title, last_activity_at, ended_at, source) values (?,?,?,?,?)`, r.ID, title, last, ended, src); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -166,7 +166,7 @@ func TestParityUpdateCheck(t *testing.T) {
 			// manifests (PyFilesPathspecs), the exit code is read the same way.
 			f.On(gitArgv(append([]string{"diff", "--quiet", "HEAD", "origin/main", "--"}, PyFilesPathspecs...)...), execx.Result{Code: *c.DRC})
 			f.On(gitArgv("diff", "--quiet", "HEAD", "origin/main", "--", ":(glob)**/package.json", ":(glob)**/package-lock.json"), execx.Result{Code: *c.NRC})
-			npm, py := newRepo(f).DiffKinds(context.Background())
+			npm, py := newRepo(f).DiffKinds(context.Background(), MainRef)
 			if !eqBoolPtr(npm, c.WantNPM) || !eqBoolPtr(py, c.WantPy) {
 				t.Errorf("case %d drc=%d nrc=%d: npm=%s py=%s, Python npm=%s py=%s", i, *c.DRC, *c.NRC,
 					ptrStr(npm), ptrStr(py), ptrStr(c.WantNPM), ptrStr(c.WantPy))
@@ -269,12 +269,12 @@ func TestParityGateProbe(t *testing.T) {
 func TestParityTriggersAndRegexes(t *testing.T) {
 	var table [][2]string
 	testutil.ParityFixture(t, "triggers_table", &table)
-	// Known difference from Python: Hermes now prints "Resolving Python
-	// dependencies…" before "Installing Python dependencies…"; Go also
-	// triggers the pydeps step on it.
+	// Known differences from Python: Hermes now prints "Resolving Python
+	// dependencies…" before "Installing Python dependencies…" and labels the
+	// web UI build "Building the web UI…"; Go also triggers on both.
 	var goTriggers []Trigger
 	for _, tr := range UpdateTriggers {
-		if tr.Substr != "Resolving Python dependencies…" {
+		if tr.Substr != "Resolving Python dependencies…" && tr.Substr != "Building the web UI…" {
 			goTriggers = append(goTriggers, tr)
 		}
 	}

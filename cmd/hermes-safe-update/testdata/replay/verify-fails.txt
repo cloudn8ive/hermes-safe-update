@@ -43,6 +43,7 @@ post-update cleanup and cua-driver refresh skipped: update not verified
 
 The update needs attention: see RESULT above.
   Version      v0.21.5 → v0.21.6  (3 commits)
+  Channel      main (set in Hermes)
   Time         10:18 until Hermes reopened  (estimate was 7:44)
   Source       GitHub (checked via the API)
   notify       Start tile restored

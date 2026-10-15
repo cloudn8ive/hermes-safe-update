@@ -87,7 +87,7 @@ func TestRepoDiffKindsUsesExitCodesOnly(t *testing.T) {
 			f := &execx.Fake{}
 			f.On(npmArgv, c.npm)
 			f.On(pyArgv, c.py)
-			n, p := newRepo(f).DiffKinds(context.Background())
+			n, p := newRepo(f).DiffKinds(context.Background(), MainRef)
 			eq := func(a, b *bool) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
 			if !eq(n, c.wantN) || !eq(p, c.wantP) {
 				t.Errorf("got %v %v", n, p)
@@ -102,7 +102,7 @@ func TestRepoAlwaysDisablesAutoGC(t *testing.T) {
 	r := newRepo(f)
 	_, _, _ = r.Head(context.Background())
 	_, _ = r.DirtyCount(context.Background())
-	r.DiffKinds(context.Background())
+	r.DiffKinds(context.Background(), MainRef)
 	for _, c := range f.Calls() {
 		if strings.Join(c.Argv[1:6], " ") != `-c gc.auto=0 --no-optional-locks -C C:\ck` {
 			t.Errorf("argv = %v", c.Argv)
@@ -115,7 +115,7 @@ func TestRepoWithoutGit(t *testing.T) {
 	if _, _, err := r.Head(context.Background()); err == nil {
 		t.Error("want error without git")
 	}
-	if n, p := r.DiffKinds(context.Background()); n != nil || p != nil {
+	if n, p := r.DiffKinds(context.Background(), MainRef); n != nil || p != nil {
 		t.Error("want unknown without git")
 	}
 }
@@ -244,7 +244,7 @@ func TestPyFilesPathspecsAgreeWithPattern(t *testing.T) {
 		git("commit", "-q", "-m", "change "+p)
 		git("update-ref", "refs/remotes/origin/main", "HEAD")
 		git("checkout", "-q", "-f", "--detach", base)
-		_, py := repo.DiffKinds(context.Background())
+		_, py := repo.DiffKinds(context.Background(), MainRef)
 		_, want := ClassifyChanged([]string{p}, true)
 		if py == nil || want == nil || *py != *want {
 			t.Errorf("%s: git pathspecs say %s, PyFilesRe says %s", p, ptrStr(py), ptrStr(want))

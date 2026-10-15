@@ -704,3 +704,64 @@ func TestE2EPydepsAfterBuildAndLockedCleanupLine(t *testing.T) {
 		w.noScreen("WinError", "Access is denied", "still in place", "WARN")
 	})
 }
+
+// Hermes v0.22 no longer fails the update on the fleet warning (contract C3):
+// it records a gateway_restart follow-up and exits 0. The verdict stays OK;
+// the follow-up must still show as an amber "Not finished" row.
+func TestE2EV022FleetFollowupIsOKWithNotFinishedRow(t *testing.T) {
+	modes(t, func(t *testing.T, vt bool) {
+		w := newWorld(t)
+		w.vt = vt
+		w.update = append(happyUpdate(),
+			updateLine{0, "⚠ Fleet version check returned no rows even though gateway runtimes were expected — verification incomplete.", nil},
+			updateLine{0, "  ⚠ Update follow-up 'gateway_restart' did not finish: gateways may still run pre-update code or were stopped without a successor; recover with `hermes gateway restart` (the next launch or `hermes update` retries it)", nil})
+		w.con.script(conStep{key: 'y'})
+		w.cli()
+		w.transcript("fleet-followup-v022")
+		w.wantCode(apperr.OK)
+		w.wantScreen("RESULT: OK", "Hermes is updated and verified, but 1 step did not finish.",
+			"Not finished", "Update follow-up 'gateway_restart': gateways may still run pre-update code")
+		w.noScreen("known false fleet warning")
+	})
+}
+
+// The claim written through the real wiring is Hermes' format v2 where this
+// OS can read our creation time in Hermes' clock (Windows), else v1; the ct
+// is our own process's creation time.
+func TestE2EMarkerFormatThroughTheRealWiring(t *testing.T) {
+	w := newWorld(t)
+	var seen string
+	w.update = happyUpdate()
+	w.update[2].do = func(w *e2eWorld) { // while "→ Fetching updates" is running
+		b, _ := os.ReadFile(filepath.Join(w.home, hermes.MarkerFile))
+		seen = string(b)
+	}
+	w.con.script(conStep{key: 'y'})
+	w.cli("--plain")
+	w.wantCode(apperr.OK)
+	lines := strings.Split(strings.TrimSuffix(seen, "\n"), "\n")
+	if len(lines) < 2 || lines[0] != fmt.Sprint(os.Getpid()) {
+		t.Fatalf("marker during the update = %q, want one that names this process", seen)
+	}
+	own, ok := platform.ProcessCreated(os.Getpid())
+	if !ok { // macOS and Linux: v1, nothing to compare
+		if len(lines) != 2 {
+			t.Errorf("marker = %q, want the v1 form where the creation time is unknown", seen)
+		}
+		return
+	}
+	if len(lines) != 3 {
+		t.Fatalf("marker = %q, want the v2 form (pid, started, ct)", seen)
+	}
+	m := hermes.MarkerCreateTimeRe.FindStringSubmatch(lines[2])
+	if m == nil {
+		t.Fatalf("line 3 = %q is not a ct line", lines[2])
+	}
+	var ct float64
+	if _, err := fmt.Sscan(m[1], &ct); err != nil {
+		t.Fatal(err)
+	}
+	if d := ct - float64(own.UnixNano())/1e9; d > 0.001 || d < -0.001 {
+		t.Errorf("ct %v differs from this process's creation time %v by %v s", ct, own, d)
+	}
+}

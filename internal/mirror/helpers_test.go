@@ -139,6 +139,7 @@ type apiServer struct {
 	mu      sync.Mutex
 	Main    string // sha for /commits/main ("" = 500)
 	Compare string // JSON body for /compare/ ("" = 500)
+	Latest  string // JSON body for /releases/latest ("" = 500)
 	Size    int    // KB for /repos/<repo>
 	UA      []string
 	Paths   []string
@@ -159,6 +160,12 @@ func newAPI(t *testing.T) *apiServer {
 				return
 			}
 			_, _ = w.Write([]byte(a.Main + "\n"))
+		case strings.Contains(r.URL.Path, "/releases/latest"):
+			if a.Latest == "" {
+				http.Error(w, "boom", 500)
+				return
+			}
+			_, _ = w.Write([]byte(a.Latest))
 		case strings.Contains(r.URL.Path, "/compare/"):
 			if a.Compare == "" {
 				http.Error(w, "boom", 500)

@@ -45,6 +45,10 @@ import (
 const (
 	e2eOld = "5d41402abc4b2a76b9719d911017c592a1b2c3d4"
 	e2eNew = "7f9c2ba4e88f827d616045507605853e00e1f2a3"
+	// the release v0.22.1 of the stable scenarios, as Hermes prints its commit
+	// (12 digits) and as git knows it
+	e2eReleaseSHA12 = "abcdef012345"
+	e2eRelease      = "abcdef0123456789abcdef0123456789abcdef01"
 
 	pidDesktop  = 4242
 	pidGateway  = 8211
@@ -92,18 +96,47 @@ type e2eWorld struct {
 	newerN      int    // ahead_by when newerMode is "ahead"
 	lsRemoteTip string // `git ls-remote` tip of main ("" = the current HEAD, i.e. main did not move)
 	checkOut    string // `hermes update --check` output when the API is down
-	update      []updateLine
-	updateRC    int
-	updateHang  bool // the update never ends: the 90-min timeout fires
-	verifyOK    bool
-	staleGW     bool     // a restarted gateway still reports the old code
-	probes      []string // successive probe verdicts: "ok" | "blocked"
-	migrateFail string   // "" | "write"
-	failDumpAt  int      // n-th migrator dump fails (0 = never)
-	hookTimeout bool
-	onSleep     func(w *e2eWorld)
-	pace        float64 // >0: replay in real time at this speed (HSU_REPLAY_LIVE)
-	live        io.Writer
+
+	// Release channels (v0.3.0). The default world is a Hermes with channels
+	// whose record for this install says main, so follow resolves to main and
+	// every main-path scenario keeps its exact screens.
+	help       string   // `update --help`: "" = with --channel, "legacy" = a Hermes without release channels, "noset" = channels but no --set-channel
+	version    string   // `hermes --version` version (""= v0.21.5, v0.21.6 after the update)
+	setRC      int      // `update --set-channel` exit code (0 = writes the record and confirms)
+	setOut     string   // its output when setRC != 0
+	record     string   // channel record in the home config.yaml: "main" (default), "none" (no record) or a channel name
+	origin     string   // [remote "origin"] url of the checkout ("" = the official GitHub URL)
+	releaseOut string   // `update --check` output of a release channel (bare or --channel)
+	applyArgv  []string // argv `hermes update` is expected to be started with (nil = the legacy main argv)
+	// The release v0.22.1 (commit e2eRelease) of the stable scenarios: whether
+	// the checkout has it (tag and commit), and what GitHub answers.
+	releaseLocal  bool // the tag / commit is in the checkout already
+	releaseBehind bool // the release commit is an ancestor of HEAD (`merge-base --is-ancestor` says so)
+	shallow       bool // `rev-parse --is-shallow-repository` says true
+
+	// probeBarrier makes `update --help` and `update --install-id` wait for
+	// each other (3 s at most): rvOverlap says whether both were in flight at
+	// the same moment (a call that timed out has left: no credit for it).
+	probeBarrier bool
+	rvInflight   int
+	rvBoth       chan struct{}
+	rvOverlap    bool
+	relCompare   string // compare <old HEAD>...v0.22.1: "" (503) | "ahead"
+	latest       string // releases/latest JSON ("" = 503)
+	latestCmp    string // compare <new HEAD>...<latest tag>: "" (503) | "identical" | "ahead"
+	latestN      int    // ahead_by when latestCmp is "ahead"
+	update       []updateLine
+	updateRC     int
+	updateHang   bool // the update never ends: the 90-min timeout fires
+	verifyOK     bool
+	staleGW      bool     // a restarted gateway still reports the old code
+	probes       []string // successive probe verdicts: "ok" | "blocked"
+	migrateFail  string   // "" | "write"
+	failDumpAt   int      // n-th migrator dump fails (0 = never)
+	hookTimeout  bool
+	onSleep      func(w *e2eWorld)
+	pace         float64 // >0: replay in real time at this speed (HSU_REPLAY_LIVE)
+	live         io.Writer
 
 	mu        sync.Mutex
 	head      string
@@ -112,6 +145,8 @@ type e2eWorld struct {
 	mutations []string
 	hookEnv   []map[string]string
 	dumps     int
+	apiHits   int // requests the fake GitHub API served
+	apiPaths  []string
 	probeN    int
 
 	out, errb bytes.Buffer
@@ -259,6 +294,8 @@ func (w *e2eWorld) exec(q string, args ...any) {
 func (w *e2eWorld) createSessionsDB() {
 	w.exec(`create table sessions (id text primary key, title text, source text,
 		started_at real, last_activity_at real, ended_at real)`)
+	// the busy check also reads each open session's newest message (Hermes' own recency rule)
+	w.exec(`create table messages (id integer primary key autoincrement, session_id text not null, role text, timestamp real not null)`)
 	w.exec(`insert into sessions values ('20260101_000002_cccccc', 'Old finished chat', 'desktop', ?, ?, ?)`,
 		float64(e2eStart.Add(-20*time.Hour).Unix()), float64(e2eStart.Add(-19*time.Hour).Unix()), float64(e2eStart.Add(-19*time.Hour).Unix()))
 }
@@ -281,7 +318,38 @@ func (w *e2eWorld) endSession() {
 // ---- GitHub API (httptest; the real mirror service talks to it) ----
 
 func (w *e2eWorld) serveAPI(rw http.ResponseWriter, r *http.Request) {
-	if strings.HasPrefix(r.URL.Path, "/repos/NousResearch/hermes-agent/compare/"+e2eNew+"...main") {
+	w.mu.Lock()
+	w.apiHits++
+	w.apiPaths = append(w.apiPaths, r.URL.Path)
+	w.mu.Unlock()
+	const compare = "/repos/NousResearch/hermes-agent/compare/"
+	switch {
+	case r.URL.Path == "/repos/NousResearch/hermes-agent/releases/latest":
+		if w.latest == "" {
+			rw.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(rw, w.latest)
+		return
+	case strings.HasPrefix(r.URL.Path, compare+e2eOld+"...v0.22.1"):
+		if w.relCompare != "ahead" {
+			rw.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = io.WriteString(rw, `{"status":"ahead","ahead_by":7,"files":[{"filename":"apps/desktop/package.json"},{"filename":"README.md"}]}`)
+		return
+	case strings.HasPrefix(r.URL.Path, compare+e2eNew+"...v"):
+		switch w.latestCmp {
+		case "identical":
+			_, _ = io.WriteString(rw, `{"status":"identical","ahead_by":0,"files":[]}`)
+		case "ahead":
+			_, _ = io.WriteString(rw, `{"status":"ahead","ahead_by":`+strconv.Itoa(w.latestN)+`,"files":[]}`)
+		default:
+			rw.WriteHeader(http.StatusServiceUnavailable)
+		}
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, compare+e2eNew+"...main") {
 		switch w.newerMode {
 		case "identical":
 			_, _ = io.WriteString(rw, `{"status":"identical","ahead_by":0,"files":[]}`)
@@ -459,12 +527,19 @@ func (w *e2eWorld) Run(ctx context.Context, c execx.Cmd) (execx.Result, error) {
 		return w.hermesCLI(c, rest)
 	case a0 == w.git && slices.Contains(rest, "ls-remote"):
 		return w.lsRemote(c, rest)
+	case a0 == w.git && slices.Contains(rest, "merge-base") && slices.Contains(rest, e2eRelease):
+		// is the release commit an ancestor of HEAD? (the rollback test of a release run)
+		if w.releaseBehind {
+			return execx.Result{}, nil
+		}
+		return execx.Result{Code: 1}, nil
 	case a0 == w.git && slices.Contains(rest, "merge-base"):
 		// the mirror service asks whether a tip it never fetched is ours
 		return execx.Result{Code: 128, Output: "fatal: Not a valid commit name"}, nil
 	case a0 == w.git:
 		return w.gitCmd(c, rest)
-	case a0 == w.python:
+	case a0 == w.python || filepath.Dir(filepath.Dir(a0)) == filepath.Join(w.home, "python"):
+		// the managed Python, or one an update installed (looked up when the GC and probe run)
 		return w.pythonCmd(c, rest)
 	case a0 == w.electron:
 		return w.migrator(c, rest)
@@ -474,17 +549,83 @@ func (w *e2eWorld) Run(ctx context.Context, c execx.Cmd) (execx.Result, error) {
 	return w.unexpected(c)
 }
 
+// rendezvous holds a call until the other probe has started too. It counts
+// the calls waiting right now: a call that gives up after the timeout leaves
+// the count, so probes run one after the other never register as overlapping.
+func (w *e2eWorld) rendezvous() {
+	w.mu.Lock()
+	if w.rvBoth == nil {
+		w.rvBoth = make(chan struct{})
+	}
+	w.rvInflight++
+	if w.rvInflight == 2 {
+		w.rvOverlap = true
+		close(w.rvBoth)
+	}
+	both := w.rvBoth
+	w.mu.Unlock()
+	select {
+	case <-both:
+	case <-time.After(3 * time.Second):
+	}
+	w.mu.Lock()
+	w.rvInflight--
+	w.mu.Unlock()
+}
+
+func (w *e2eWorld) probesOverlapped() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.rvOverlap
+}
+
 func (w *e2eWorld) hermesCLI(c execx.Cmd, rest []string) (execx.Result, error) {
+	if joined := strings.Join(rest, " "); w.probeBarrier && (joined == "update --help" || joined == "update --install-id") {
+		w.rendezvous()
+	}
 	switch strings.Join(rest, " ") {
 	case "--version":
 		v := "v0.21.5" // the launcher reports the new version once the pull moved HEAD
 		if w.Head() == e2eNew {
 			v = "v0.21.6"
 		}
+		if w.version != "" {
+			v = w.version
+		}
 		return execx.Result{Output: "Hermes Agent " + v + " (2026.9.24)\nInstall directory: " + w.checkout + "\nInstall method: git\n"}, nil
-	case "update --check":
+	case "update --help":
+		switch w.help {
+		case "legacy":
+			return execx.Result{Output: helpLegacy}, nil
+		case "noset":
+			return execx.Result{Output: helpNoSet}, nil
+		}
+		return execx.Result{Output: helpChannels}, nil
+	case "update --set-channel stable", "update --set-channel main":
+		// Hermes writes its own record; the test world mirrors that in config.yaml
+		if w.setRC != 0 {
+			return execx.Result{Code: w.setRC, Output: w.setOut}, nil
+		}
+		w.record = rest[2]
+		w.writeChannelFiles()
+		out := "Update channel for " + harnessInstallID + ": " + rest[2] + "\r\n"
+		if rest[2] == "stable" {
+			out += "Switching to an older stable release may not read state written by canary. Back up your data first.\r\n"
+		}
+		return execx.Result{Output: out}, nil
+	case "update --install-id":
+		return execx.Result{Output: harnessInstallID + "\r\n"}, nil
+	case "update --check --branch main":
 		w.advance(75 * time.Second)
 		return execx.Result{Output: w.checkOut}, nil
+	case "update --check", "update --check --channel stable":
+		w.advance(4 * time.Second) // GitHub API calls, no fetch
+		out := w.releaseOut
+		code := 0
+		if strings.Contains(out, "Could not resolve") {
+			code = 1
+		}
+		return execx.Result{Code: code, Output: out}, nil
 	case "gateway stop", "gateway stop --all":
 		w.mutate("gateway stop")
 		w.removeGateways()
@@ -557,6 +698,8 @@ func (w *e2eWorld) gitCmd(c execx.Cmd, rest []string) (execx.Result, error) {
 		return execx.Result{Output: head[:7] + "\n"}, nil
 	case args == "rev-parse HEAD":
 		return execx.Result{Output: head + "\n"}, nil
+	case args == "rev-parse --is-shallow-repository":
+		return execx.Result{Output: fmt.Sprintln(w.shallow)}, nil
 	case strings.HasPrefix(args, "status --porcelain"):
 		return execx.Result{}, nil
 	case args == "rev-list --count "+e2eOld+".."+e2eNew:
@@ -567,6 +710,31 @@ func (w *e2eWorld) gitCmd(c execx.Cmd, rest []string) (execx.Result, error) {
 			return execx.Result{Output: "3\n"}, nil
 		}
 		return execx.Result{Output: strconv.Itoa(w.installed) + "\n"}, nil
+	case args == "rev-list --count "+e2eNew+".."+e2eOld:
+		// the way back: commits only the old HEAD has (0 = the new one descends from it)
+		if w.installed < 0 {
+			return execx.Result{Code: 128, Output: "fatal: bad revision"}, nil
+		}
+		return execx.Result{Output: "0\n"}, nil
+	case args == "rev-parse --verify --quiet refs/tags/v0.22.1^{commit}", args == "rev-parse --verify --quiet "+e2eReleaseSHA12+"^{commit}":
+		// the release, when the checkout already has it
+		if !w.releaseLocal {
+			return execx.Result{Code: 1}, nil
+		}
+		return execx.Result{Output: e2eRelease + "\n"}, nil
+	case strings.HasPrefix(args, "rev-parse --verify --quiet ") && strings.HasSuffix(args, "^{commit}"):
+		// any other release lookup (a rollback names its own release): not in the checkout
+		return execx.Result{Code: 1}, nil
+	case args == "rev-list --count "+e2eRelease+".."+e2eOld:
+		// how far back the release is, when it is an ancestor of HEAD
+		return execx.Result{Output: "12\n"}, nil
+	case args == "rev-list --count "+e2eOld+".."+e2eRelease:
+		return execx.Result{Output: "7\n"}, nil
+	case strings.HasPrefix(args, "diff --quiet HEAD refs/tags/v0.22.1"):
+		if strings.Contains(args, "package") {
+			return execx.Result{Code: 1}, nil // node packages change in the release
+		}
+		return execx.Result{}, nil
 	case strings.HasPrefix(args, "diff --quiet HEAD origin/main"):
 		if strings.Contains(args, "package") {
 			return execx.Result{Code: 1}, nil // node packages changed
@@ -617,7 +785,7 @@ func (w *e2eWorld) hook(c execx.Cmd) (execx.Result, error) {
 
 // Stream is only used for `hermes update`.
 func (w *e2eWorld) Stream(ctx context.Context, c execx.Cmd, onLine func(string)) (execx.Result, error) {
-	want := append([]string{w.launcher}, hermes.UpdateArgv...)
+	want := append([]string{w.launcher}, w.updateArgv()...)
 	if strings.Join(c.Argv, "\x00") != strings.Join(want, "\x00") {
 		w.t.Errorf("replay: unexpected streamed command %q", c.Argv)
 		return execx.Result{Code: execx.CodeNotFound}, nil
@@ -815,6 +983,7 @@ func (w *e2eWorld) environment() *environment {
 func (w *e2eWorld) cli(args ...string) int {
 	w.t.Helper()
 	writeFile(w.t, filepath.Join(w.home, "safe-update.yaml"), w.yaml)
+	w.writeChannelFiles()
 	w.con.terminal = w.vt
 	w.code = run(context.Background(), args, w.environment())
 	if n := w.con.left(); n > 0 {
@@ -933,4 +1102,51 @@ func (w *e2eWorld) store() map[string]map[string]string {
 		w.t.Fatal(err)
 	}
 	return s
+}
+
+// ---- release channels ----
+
+// harnessInstallID is what the fake `hermes update --install-id` prints.
+const harnessInstallID = "0123456789abcdef"
+
+const officialOrigin = "https://github.com/NousResearch/hermes-agent.git"
+
+// helpChannels / helpLegacy are synthetic `hermes update --help` texts.
+const helpChannels = "usage: hermes update [-h] [--yes] [--keep-stash] [--check]\n" +
+	"                     [--branch BRANCH] [--channel CHANNEL]\n" +
+	"                     [--set-channel CHANNEL] [--install-id]\n"
+const helpNoSet = "usage: hermes update [-h] [--yes] [--keep-stash] [--check]\n" +
+	"                     [--branch BRANCH] [--channel CHANNEL] [--install-id]\n"
+const helpLegacy = "usage: hermes update [-h] [--yes] [--keep-stash] [--check]\n" +
+	"                     [--branch BRANCH]\n"
+
+// updateArgv is the argv `hermes update` must be started with.
+func (w *e2eWorld) updateArgv() []string {
+	if w.applyArgv != nil {
+		return w.applyArgv
+	}
+	return hermes.UpdateArgv
+}
+
+// writeChannelFiles lays down what Safe Update reads offline: the home's
+// config.yaml with this install's channel record, and the checkout's origin.
+func (w *e2eWorld) writeChannelFiles() {
+	rec := w.record
+	if rec == "" {
+		rec = "main"
+	}
+	cfg := filepath.Join(w.home, "config.yaml")
+	if rec == "none" {
+		_ = os.Remove(cfg)
+	} else {
+		writeFile(w.t, cfg, "model: synthetic\nupdate:\n  installs:\n    "+harnessInstallID+":\n      path: synthetic\n      channel: "+rec+"\n")
+	}
+	origin := w.origin
+	if origin == "" {
+		origin = officialOrigin
+	}
+	if _, err := os.Stat(filepath.Join(w.checkout, ".git")); err != nil {
+		return // a scenario without a checkout (a packaged install) stays one
+	}
+	writeFile(w.t, filepath.Join(w.checkout, ".git", "config"), "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = "+origin+"\n")
 }

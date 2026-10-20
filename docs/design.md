@@ -109,8 +109,8 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 |---|---|---|---|---|
 | 0 | stepAside | - | install kind != checkout -> advice | `ErrNotCheckout` (5) |
 | 0 | - | - | no launcher and (for `run`/`check`) no launcher-free route either: with `Locator.AllowDirect` the install is located with `LauncherPrefix` (D22) | `ErrLauncherMissing` (2) |
-| 1 | local | Check | in this order, all read-only (D20): elevated token (`checkElevation`: `run` stops unless `--allow-elevated`, `check` warns); marker held by a live pid (v1 or v2: a recorded creation time must match, a live `delegate:` pid counts); Hermes' checkout lock held (`checkCheckoutLock`, `hermes.CheckoutLock` over `platform.LockProbe`); `tools\` entries the token cannot open (`checkACL`, `hermes.ACLChecker` over `platform.Access`; `preflight.acl_check`); free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
-| 2 | remote | Check | main: mirror -> GitHub API -> `hermes update --check --branch main`; npm/pydeps prediction against `origin/main`. Release channel: Hermes' own `--check` is the verdict; for an available release the target is the release commit, never main: `Mirror.SeedRelease` puts the tag into the checkout (mirror refreshed first if it lacks the tag), then git (`ResolveRelease`: the tag if local and at the commit Hermes named, else the commit by its 12-digit prefix, ambiguity = unknown) or `compare/<HEAD>...<tag>` gives the commit count and the npm/pydeps change; nothing resolvable = unknown, never a guess. Last, `checkARM64` (D20): `win32-arm64` managed Python + update coming + pydeps true or unknown -> `hermes.ARM64Tools` (PATH, `Program Files\LLVM\bin`, VS LLVM dirs, vswhere); `preflight.arm64_toolchain` | up to date: exit 0; check failed: 4; ARM64 tools missing with `arm64_toolchain: stop`: 4 |
+| 1 | local | Check | in this order, all read-only (D20): elevated token (`checkElevation`: `run` stops unless `--allow-elevated`, `check` warns); marker held by a live pid (v1 or v2: a recorded creation time must match, a live `delegate:` pid counts); Hermes' checkout lock held (`checkCheckoutLock`, `hermes.CheckoutLock` over `platform.LockProbe`); did the last update finish (`findUnfinished`, 3.2: a `last update` row, never a stop; it runs after the marker and lock stops on purpose, see 3.2); `tools\` entries the token cannot open (`checkACL`, `hermes.ACLChecker` over `platform.Access`; `preflight.acl_check`); free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
+| 2 | remote | Check | main: mirror -> GitHub API -> `hermes update --check --branch main`; npm/pydeps prediction against `origin/main`. Release channel: Hermes' own `--check` is the verdict; for an available release the target is the release commit, never main: `Mirror.SeedRelease` puts the tag into the checkout (mirror refreshed first if it lacks the tag), then git (`ResolveRelease`: the tag if local and at the commit Hermes named, else the commit by its 12-digit prefix, ambiguity = unknown) or `compare/<HEAD>...<tag>` gives the commit count and the npm/pydeps change; nothing resolvable = unknown, never a guess. Last, `checkARM64For` (D20): `win32-arm64` managed Python + update coming (new commits, or a run that goes on without them, finishing or repair: the dependency step runs whatever the commit check said) + pydeps true or unknown -> `hermes.ARM64Tools` (PATH, `Program Files\LLVM\bin`, VS LLVM dirs, vswhere); `preflight.arm64_toolchain`; decided once per run when the run goes ahead; the R question only looks (a side-effect-free probe, kept for the run): `stop` mode with the tools missing makes no R offer ("A repair is not offered: ...", exit 0), `warn` mode prints nothing until the R is pressed | up to date and nothing unfinished: exit 0 (an interactive run first offers R, 3.2); check failed: 4; ARM64 tools missing with `arm64_toolchain: stop` on a run that goes ahead (new commits, finishing, `repair`, or R): 4; with nothing to do the tools are not a stop (the R offer is withheld instead) |
 | 3 | procs | Check | process classes (desktop/gateway/backend/kernel); Windows pause-gate probe | - |
 | 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s` (`waitForIdle`); then Y confirm unless `--yes`/`--unattended`, `confirm_timeout_s` (600). A Y that came more than `confirmRecheckAfter` (60 s) after the prompt, and not after F, re-reads the busy sessions (`busySessions`; unreadable = busy); busy -> back to `waitForIdle` with a fresh idle budget, then the prompt again. Last, in every mode (F, `--yes`, `--unattended` included): `recheckLockBeforeClose` probes the checkout lock again when `Run.lockProbedAt` is more than `lockRecheckAfter` (60 s) old; held -> exit 4, nothing closed | `ErrCancelled` (3) |
 | 5 | close | Close Hermes | pre-close hooks; graceful close; force after `graceful_close_s` with blocker diagnosis; leftover backends/kernels; **claim the marker only now** (Hermes' format v2 with our creation time where it is readable in Hermes' clock, i.e. Windows; else v1) | `ErrCancelled` (3) if the app will not exit |
@@ -178,6 +178,95 @@ mirror / gc / cua / settings services ─────┘        ├─> ui.Rende
                                                     └─> timings history, machine state (atomic)
 ```
 
+### 3.2 An update that did not finish, and repair (v0.5.0)
+
+Hermes' own `hermes update` with no new commit still owes work
+(`_finish_already_up_to_date` -> `_complete_source_update`, `update_cmd.py`
+~1730 / ~779 -> `run_completion` -> `source_completion.py`): stash restore,
+the dependency sync of the completion child, launchers, the product builds
+(TUI, web, and the desktop app only when its install stamp does not name HEAD
+or an input changed: `source_build.py` ~208, `main_desktop.py`
+`_packaged_desktop_current_for_head`), post-update maintenance and the fleet
+restart. It does not fetch or pull. So Safe Update finishes an update by
+running the same `hermes update` argv; it adds no rebuild step.
+
+- **Detection** (pre-flight, read-only, never fatal; an unreadable signal is
+  "unknown", logged, and changes nothing). Any one signal is enough, all are
+  kept: (a) Hermes' newest update receipt: the newest by start time of the
+  last 20 `update_*.json` files in `logs/update_receipts/` of the ROOT Hermes
+  home (`hermes.RootHome`: Hermes writes the run files there whatever profile
+  it runs in, so a profile home `<root>/profiles/<name>` reads its root's
+  folder; names in `hermes/contracts.go`, `hermes.ReceiptReader`). `latest.json` is not used
+  unless no such file exists: Hermes' plugin manager overwrites it with its
+  `pm_*` sync and plugin-check receipts every time Hermes starts. Outcome
+  `running` whose owner (pid and creation time, Hermes' `_owner_alive`) is
+  gone, or `interrupted`; a live owner is an update running now, which the
+  marker/lock checks handle; no receipt dir = older Hermes, no signal. (b)
+  Safe Update's own log tail (512 KB, plus the end of `safe-update.log.1` when
+  the current file holds no earlier run): the newest earlier run that logged
+  `== Running: hermes update` and has no `==== done`; a run that only reached
+  the pre-flight, finished, or is alive does not count (`readLog`). A run is
+  alive only while a process with its pid exists AND was created no later than
+  its `started` line; this process's own pid is never an earlier run; a
+  creation time that cannot be read proves nothing (the run counts as gone).
+  Overlapping Safe Update processes (a `check` beside an update) interleave
+  their lines in one file; the worst case is a missed signal, never an
+  invented one. (c) a stale marker. A receipt older than a later run of Safe
+  Update that reached `hermes update` is not counted (that run has run over
+  it). The own-log signal is dropped when a receipt of an update that ran to
+  its end (success or partial; a failed update is unfinished work itself and
+  does not count) began after that run got to `hermes update`: the user
+  finished it by hand, as Hermes tells them to
+  (`ReceiptReader.NewestFinished`; a stale marker still counts). The pre-flight
+  order matters: the marker and lock stops run before `findUnfinished`, which
+  counts a log run whose process creation time is unknown as gone, so an
+  update that is still running has already stopped the run by then. One structured line `previous update did not finish` (signals, at,
+  stage) is logged. Both signals word the stage with the same plain step names
+  (a receipt only knows "the builds", not which build); each known step has its
+  own phrase (`stepPhrases`, "pulling the new code"), not its label.
+- **Flow**: no new commits + unfinished = no "up to date" ending; the run goes
+  on through close/update/verify and the close prompt names it. New commits +
+  unfinished = a normal run and one added sentence. `--unattended`/`--yes`
+  finish without asking, but only once per unfinished update: a run that
+  closes Hermes to finish it logs `finishing the previous update` with the
+  update's keys (receipt id / log run start), and a later run that finds the
+  same keys already tried does not go on unasked (an interactive run still
+  asks, and says the earlier attempt failed). If the own log cannot be read, whether an earlier run already tried is
+  unknown and a run that asks nobody does not go on (it fails toward not
+  closing Hermes). A run that asks nobody and does not go on, because an
+  earlier attempt failed or the log is unreadable, ends with a card "The last
+  update did not finish, and it was not retried: nothing was changed", naming
+  the reason (`Not retried` row), logged with WARN (it must survive
+  `logging.level` warn and error) and ending exit 1 (`apperr.ErrNotRetried`:
+  nothing failed in the run, but the work is still owed, so a scheduled task
+  shows "needs attention"), not "Hermes is up to date". Once a run reached `hermes update`, the supersede rule retires the
+  signal, so the run after that says plain "up to date". A run with an
+  unfinished update (with or without new commits) whose `hermes update` fails
+  counts as torn: HEAD may not move, so it proves nothing, and no gateway is
+  started on the tree the crash left (`gatewayStartAllowed`: `Previous != nil`;
+  a plain repair has no `Previous`, and keeps the rule "HEAD unchanged = old code
+  whole"). `check` shows the `last update` pre-flight row and the `Last
+  update` summary row (pre-flight rows are lower case, summary-card rows are
+  capitalised) and closes nothing. When the desktop app does not verify
+  after a finishing or repair run, one summary row names `hermes desktop
+  --force-build` (never run).
+- **Repair**: `hermes-safe-update repair` goes ahead without new commits (the
+  normal Y prompt, repair wording). On the up-to-date screen of an interactive
+  `run` (not `--unattended`, `--yes`, `--force`, `check`; stdout and stdin must
+  both be a console; not when the run already knows it would stop: low disk, inside a Hermes chat
+  by environment or by process ancestor, or missing ARM64 build tools with
+  `arm64_toolchain: stop`, which is decided first) one
+  `confirm_timeout_s` window offers R; R continues as if confirmed (no second
+  Y; busy-session wait, lock re-check and pre-flight stops still apply), any
+  other key or the timeout exits 0 with today's card.
+- **Accepting a no-commit run**: HEAD unchanged is correct (the Version row
+  says so, no "0 commits installed"); the steps that cannot happen (`fetch`,
+  `pull`, `finalize`, `restart` in `noCommitSkips`) are skipped in the
+  estimate and the footer; the history record says `commits: 0` and does not
+  teach the update steps (`timings.noNewCommits`, pre-flight steps still
+  learn). The seconds spent answering a question are taken out of the running
+  step (`Estimator.ExcuseWaits`, driven by the renderers' `Waiting`).
+
 ## 4. Files
 
 | Path (under the Hermes home unless noted) | Owner | Format |
@@ -216,7 +305,7 @@ Errors are wrapped with `%w`; callers use `errors.Is/As`. One function,
 | Code | Meaning |
 |---|---|
 | 0 | done: update verified, check finished, or already up to date |
-| 1 | the update ran but needs attention (RESULT PROBLEM), or an unexpected error. A `hermes update` exit 1 that is only Hermes' own unconfirmed gateway relaunch is OK, not 1 (D21) |
+| 1 | the update ran but needs attention (RESULT PROBLEM), a run that asks nobody and left an unfinished update alone (card: "was not retried", 3.2), or an unexpected error. A `hermes update` exit 1 that is only Hermes' own unconfirmed gateway relaunch is OK, not 1 (D21) |
 | 2 | no way to run Hermes was found: no launcher, and (`run`, `check`) Hermes cannot be run through its managed Python either (D22) |
 | 3 | cancelled before anything changed (user, timeout, idle wait exceeded, app would not exit, untested platform declined, Ctrl+C) |
 | 4 | pre-flight stop: another update holds the marker or Hermes' checkout lock, running elevated (`--allow-elevated` overrides), `tools\` entries the account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed (D1); `update.channel: stable` on a Hermes without channels, or a release check that cannot resolve or read (D19); the rollback guard said no (D19); `channel set` refused or failed |

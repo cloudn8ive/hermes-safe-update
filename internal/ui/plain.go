@@ -180,7 +180,13 @@ func (p *Plain) printUnlessDone(ctx context.Context, s string) {
 
 func (p *Plain) Command(argv string) { p.println("command: " + argv) }
 
-func (p *Plain) Waiting(string, time.Time, string) {}
+func (p *Plain) Waiting(label string, _ time.Time, _ string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.est != nil {
+		p.est.SetWaiting(label != "") // the same as the VT footer does
+	}
+}
 
 func (p *Plain) Prompt(ctx context.Context, spec PromptSpec) (Answer, error) {
 	p.println(spec.Text)

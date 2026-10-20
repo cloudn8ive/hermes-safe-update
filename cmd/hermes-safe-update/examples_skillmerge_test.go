@@ -62,12 +62,27 @@ func runSkillMergeScript(t *testing.T, py, dir string, env []string, args ...str
 }
 
 // A stand-in for the part of Hermes' tools/skills_sync.py the script imports
-// (its private hash and discovery helpers). Synthetic: the hash is a plain
-// sha256 over the files. Two environment switches let a test observe or
-// break it: FAKE_RECORD_HOME names a file that receives the HERMES_HOME the
-// script had set when the core was imported, FAKE_HASH_FAIL makes hashing a
-// path that contains the given text fail like a full disk would.
-const fakeSkillsSync = `import hashlib
+// (its hash and discovery helpers). Synthetic: the hash is a plain sha256 over
+// the files. Two environment switches let a test observe or break it:
+// FAKE_RECORD_HOME names a file that receives the HERMES_HOME the script had
+// set when the core was imported, FAKE_HASH_FAIL makes hashing a path that
+// contains the given text fail like a full disk would.
+//
+// The helpers' names are a parameter: older Hermes has them all private
+// (_dir_hash, ...), Hermes from 2026-10-18 on has dir_hash public with no alias.
+type fakeCoreNames struct{ dirHash, matches, runtimeCache, discover, bundledDir string }
+
+var (
+	oldHermesNames = fakeCoreNames{"_dir_hash", "_matches_origin_hash", "_is_runtime_cache", "_discover_bundled_skills", "_get_bundled_dir"}
+	newHermesNames = fakeCoreNames{"dir_hash", "_matches_origin_hash", "_is_runtime_cache", "_discover_bundled_skills", "_get_bundled_dir"}
+)
+
+func fakeSkillsSyncWith(n fakeCoreNames) string {
+	return strings.NewReplacer("@HASH@", n.dirHash, "@MATCHES@", n.matches, "@CACHE@", n.runtimeCache,
+		"@DISCOVER@", n.discover, "@BUNDLED@", n.bundledDir).Replace(fakeSkillsSyncTemplate)
+}
+
+const fakeSkillsSyncTemplate = `import hashlib
 import os
 from pathlib import Path
 
@@ -75,31 +90,31 @@ if os.environ.get("FAKE_RECORD_HOME"):
     Path(os.environ["FAKE_RECORD_HOME"]).write_text(os.environ.get("HERMES_HOME", ""), encoding="utf-8")
 
 
-def _is_runtime_cache(p, root):
+def @CACHE@(p, root):
     return "__pycache__" in p.relative_to(root).parts
 
 
-def _dir_hash(d):
+def @HASH@(d):
     d = Path(d)
     fail = os.environ.get("FAKE_HASH_FAIL")
     if fail and fail in str(d):
         raise OSError("simulated disk failure")
     h = hashlib.sha256()
     for p in sorted(d.rglob("*")):
-        if p.is_file() and not _is_runtime_cache(p, d):
+        if p.is_file() and not @CACHE@(p, d):
             h.update(p.relative_to(d).as_posix().encode() + b"\0" + p.read_bytes() + b"\0")
     return h.hexdigest()
 
 
-def _matches_origin_hash(dest, origin, user_hash):
+def @MATCHES@(dest, origin, user_hash):
     return user_hash == origin
 
 
-def _discover_bundled_skills(b):
+def @DISCOVER@(b):
     return [(p.parent.name, p.parent) for p in sorted(Path(b).rglob("SKILL.md"))]
 
 
-def _get_bundled_dir():
+def @BUNDLED@():
     return Path(os.environ["FAKE_BUNDLED"])
 `
 
@@ -176,7 +191,7 @@ func newSkillMergeWorld(t *testing.T, mine, upstream string) skillMergeWorld {
 	w := skillMergeWorld{home: filepath.Join(root, "home"), checkout: filepath.Join(root, "checkout"),
 		bundled: filepath.Join(root, "bundled")}
 	smWrite(t, filepath.Join(w.checkout, "tools", "__init__.py"), "")
-	smWrite(t, filepath.Join(w.checkout, "tools", "skills_sync.py"), fakeSkillsSync)
+	smWrite(t, filepath.Join(w.checkout, "tools", "skills_sync.py"), fakeSkillsSyncWith(oldHermesNames))
 	smWrite(t, filepath.Join(w.bundled, "alpha", "SKILL.md"), upstream)
 	smWrite(t, filepath.Join(w.home, "skills", "alpha", "SKILL.md"), mine)
 	snap := filepath.Join(w.home, ".bundled-merge-base", "alpha")
@@ -387,5 +402,67 @@ func TestSkillMergeSetsHermesHomeToTheResolvedHome(t *testing.T) {
 	b, errB := os.Stat(w.home)
 	if errA != nil || errB != nil || !os.SameFile(a, b) {
 		t.Errorf("Hermes' core saw HERMES_HOME=%q, want the home %q (the shell had %q)", seen, w.home, other)
+	}
+}
+
+// Hermes made its hash helper public (_dir_hash became dir_hash, no alias) and
+// may do the same to the other helpers: the script takes each helper by its
+// public name or the older private one, so the same example merges on a
+// Hermes from before and after the rename.
+func TestSkillMergeWorksWithEitherNameOfHermesHelpers(t *testing.T) {
+	py := skillMergePython(t)
+	allPublic := fakeCoreNames{"dir_hash", "matches_origin_hash", "is_runtime_cache", "discover_bundled_skills", "get_bundled_dir"}
+	for _, c := range []struct {
+		name string
+		core string
+	}{
+		{"old Hermes, only _dir_hash", fakeSkillsSyncWith(oldHermesNames)},
+		{"new Hermes, only dir_hash", fakeSkillsSyncWith(newHermesNames)},
+		{"every helper public", fakeSkillsSyncWith(allPublic)},
+		// both names present: the public one is used (a stale private name must not win)
+		{"both names, the public one wins", fakeSkillsSyncWith(newHermesNames) + "\n\ndef _dir_hash(d):\n    return 'stale'\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newSkillMergeWorld(t, smMine, smUpstream)
+			smWrite(t, filepath.Join(w.checkout, "tools", "skills_sync.py"), c.core)
+			out, code := w.run(t, py, nil, "merge")
+			if code != 0 || !strings.Contains(out, "alpha: merged") {
+				t.Fatalf("merge: exit %d, output %q", code, out)
+			}
+			if got := smRead(t, filepath.Join(w.home, "skills", "alpha", "SKILL.md")); !strings.Contains(got, "line 2 (mine)") || !strings.Contains(got, "line 6 (upstream)") {
+				t.Errorf("merged skill lacks one of the edits:\n%s", got)
+			}
+		})
+	}
+}
+
+// A Hermes that has neither name of a helper: the script stops with a clear
+// line naming both candidates, exit 1, and changes nothing.
+func TestSkillMergeStopsClearlyWhenAHermesHelperHasNoKnownName(t *testing.T) {
+	py := skillMergePython(t)
+	for _, c := range []struct {
+		name  string
+		names fakeCoreNames
+		want  string
+	}{
+		{"the hash helper", fakeCoreNames{"hash_of_dir", "_matches_origin_hash", "_is_runtime_cache", "_discover_bundled_skills", "_get_bundled_dir"},
+			"bundled skills: skipped - this Hermes version no longer has tools.skills_sync.dir_hash or tools.skills_sync._dir_hash; this example needs an update"},
+		{"two helpers", fakeCoreNames{"dir_hash", "_matches_origin_hash", "_is_runtime_cache", "find_skills", "_get_bundled_dir"},
+			"tools.skills_sync.discover_bundled_skills or tools.skills_sync._discover_bundled_skills; this example needs an update"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			w := newSkillMergeWorld(t, smMine, smUpstream)
+			smWrite(t, filepath.Join(w.checkout, "tools", "skills_sync.py"), fakeSkillsSyncWith(c.names))
+			out, code := w.run(t, py, nil, "merge")
+			if code != 1 || !strings.Contains(out, c.want) || strings.Contains(out, "Traceback") {
+				t.Errorf("exit %d, output %q, want it to contain %q", code, out, c.want)
+			}
+			if got := smRead(t, filepath.Join(w.home, "skills", "alpha", "SKILL.md")); got != smMine {
+				t.Errorf("the skill changed: %q", got)
+			}
+			if b := w.backups(t); len(b) != 0 {
+				t.Errorf("backups were created: %v", b)
+			}
+		})
 	}
 }

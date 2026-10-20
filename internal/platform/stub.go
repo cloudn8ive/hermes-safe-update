@@ -36,6 +36,8 @@ func (Stub) CloseBlocker(int) string                         { return "" }
 func (Stub) Launch(context.Context, string, []string) error  { return ErrNotImplemented }
 func (Stub) CanLaunch(string) (bool, string)                 { return false, "not implemented" }
 func (Stub) IsTerminal() bool                                { return false }
+func (Stub) InputIsTerminal() bool                           { return false }
+func (Stub) DrainInput()                                     {}
 func (Stub) EnableVT() (func(), error)                       { return func() {}, ErrNotImplemented }
 func (Stub) Size() (int, int, bool)                          { return 0, 0, false }
 func (Stub) SetTitle(string) error                           { return nil }

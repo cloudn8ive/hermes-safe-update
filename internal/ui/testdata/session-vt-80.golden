@@ -37,7 +37,8 @@
    <ESC>[38;2;95;175;255m██<ESC>[0m<ESC>[38;5;236m██████████████<ESC>[0m<ESC>[1m   12%<ESC>[0m<ESC>[38;5;250m   0:41 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[0m<ESC>[K
   <ESC>[38;5;80;1m ► <ESC>[0m<ESC>[1mLooking for running Hermes processes<ESC>[0m  0:00                 <ESC>[38;5;250m step 3 of 19<ESC>[0m<ESC>[K
    <ESC>[38;5;80;1m► Check<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;245m○ Close Hermes<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;245m○ Update<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;245m○ Build<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;245m○ Finish<ESC>[0m <ESC>[38;5;250m stage 1 of 5<ESC>[0m<ESC>[K<CR><ESC>[4A<ESC>[J     <ESC>[38;5;221m● <ESC>[0m<ESC>[38;5;110msessions       <ESC>[0m<ESC>[1m2<ESC>[0m active
-                      <ESC>[38;5;240m· <ESC>[0m<ESC>[38;5;183m20260101_000000_aaaaaa<ESC>[0m<ESC>[38;5;250m  Drafting the weekly project summary<ESC>[0m
+                      <ESC>[38;5;240m· <ESC>[0m<ESC>[38;5;183m20260101_000000_aaaaaa<ESC>[0m<ESC>[38;5;250m  Drafting the weekly project<ESC>[0m
+                        <ESC>[38;5;250msummary<ESC>[0m
                       <ESC>[38;5;240m· <ESC>[0m<ESC>[38;5;183m20260101_000001_bbbbbb<ESC>[0m<ESC>[38;5;250m  Fix the nightly build<ESC>[0m
 <ESC>[?25l  <ESC>[K
    <ESC>[38;5;240m── <ESC>[0m<ESC>[38;5;245mHermes Safe Update<ESC>[0m <ESC>[38;5;240m────────────────────────────────────<ESC>[0m<ESC>[38;5;245m started 9:00 AM<ESC>[0m<ESC>[K
@@ -168,7 +169,8 @@
   <ESC>[38;5;78;1m √ <ESC>[0mFinished<ESC>[K
    <ESC>[38;5;78m√ Check<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;78m√ Close Hermes<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;78m√ Update<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;78m√ Build<ESC>[0m<ESC>[38;5;240m ── <ESC>[0m<ESC>[38;5;78m√ Finish<ESC>[0m <ESC>[38;5;250m all stages d<ESC>[0m<ESC>[K<CR><ESC>[4A<ESC>[J  
      <ESC>[38;5;78;1m√ Hermes is updated and verified.<ESC>[0m
-     <ESC>[38;5;242m● <ESC>[0m<ESC>[38;5;110mVersion        <ESC>[0m<ESC>[38;5;183mv0.21.5+4156.g34e09bf<ESC>[0m → <ESC>[38;5;183mv0.21.5+4160.g1b8569f<ESC>[0m  (<ESC>[1m3<ESC>[0m commits)
+     <ESC>[38;5;242m● <ESC>[0m<ESC>[38;5;110mVersion        <ESC>[0m<ESC>[38;5;183mv0.21.5+4156.g34e09bf<ESC>[0m → <ESC>[38;5;183mv0.21.5+4160.g1b8569f<ESC>[0m  (<ESC>[1m3<ESC>[0m
+                      commits)
      <ESC>[38;5;242m● <ESC>[0m<ESC>[38;5;110mTime           <ESC>[0m<ESC>[1m5<ESC>[0m:<ESC>[1m19<ESC>[0m until Hermes reopened  (estimate was <ESC>[1m6<ESC>[0m:<ESC>[1m26<ESC>[0m)
      <ESC>[38;5;242m● <ESC>[0m<ESC>[38;5;110mSource         <ESC>[0mlocal mirror, refreshed <ESC>[1m10 min<ESC>[0m ago
      <ESC>[38;5;242m● <ESC>[0m<ESC>[38;5;110mWarnings       <ESC>[0m<ESC>[1m1<ESC>[0m (see above)

@@ -48,6 +48,28 @@ func TestPlainPromptAcceptsOnlyListedKeys(t *testing.T) {
 	}
 }
 
+// AnyKey: a prompt whose text says "any other key" ends on every key,
+// including the ones a listed-keys prompt ignores (arrows, Tab, punctuation).
+func TestPlainPromptAnyKeyEndsOnEveryKey(t *testing.T) {
+	for name, k := range map[string]platform.Key{
+		"arrow": {Other: true}, "tab": {Rune: '\t'}, "punctuation": {Rune: '.'}, "letter": {Rune: 'x'}, "listed": {Rune: 'r'},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			r := NewPlain(&buf, &platform.FakeConsole{Keys: []platform.Key{k}})
+			a, err := r.Prompt(context.Background(), PromptSpec{Text: "Press R", Keys: []rune{'r'}, Timeout: time.Second, AnyKey: true})
+			if err != nil || a.TimedOut || a.Abort || a.Key != k.Rune {
+				t.Errorf("answer = %+v err %v, want the key %q", a, err, k.Rune)
+			}
+		})
+	}
+	// Ctrl+C still follows AbortOnCtrlC
+	r := NewPlain(&bytes.Buffer{}, &platform.FakeConsole{Keys: []platform.Key{{CtrlC: true}}})
+	if a, err := r.Prompt(context.Background(), PromptSpec{Text: "x", Keys: []rune{'r'}, Timeout: time.Second, AnyKey: true, AbortOnCtrlC: true}); err != nil || !a.Abort {
+		t.Errorf("ctrl+c: %+v %v", a, err)
+	}
+}
+
 func TestPlainPromptTimeoutAndCtrlC(t *testing.T) {
 	var buf bytes.Buffer
 	r := NewPlain(&buf, &platform.FakeConsole{})

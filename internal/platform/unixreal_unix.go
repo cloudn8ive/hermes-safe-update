@@ -155,6 +155,15 @@ func (c *unixConsole) IsTerminal() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
+// InputIsTerminal reports whether stdin is a terminal. Untested on a real
+// macOS or Linux machine.
+func (*unixConsole) InputIsTerminal() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+
+// DrainInput does nothing on macOS and Linux: ReadKey puts the terminal in
+// cbreak mode only while it waits, and the tool has no console-buffer flush
+// there. Untested on a real macOS or Linux machine.
+func (*unixConsole) DrainInput() {}
+
 // EnableVT needs no mode change (macOS and Linux terminals parse VT
 // natively); it saves the current title once, on a terminal, and returns
 // the func that restores it. Repeated calls return a no-op. Untested on a

@@ -47,7 +47,11 @@ type environment struct {
 	sleep   func(ctx context.Context, d time.Duration) error // replaces real waits in the flow
 	apiBase string                                           // GitHub API base URL (main: real; tests: httptest; empty: none)
 	newUI   func(cfg *config.Config, w io.Writer) ui.Renderer
-	selfPID int    // pid placed in the fake process table (0 = os.Getpid())
+	selfPID int // pid placed in the fake process table (0 = os.Getpid())
+	// created reads a process's creation time (nil = platform.ProcessCreated). A
+	// test that runs on fake pids must set it: the real lookup would open a real
+	// process that happens to have the number.
+	created func(pid int) (time.Time, bool)
 	ver     string // tool version to show (tests pin it; "" = resolveVersion of the build)
 }
 
@@ -58,6 +62,15 @@ func (env *environment) toolVersion() string {
 		return env.ver
 	}
 	return resolveVersion(version, readBuildInfo)
+}
+
+// processCreated is the creation-time lookup of the run (the real one unless a
+// test injects one).
+func (env *environment) processCreated() func(int) (time.Time, bool) {
+	if env.created != nil {
+		return env.created
+	}
+	return platform.ProcessCreated
 }
 
 // now is the clock of the run (the real one unless a test injects one).
@@ -133,8 +146,9 @@ func run(ctx context.Context, args []string, env *environment) int {
 var commands = map[string]func(ctx context.Context, o options, cfg *config.Config, env *environment, log *slog.Logger) error{}
 
 func init() {
-	commands["run"] = runFlow(update.ModeUpdate)
-	commands["check"] = runFlow(update.ModeCheck)
+	commands["run"] = runFlow(update.ModeUpdate, false)
+	commands["repair"] = runFlow(update.ModeUpdate, true)
+	commands["check"] = runFlow(update.ModeCheck, false)
 	commands["mirror setup"] = mirrorSetup
 	commands["mirror refresh"] = mirrorRefresh
 	commands["mirror status"] = mirrorStatus

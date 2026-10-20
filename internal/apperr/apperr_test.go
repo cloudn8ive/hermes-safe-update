@@ -18,6 +18,7 @@ func TestExitCodeTable(t *testing.T) {
 		{"nil", nil, OK},
 		{"generic", errors.New("x"), Failure},
 		{"update problem", fmt.Errorf("verify: %w", ErrUpdateProblem), Failure},
+		{"unfinished update not retried", fmt.Errorf("%w: why", ErrNotRetried), Failure},
 		{"usage", fmt.Errorf("flag: %w", ErrUsage), Usage},
 		{"bad config", fmt.Errorf("load: %w", config.ErrInvalid), Usage},
 		{"cancelled", fmt.Errorf("wait: %w", ErrCancelled), Cancelled},

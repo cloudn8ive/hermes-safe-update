@@ -4,6 +4,131 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-20
+
+### Changed
+
+- **Upgrade note: two runs that used to end at once can now go further.**
+  An interactive run that finds Hermes up to date no longer exits straight
+  away when your output and your keyboard are both a real console: it shows
+  one window of up to 10 minutes (`--delay N` and `tunables.confirm_timeout_s`
+  set it) that offers `R` to repair (see Added). Any other key, Ctrl+C or the
+  timeout ends it as before, with the same "up to date" card and exit 0. A
+  shortcut window therefore stays on that question. It is not asked with
+  `--unattended`, `--yes`, `--force` or `check`, nor when output or keyboard
+  is redirected. Second, an `--unattended` (or `--yes`) run that finds no new
+  commits but an update that did not finish now closes Hermes and finishes
+  it, where it used to end "up to date" with exit 0 (see Added). A scheduled
+  task with nothing unfinished behaves as before. A run that asks nobody
+  and may not retry an unfinished update ends with exit 1 and a card that
+  says so (see Added). No exit code changed its meaning; a finishing run ends
+  like any update (0, 1, 3 or 4).
+
+### Added
+
+- **A last update that did not finish is noticed, and finished.** A
+  read-only look in the pre-flight, never a stop, asks three questions, and
+  one yes is enough: does Hermes' newest update record say the update was
+  still running although the process that ran it is gone, or that it was
+  interrupted; does Safe Update's own log show an earlier run that got as far
+  as `hermes update` and never wrote its final `done` line; is there a
+  leftover update marker whose owner is gone. A `last update` row says what
+  was found and when, for example "did not finish (stopped during building
+  the apps at yesterday 8:56 PM)". With no new commits the run no longer ends
+  with "up to date": it goes on to close Hermes and runs the usual `hermes
+  update`, which, as far as Hermes' code shows, redoes the work an update
+  still owes (dependencies, builds, restart of the gateways) without
+  fetching. The 10-minute question says so ("The last update did not finish
+  (...). Hermes will close to finish it; that takes about N min. Press Y to
+  finish it now ..."); with new commits it adds one sentence to the usual
+  question. Anything that cannot be read counts as "unknown" and changes
+  nothing; an older Hermes without update records is looked at through the
+  log and the marker only. If you ran `hermes update` by hand after the
+  crash and it worked, the log no longer counts the stopped run as unfinished.
+  In a profile's home the records are read from the root Hermes home, where
+  Hermes writes them. The stage is worded as a phrase ("stopped during pulling
+  the new code"). Tested with fakes; not yet run after a real crash or against
+  a real Hermes.
+- **`--unattended` and `--yes` finish an unfinished update without asking,
+  but once.** A run that closes Hermes to finish it writes that in the log; a
+  later run that asks nobody and finds the same unfinished update does not
+  close Hermes again. It ends with exit 1 ("needs attention", so a scheduled
+  task shows it) and a card, not "Hermes is up to date": "The last update did
+  not finish, and it was not retried: nothing was changed", naming the reason
+  and with how to finish it (run Safe Update from the Start menu or
+  a terminal; it asks first). The skip is also logged as a WARN line, which
+  stays at every `logging.level`. The same happens when Safe Update's own log
+  cannot be read, because it then cannot tell whether an earlier attempt
+  failed (it would rather not close Hermes); the card says so, and that
+  `logging.level` warn or error hides the lines it looks for. A scheduled task therefore cannot
+  close Hermes every day over the same failure. An interactive run still
+  asks, and the question says the earlier attempt failed. A run that finishes
+  an unfinished update, with or without new commits, and whose `hermes update`
+  fails is reported as a problem, and no gateway is started on the tree the
+  crash left behind. `check` shows the update in the pre-flight (`last
+  update` row) and in its summary (`Last update` row: "The last update did
+  not finish. Hermes was not touched.") and closes nothing. Tested with
+  fakes.
+- **`R` = repair on the up-to-date screen.** An interactive run that finds
+  Hermes up to date offers: "Press R to repair this install: Hermes closes
+  and the update steps run again (dependencies, builds, gateway restart),
+  about N min. Any other key exits without changes (auto-exit in 10 min)."
+  Only `R` goes on, and it counts as your confirmation, so there is no second
+  `Y`. Every safety step still applies: waiting for busy sessions, the
+  checkout-lock look right before Hermes closes, the pre-flight stops. It is
+  not offered when the run already knows it would stop (not enough disk, run
+  from inside a Hermes chat, missing ARM64 build tools with
+  `preflight.arm64_toolchain: stop`); a line says why and the run ends as "up
+  to date", exit 0. In the default `warn` mode the offer is made and the ARM64
+  warning is not printed on a run that repairs nothing; it comes once after the
+  `R`. A repair or finishing
+  run now also looks for the ARM64 build tools (it skipped that when no commit
+  was waiting, although the dependency step runs). Keys typed while the
+  pre-flight ran are thrown away first (Windows), so they cannot answer it.
+  Tested with fakes.
+- **`hermes-safe-update repair`**: a run that goes ahead without new commits,
+  with the repair wording and the usual `Y` question (`--yes` and
+  `--unattended` skip it, as for any run). It is the same as pressing `R`.
+  With new commits it is an ordinary update; with an unfinished update it is
+  a finishing run. `--force` is unchanged. It is not allowed with `--check`.
+  On macOS and Linux it asks the untested-platform question like `run`. Added
+  to `--help`. Tested with fakes.
+- **A run without new commits is verified, estimated and recorded as
+  such.** The checkout staying where it was is correct there: no false
+  problem, the `Version` row says "unchanged; no new commits", and the card
+  headline reads "Unfinished update finished and verified" or "Repair
+  finished and verified" (the problem wording on failure; every existing row
+  stays). The progress bar and the "about N min" leave out the steps that
+  need new commits. The timing record says 0 commits and is not used to
+  learn the times of ordinary updates. The seconds you spend answering the
+  repair offer are not counted as time spent checking. Tested with fakes.
+- **A `Desktop rebuild` row when the desktop app does not verify after a
+  finishing or repair run.** It names `hermes desktop --force-build` (several
+  minutes). Safe Update never runs it: a finishing run only redoes what Hermes
+  thinks is owed, so a half-packaged desktop app may not be rebuilt.
+
+### Fixed
+
+- **A line longer than the console window no longer continues at column 0.**
+  In a console window the continuation now sits under its text: after the
+  `!` or check-mark glyph of a warning, inside the `|` margin of Hermes'
+  output (the margin repeats), under the value column of rows and summary
+  cards, and under the command of a long command line. Words are split at
+  spaces, a path or address longer than a line is cut hard, and the width is
+  read when the line is printed, so a resized window wraps to its new size.
+  The log file, `--plain` output, files and pipes keep whole lines. Checked
+  with tests of the rendered text at fixed widths and two 80-column session
+  screens.
+- **The skill-merge example works with Hermes' renamed `dir_hash`.** Hermes
+  (commit 93fafc4d6f, 2026-10-18) made `_dir_hash` public as `dir_hash` and
+  kept no old name, so `examples/hooks/bundled-skill-merge` stopped with "this
+  example needs an update" (exit 1, nothing changed) and merged nothing. It
+  now takes each of its five Hermes helpers by the public name or the older
+  private one, so it runs on Hermes from before and after the rename. When
+  neither name exists it still stops, and names both. If you copied the
+  script elsewhere, copy the new version over it. Tested with fake Hermes
+  cores of both kinds.
+
 ## [0.4.0] - 2026-10-15
 
 ### Changed
@@ -618,7 +743,8 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
-[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.1.2...v0.2.0

@@ -52,12 +52,14 @@ type Estimator struct {
 	Tun     config.Tunables
 	Clock   Clock
 
-	rt       []stepRT
-	cond     Conditions
-	waiting  bool
-	finished bool
-	result   *bool
-	fracHi   float64
+	rt          []stepRT
+	cond        Conditions
+	waiting     bool
+	waitSince   time.Time
+	excuseWaits bool
+	finished    bool
+	result      *bool
+	fracHi      float64
 }
 
 // NewEstimator builds an estimator for steps of the given kind.
@@ -138,6 +140,18 @@ func isFull(r *Record) bool {
 	return d || v
 }
 
+// noNewCommits: the run found nothing to pull (a repair, or an unfinished
+// update finished). It ran no fetch and no pull and its other steps ran
+// under other conditions than an update of new commits, so it does not
+// teach those estimates; its pre-flight steps still do.
+func noNewCommits(r *Record) bool {
+	c := r.Commits
+	if c == nil && r.Cond != nil {
+		c = r.Cond.Commits
+	}
+	return c != nil && *c == 0
+}
+
 func isPreflight(key string) bool {
 	for _, k := range PreflightKeys {
 		if k == key {
@@ -158,6 +172,9 @@ func usable(r *Record, key, kind string) bool {
 		return false
 	}
 	if kind == KindUpdate && !isFull(r) && !isPreflight(key) {
+		return false
+	}
+	if kind == KindUpdate && !isPreflight(key) && noNewCommits(r) {
 		return false
 	}
 	if (r.OK == nil || !*r.OK) && len(r.Steps) > 0 && r.Steps[len(r.Steps)-1].Key == key {
@@ -314,7 +331,39 @@ func (e *Estimator) SetConditions(c Conditions) {
 }
 
 // SetWaiting marks the run as waiting for the user (no ETA while true).
-func (e *Estimator) SetWaiting(w bool) { e.waiting = w }
+func (e *Estimator) SetWaiting(w bool) {
+	now := e.now()
+	if w && !e.waiting {
+		e.waitSince = now
+	}
+	if !w && e.waiting && e.excuseWaits {
+		e.Excuse(now.Sub(e.waitSince))
+	}
+	e.waiting = w
+}
+
+// ExcuseWaits makes the time of the waits that follow (SetWaiting true, then
+// false) count for nothing in the step that was running: a question put to
+// the user in the middle of a measured step is not that step's work, and the
+// step is recorded, and later learned from, with its own time. Off by
+// default: the waits of the close stage belong to a step that is not recorded.
+func (e *Estimator) ExcuseWaits(on bool) { e.excuseWaits = on }
+
+// Excuse takes d out of the running time of the active step.
+func (e *Estimator) Excuse(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	now := e.now()
+	for i := range e.rt {
+		if e.rt[i].state == Active {
+			e.rt[i].t0 = e.rt[i].t0.Add(d)
+			if e.rt[i].t0.After(now) {
+				e.rt[i].t0 = now
+			}
+		}
+	}
+}
 
 // Complete ends the run; ok=nil means unknown.
 func (e *Estimator) Complete(ok *bool) {
@@ -555,7 +604,7 @@ func (e *Estimator) RoughNote(fromKey string) string {
 	n := 0
 	for i := range e.History {
 		r := &e.History[i]
-		if r.Kind == e.Kind && r.OK != nil && *r.OK && isFull(r) && likeThis(r, conds) {
+		if r.Kind == e.Kind && r.OK != nil && *r.OK && isFull(r) && !noNewCommits(r) && likeThis(r, conds) {
 			n++
 		}
 	}

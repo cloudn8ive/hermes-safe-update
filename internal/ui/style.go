@@ -301,3 +301,162 @@ func padLeft(s string, n int) string {
 	}
 	return s
 }
+
+// ---- wrapping
+
+// cell is one visible column of a styled line: the rune, the SGR codes in
+// force at that rune (concatenated escape sequences, "" = none) and any
+// non-colour escape sequence written just before it. Display width is one
+// column per rune, the same rule fit, row and visibleLen use.
+type cell struct {
+	r     rune
+	state string
+	pre   string
+}
+
+// parseCells splits a styled line into cells. SGR sequences update the state
+// (a reset clears it) and never take a column.
+func parseCells(s string) []cell {
+	var cells []cell
+	state, pre := "", ""
+	rs := []rune(s)
+	for i := 0; i < len(rs); i++ {
+		if rs[i] == 0x1b && i+1 < len(rs) && rs[i+1] == '[' {
+			j := i + 2
+			for j < len(rs) && !(rs[j] >= 0x40 && rs[j] <= 0x7e) {
+				j++
+			}
+			if j >= len(rs) {
+				break // a cut-off sequence carries no text
+			}
+			seq := string(rs[i : j+1])
+			switch params := string(rs[i+2 : j]); {
+			case rs[j] != 'm':
+				pre += seq
+			case params == "" || params == "0":
+				state = ""
+			default:
+				state += seq
+			}
+			i = j
+			continue
+		}
+		cells = append(cells, cell{r: rs[i], state: state, pre: pre})
+		pre = ""
+	}
+	return cells
+}
+
+// renderCells writes cells back as one line: each run of equal state gets
+// its escape sequences once, and a run that is still open at the end of the
+// line is closed, so a line break never falls inside a colour.
+func renderCells(cells []cell) string {
+	var b strings.Builder
+	cur := ""
+	for _, c := range cells {
+		if c.state != cur {
+			if cur != "" {
+				b.WriteString(reset)
+			}
+			b.WriteString(c.state)
+			cur = c.state
+		}
+		b.WriteString(c.pre)
+		b.WriteRune(c.r)
+	}
+	if cur != "" {
+		b.WriteString(reset)
+	}
+	return b.String()
+}
+
+// minWrapText is the least text width a continuation line keeps; a hanging
+// indent wider than width-minWrapText is shortened to fit.
+const minWrapText = 12
+
+// wrapStyled wraps one styled line (SGR codes are zero width and are never
+// split) so no line is wider than width visible columns. Continuation lines
+// start with hang (a styled prefix, e.g. the gutter plus spaces); the first
+// line is cut only at spaces from visible column hangW on, so the margin,
+// gutter and label before the text never count as a break point. Words are
+// broken at spaces; a word longer than a whole line is cut hard. A line that
+// fits is returned unchanged, byte for byte; width <= 0 turns wrapping off.
+// Embedded newlines are kept and every part is wrapped alone.
+func wrapStyled(line string, width int, hang string, hangW int) string {
+	if width <= 0 {
+		return line
+	}
+	if strings.Contains(line, "\n") {
+		parts := strings.Split(line, "\n")
+		for i, p := range parts {
+			parts[i] = wrapStyled(p, width, hang, hangW)
+		}
+		return strings.Join(parts, "\n")
+	}
+	if visibleLen(line) <= width {
+		return line
+	}
+	minBreak := hangW
+	if hangW > width-minWrapText {
+		hangW = maxInt(0, width-minWrapText)
+		hang = strings.Repeat(" ", hangW)
+	}
+	cells := parseCells(line)
+	var out []string
+	i, avail, first := 0, width, true
+	for i < len(cells) {
+		if len(cells)-i <= avail {
+			out = append(out, hangIf(!first, hang)+renderCells(cells[i:]))
+			break
+		}
+		// the first printable cell the line may break after
+		start := i
+		if first {
+			start = minBreak
+		}
+		for start < len(cells) && cells[start].r == ' ' {
+			start++
+		}
+		end, next := i+avail, i+avail // hard cut
+		for j := i + avail; j > start && j > i; j-- {
+			if cells[j].r == ' ' {
+				end, next = j, j
+				break
+			}
+		}
+		for next < len(cells) && cells[next].r == ' ' {
+			next++
+		}
+		seg := cells[i:end]
+		for len(seg) > 0 && seg[len(seg)-1].r == ' ' {
+			seg = seg[:len(seg)-1]
+		}
+		out = append(out, hangIf(!first, hang)+renderCells(seg))
+		i = next
+		if first {
+			first, avail = false, width-hangW
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func hangIf(on bool, hang string) string {
+	if on {
+		return hang
+	}
+	return ""
+}
+
+// spaces is n blank columns (never negative).
+func spaces(n int) string { return strings.Repeat(" ", maxInt(0, n)) }
+
+// join concatenates segments uncut; fit cuts, join does not.
+func (s *style) join(segs []seg) string {
+	var b strings.Builder
+	for _, g := range segs {
+		if g.t != "" {
+			b.WriteString(s.sgr(g.t, g.codes...))
+		}
+	}
+	return b.String()
+}

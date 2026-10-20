@@ -856,6 +856,22 @@ func TestPromptAcceptsOnlyListedKeysAndShowsWaitingRow(t *testing.T) {
 	}
 }
 
+func TestPromptAnyKeyEndsOnAKeyThatIsNotListed(t *testing.T) {
+	h := newHarness(t, 100, true)
+	h.con.Keys = []platform.Key{{Other: true}}
+	h.startUpdate(true)
+	a, err := h.r.Prompt(context.Background(), PromptSpec{Text: "Press R", Keys: []rune{'r'}, Timeout: 30 * time.Second, AnyKey: true})
+	if err != nil || a.TimedOut || a.Abort || a.Key != 0 {
+		t.Errorf("answer = %+v %v, want an answer with no key (an arrow ended it)", a, err)
+	}
+	h = newHarness(t, 100, true)
+	h.con.Keys = []platform.Key{{Rune: '.'}}
+	h.startUpdate(true)
+	if a, err := h.r.Prompt(context.Background(), PromptSpec{Text: "Press R", Keys: []rune{'r'}, Timeout: 30 * time.Second, AnyKey: true}); err != nil || a.Key != '.' {
+		t.Errorf("answer = %+v %v", a, err)
+	}
+}
+
 func TestPromptWrapsInsideTheMargins(t *testing.T) {
 	h := newHarness(t, 60, true)
 	h.con.Keys = []platform.Key{{Rune: 'n'}}

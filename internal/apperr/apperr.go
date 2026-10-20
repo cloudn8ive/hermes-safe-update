@@ -11,10 +11,13 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/config"
 )
 
-// Exit codes. 0-3 keep the Python updater's meaning.
+// Exit codes. 0-3 keep the Python updater's meaning. ErrNotRetried: the last
+// update did not finish and a run that asks nobody left it alone (an earlier
+// attempt failed, or Safe Update's own log could not tell). Nothing failed in
+// that run, but the work is still owed, so a scheduled task shows exit 1.
 const (
-	OK              = 0  // done: update verified, check finished, already up to date
-	Failure         = 1  // the update ran but needs attention (RESULT PROBLEM), or an unexpected error
+	OK              = 0  // done: update verified, check finished, or already up to date
+	Failure         = 1  // the update ran but needs attention (RESULT PROBLEM), an unfinished update that a run asking nobody did not retry (ErrNotRetried), or an unexpected error
 	LauncherMissing = 2  // the hermes launcher was not found (Python: "STOP launcher not found")
 	Cancelled       = 3  // aborted by the user or a timeout before anything changed
 	PreflightStop   = 4  // pre-flight STOP: marker held, low disk, update check failed (D1)
@@ -25,6 +28,7 @@ const (
 
 var (
 	ErrUpdateProblem    = errors.New("update needs attention")
+	ErrNotRetried       = errors.New("the last update did not finish and was not retried")
 	ErrLauncherMissing  = errors.New("hermes launcher not found")
 	ErrCancelled        = errors.New("cancelled; nothing was changed")
 	ErrPreflightStop    = errors.New("pre-flight stopped the update; nothing was changed")

@@ -60,6 +60,11 @@ type PromptSpec struct {
 	CountdownLabel string        // "auto-cancel in", "checking again in", "skipping in"
 	// AbortOnCtrlC: Ctrl+C returns Answer{Abort: true}.
 	AbortOnCtrlC bool
+	// AnyKey: every key ends the prompt, not only Keys (a prompt whose text
+	// says "any other key"). Answer.Key is the key's rune; 0 for a key that
+	// has none (arrows, function keys, Tab is '\t'). Ctrl+C still follows
+	// AbortOnCtrlC.
+	AnyKey bool
 }
 
 // Answer of a prompt.

@@ -57,6 +57,7 @@ import tempfile
 import time
 import traceback
 from pathlib import Path
+from types import SimpleNamespace
 
 CONFIG_NAME = "skill-merge.json"
 BASE_DIRNAME = ".bundled-merge-base"
@@ -83,10 +84,34 @@ class CoreUnavailable(Exception):
     """Hermes' own skill-sync code cannot be loaded (not found, or its internals changed)."""
 
 
-# Private helpers of tools.skills_sync that this script relies on.  If a Hermes update renames one,
-# say so instead of crashing half way through a merge.
-_CORE_API = ("_dir_hash", "_matches_origin_hash", "_is_runtime_cache", "_discover_bundled_skills",
-             "_get_bundled_dir")
+# Helpers of tools.skills_sync that this script relies on, by the one name the script uses for each, with
+# the names Hermes has given it: the public name first, then the older private one.  Hermes made dir_hash
+# public (93fafc4d6f) without keeping the old name, and may do the same to the others.  If no candidate
+# exists, say so instead of crashing half way through a merge.
+_CORE_API = {
+    "dir_hash": ("dir_hash", "_dir_hash"),
+    "matches_origin_hash": ("matches_origin_hash", "_matches_origin_hash"),
+    "is_runtime_cache": ("is_runtime_cache", "_is_runtime_cache"),
+    "discover_bundled_skills": ("discover_bundled_skills", "_discover_bundled_skills"),
+    "get_bundled_dir": ("get_bundled_dir", "_get_bundled_dir"),
+}
+
+
+def resolve_core(ss) -> SimpleNamespace:
+    """The helpers of module ss under the names of _CORE_API, whichever name this Hermes has them by."""
+    found, missing = {}, []
+    for name, candidates in _CORE_API.items():
+        for cand in candidates:
+            fn = getattr(ss, cand, None)
+            if callable(fn):
+                found[name] = fn
+                break
+        else:
+            missing.append(" or ".join("tools.skills_sync." + c for c in candidates))
+    if missing:
+        raise CoreUnavailable("this Hermes version no longer has " + ", ".join(missing)
+                              + "; this example needs an update")
+    return SimpleNamespace(**found)
 
 
 def load_core(home: Path, agent_dir: Path):
@@ -111,11 +136,7 @@ def load_core(home: Path, agent_dir: Path):
                 f"cannot import Hermes' skill code from {agent_dir} ({first}; then {type(exc).__name__}: {exc}). "
                 "Is HERMES_SAFE_UPDATE_CHECKOUT / --agent-dir the Hermes checkout, and was this run "
                 "with the Python that Hermes installs?") from exc
-    missing = [n for n in _CORE_API if not hasattr(ss, n)]
-    if missing:
-        raise CoreUnavailable("this Hermes version no longer has tools.skills_sync." + ", ".join(missing)
-                              + "; this example needs an update")
-    return ss
+    return resolve_core(ss)
 
 
 def find_git(home: Path) -> str | None:
@@ -189,12 +210,12 @@ def set_manifest_entry(path: Path, name: str, value: str) -> None:
 
 
 def tree_files(ss, d: Path) -> dict[str, bytes]:
-    """{posix relpath: bytes} for every file _dir_hash would count."""
+    """{posix relpath: bytes} for every file dir_hash would count."""
     out: dict[str, bytes] = {}
     if not d.is_dir():
         return out
     for p in sorted(d.rglob("*")):
-        if p.is_file() and not ss._is_runtime_cache(p, d):
+        if p.is_file() and not ss.is_runtime_cache(p, d):
             out[p.relative_to(d).as_posix()] = p.read_bytes()
     return out
 
@@ -274,7 +295,7 @@ def discover_profiles(home: Path, only: list[str] | None):
 # --------------------------------------------------------------------------- git base lookup
 
 class GitBase:
-    """Finds the bundled tree whose _dir_hash equals a manifest origin hash, from git history."""
+    """Finds the bundled tree whose dir_hash equals a manifest origin hash, from git history."""
 
     def __init__(self, ss, git: str | None, bundled_dir: Path, scratch: Path):
         self.ss, self.git, self.bundled_dir, self.scratch = ss, git, bundled_dir, scratch
@@ -332,7 +353,7 @@ class GitBase:
             tmp = Path(tempfile.mkdtemp(prefix="base-", dir=str(self.scratch)))
             try:
                 write_tree(files, tmp)
-                if self.ss._dir_hash(tmp) == want:
+                if self.ss.dir_hash(tmp) == want:
                     self.cache[key] = files
                     return files
             finally:
@@ -447,13 +468,13 @@ class Engine:
     def __init__(self, home: Path, agent_dir: Path, bundled: Path | None, dry: bool = False, out=print):
         self.home, self.agent_dir, self.dry, self.out = home, agent_dir, dry, out
         self.ss = load_core(home, agent_dir)
-        self.bundled = bundled or self.ss._get_bundled_dir()
+        self.bundled = bundled or self.ss.get_bundled_dir()
         self.git = find_git(home)
         self.scratch_root = home / "cache" / "scratch"
         self.scratch_root.mkdir(parents=True, exist_ok=True)
         self.scratch = Path(tempfile.mkdtemp(prefix="bsm-", dir=str(self.scratch_root)))
-        self.skills = sorted(self.ss._discover_bundled_skills(self.bundled), key=lambda x: x[0])
-        self._bhash = {name: self.ss._dir_hash(d) for name, d in self.skills}
+        self.skills = sorted(self.ss.discover_bundled_skills(self.bundled), key=lambda x: x[0])
+        self._bhash = {name: self.ss.dir_hash(d) for name, d in self.skills}
         self.gitbase = GitBase(self.ss, self.git, self.bundled, self.scratch)
         self.stamp = time.strftime("%Y%m%d-%H%M%S")
         self.keep = set(read_keep(home))
@@ -503,7 +524,7 @@ class Engine:
     def _base_for(self, profile_home, name, sdir, want):
         """(files, source) of the tree whose hash == want, or (None, why)."""
         snap = profile_home / BASE_DIRNAME / name
-        if snap.is_dir() and self.ss._dir_hash(snap) == want:
+        if snap.is_dir() and self.ss.dir_hash(snap) == want:
             return tree_files(self.ss, snap), "snapshot"
         files = self.gitbase.find(name, sdir, want)
         if files is not None:
@@ -518,7 +539,7 @@ class Engine:
         stage = tmp_root / f"snap-{name}-{os.getpid()}"
         _rmtree(stage)
         write_tree(files, stage)
-        if self.ss._dir_hash(stage) != expect_hash:
+        if self.ss.dir_hash(stage) != expect_hash:
             _rmtree(stage)
             raise MergeError("snapshot hash mismatch")
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -554,8 +575,8 @@ class Engine:
             if not dest.is_dir():
                 continue
             bh = self._bhash[name]
-            user_hash = ss._dir_hash(dest)
-            if ss._matches_origin_hash(dest, origin, user_hash):
+            user_hash = ss.dir_hash(dest)
+            if ss.matches_origin_hash(dest, origin, user_hash):
                 continue  # pristine: core's own sync updates it
             pending = (state.get(name) or {}).get("base_hash")
             changed = bh != origin or bool(pending and pending != bh)
@@ -644,7 +665,7 @@ class Engine:
         """User-modified, upstream unchanged: the bundled copy IS the base.  Keep a copy so the next
         upstream change can be merged even when git history cannot supply the old tree."""
         snap = item["home"] / BASE_DIRNAME / item["name"]
-        if snap.is_dir() and self.ss._dir_hash(snap) == item["origin"]:
+        if snap.is_dir() and self.ss.dir_hash(snap) == item["origin"]:
             return False
         if self.dry:
             return True

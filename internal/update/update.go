@@ -79,6 +79,20 @@ type Deps struct {
 	// rerouting; a launcher that vanished then stays vanished.
 	Route *hermes.LauncherRoute
 
+	// Receipts reads Hermes' newest update receipt (nil = not looked at). It
+	// says whether the previous update stopped before it finished.
+	Receipts ReceiptSource
+	// LogTail reads the end of the Safe Update log for the same question (nil
+	// = the real file at LogPath).
+	LogTail func(path string, limit int64) ([]byte, error)
+	// Created reads a process's creation time (platform.ProcessCreated), for
+	// the checkout-lock owner and the owner of an earlier run in the log. Nil
+	// = unknown: a live pid is then not proven to be that process.
+	Created func(pid int) (time.Time, bool)
+	// Repair: the `repair` command. A run that finds no new commits goes on
+	// anyway, with the repair wording, and asks the usual Y.
+	Repair bool
+
 	Title       string // header / console title
 	Mode        Mode
 	TimingsPath string // <home>/logs/safe-update-timings.json
@@ -165,7 +179,41 @@ type Facts struct {
 	// Launcher is what the post-update launcher check found (see
 	// LauncherFacts).
 	Launcher LauncherFacts
+
+	// Previous is the update before this run when it stopped before it
+	// finished (nil: it finished, or nothing could be found out).
+	Previous *hermes.PreviousUpdate
+	// PreviousTried: an earlier run of Safe Update already set out to finish
+	// that same update (logFinishing) and it is still unfinished.
+	PreviousTried bool
+	// OnceUnknown: Safe Update's own log could not be read, so whether an
+	// earlier run already tried to finish the update is not known. A run that
+	// asks nobody then does not try (it fails toward not closing Hermes).
+	OnceUnknown bool
+	// FinishSkipped is why a run that asks nobody did not finish the
+	// unfinished update ("" = it did not skip); the summary card says so.
+	FinishSkipped string
+	// NothingNew: the update check found no new commits and the run went on
+	// anyway (an unfinished update to finish, or a repair; in check mode: the
+	// row only). Again says why an update run goes on.
+	NothingNew bool
+	Again      Again
+	// Confirmed: the user already said yes (R on the up-to-date screen), so
+	// the Y prompt is not asked a second time.
+	Confirmed bool
+
+	// DesktopNotVerified: the desktop app verify ran and failed.
+	DesktopNotVerified bool
 }
+
+// Again says why an update run goes on although no commit is waiting.
+type Again string
+
+const (
+	AgainNone   Again = ""       // there are new commits (or --force)
+	AgainFinish Again = "finish" // the last update did not finish: finish it
+	AgainRepair Again = "repair" // repair this install (R, or the repair command)
+)
 
 // ChannelFacts records the release-channel side of a run. Filled by the
 // remote stage (Plan, Check) and the update stage (Applied).
@@ -212,6 +260,10 @@ type Run struct {
 	// lockProbedAt is when the checkout lock was last probed with an answer
 	// (zero: never). The close stage re-probes when it is old.
 	lockProbedAt time.Time
+	// arm64Done: the ARM64 toolchain check has been decided for this run.
+	// arm64Rep is the probe it rests on (nil: not probed yet).
+	arm64Done bool
+	arm64Rep  *hermes.ARM64Report
 	// lockNotProbedLogged: the "checkout lock: not probed" line was written.
 	lockNotProbedLogged bool
 }
@@ -255,3 +307,12 @@ const (
 	ModeUpdate Mode = iota
 	ModeCheck
 )
+
+// ReceiptSource says whether the newest update receipt of Hermes records an
+// update that stopped before it finished (hermes.ReceiptReader).
+type ReceiptSource interface {
+	Unfinished() (*hermes.PreviousUpdate, error)
+	// NewestFinished is when the newest update that ran to its end began
+	// (zero: none is known).
+	NewestFinished() (time.Time, error)
+}

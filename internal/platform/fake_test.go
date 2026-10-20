@@ -70,6 +70,25 @@ func TestFakeConsoleScriptedKeysAndTimeout(t *testing.T) {
 	}
 }
 
+func TestFakeConsoleTypeAheadIsDrained(t *testing.T) {
+	c := &FakeConsole{Terminal: true, TypeAhead: []Key{{Rune: 'r'}}, Keys: []Key{{Rune: 'x'}}}
+	if !c.InputIsTerminal() {
+		t.Error("a console is interactive unless NoInputTerminal is set")
+	}
+	if (&FakeConsole{NoInputTerminal: true}).InputIsTerminal() {
+		t.Error("NoInputTerminal must read as a redirected stdin")
+	}
+	c.DrainInput()
+	k, err := c.ReadKey(context.Background())
+	if err != nil || k.Rune != 'x' || c.Drains != 1 {
+		t.Errorf("after the drain got %+v %v (drains %d), want the scripted x", k, err, c.Drains)
+	}
+	d := &FakeConsole{TypeAhead: []Key{{Rune: 'r'}}, Keys: []Key{{Rune: 'x'}}}
+	if k, _ := d.ReadKey(context.Background()); k.Rune != 'r' {
+		t.Errorf("without a drain the type-ahead is read first, got %+v", k)
+	}
+}
+
 func TestFakeProgressRecords(t *testing.T) {
 	p := &FakeProgress{}
 	p.Set(ProgressNormal, 0.5)

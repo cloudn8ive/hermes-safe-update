@@ -858,6 +858,11 @@ func DoubleRelaunchProfiles(out string) []string {
 	return both
 }
 
+// DesktopForceBuildCmd is Hermes' own full rebuild of the desktop app
+// (`desktop --force-build`, main_desktop.py "Force a full rebuild even if the
+// content stamp matches"). Safe Update only names it, never runs it.
+const DesktopForceBuildCmd = "hermes desktop --force-build"
+
 // Hermes' machine boundary for "how do I run hermes without its launcher":
 // `<managed python> -I <checkout>/hermes_cli/_launchers.py
 // --print-runtime-command -- <args>` prints the argv as one JSON array
@@ -867,3 +872,109 @@ const (
 	LaunchersScript    = "hermes_cli/_launchers.py"
 	RuntimeCommandFlag = "--print-runtime-command"
 )
+
+// ---- Update receipts (v0.5.0) ----
+//
+// Hermes v0.21.6 and later write a receipt for every `hermes update`
+// (hermes_cli/update_receipt.py; v0.21.6 has the same module as the current
+// one: the running record at the start, pid_create_time, writer_pid, stages,
+// reconcile_interrupted_runs): the run's own file `update_<date>_<time>_
+// <pid>_<id>.json` and a copy of the newest one as `latest.json`, in
+// `logs/update_receipts/` of the root home. The record is written as
+// "running" the moment the run begins and is rewritten when it ends. A run
+// that was killed (a crash, a power loss) leaves it "running" with a dead
+// owner; the next `hermes update` marks such a record "interrupted"
+// (reconcile_interrupted_runs; it keeps finished_at empty, so the time of
+// the stop stays the last stage). A Hermes without receipts has no such
+// directory: that is "nothing to see", never an error.
+//
+// latest.json is NOT the newest update: the plugin manager's sync and
+// plugin-check receipts (`pm_<stamp>-<kind>-<pid>-<id>.json`, pm/receipt.py)
+// replace it too, with `"kind": "sync"|"plugin-check"` and an outcome such as
+// "ok" or "updates-available", every time Hermes starts. So the newest
+// `update_*.json` is read (the last ReceiptKeep by file time, as
+// reconcile_interrupted_runs does) and latest.json only when there is none.
+
+// ReceiptDirParts is the receipt folder below the ROOT Hermes home (see
+// RootHome). Hermes writes the run files there (_receipt_dir) whatever profile
+// it runs in; a profile's own folder gets latest.json and the pm files only.
+var ReceiptDirParts = []string{"logs", "update_receipts"}
+
+// ReceiptLatestFile is the copy of the newest receipt (of any kind, see above).
+const ReceiptLatestFile = "latest.json"
+
+// ReceiptRunGlob matches the run file of an update. The pm_* files and
+// latest.json are not updates.
+const ReceiptRunGlob = "update_*.json"
+
+// ReceiptKeep is how many run files Hermes keeps (_RECEIPT_KEEP) and how many
+// are looked at.
+const ReceiptKeep = 20
+
+// The two outcomes that mean an update did not finish. Every other outcome
+// ("success", "failed", "partial", ...) is a run that reached its own end.
+const (
+	ReceiptRunning     = "running"
+	ReceiptInterrupted = "interrupted"
+)
+
+// The outcomes of an update that ran to its end (update_receipt.py: running |
+// success | partial | failed). A run Hermes refused ("refused") did nothing and
+// is not one of them. Only success and partial count as finished work
+// (ReceiptReader.NewestFinished): a failed update still owes its steps.
+const (
+	ReceiptSuccess = "success"
+	ReceiptPartial = "partial"
+	ReceiptFailed  = "failed"
+)
+
+// ReceiptProfilesDir is the folder of a root home that holds the profile
+// homes (<root>/profiles/<name>).
+const ReceiptProfilesDir = "profiles"
+
+// UpdateReceipt is the part of a receipt Safe Update reads. Time stamps are
+// RFC 3339 text; *_create_time are Unix seconds (a float) of the process that
+// owns the run, written by Hermes' process_identity so a reused pid cannot
+// pass for the owner. A field the receipt lacks stays zero / nil.
+type UpdateReceipt struct {
+	Outcome          string         `json:"outcome"`
+	UpdateID         string         `json:"update_id"`
+	StartedAt        string         `json:"started_at"`
+	FinishedAt       string         `json:"finished_at"`
+	PID              int            `json:"pid"`
+	PIDCreateTime    *float64       `json:"pid_create_time"`
+	WriterPID        int            `json:"writer_pid"`
+	WriterCreateTime *float64       `json:"writer_create_time"`
+	Stages           []ReceiptStage `json:"stages"`
+}
+
+// ReceiptStage is one entry of a receipt's "stages". A stage is recorded when
+// it ENDS ("plan", "snapshot", "apply", "deps", "build", "restart"), so the
+// last entry of a killed run names the last step that was completed.
+type ReceiptStage struct {
+	Name string `json:"name"`
+	At   string `json:"at"`
+}
+
+// receiptStageNext is the update step a run was in when it stopped, by the
+// last stage its receipt recorded: the step after it, in Hermes' order (plan,
+// snapshot, apply, deps, build, restart). The values are step keys of the
+// update steps (timings.UpdateSteps), so the words are the same as when the
+// step is read from Safe Update's own log. "build" is the group of the TUI,
+// web and desktop builds (a receipt does not say which) and "tail" what
+// follows the restart. "deps" -> the builds is the real case (a crash while
+// packaging the desktop app).
+var receiptStageNext = map[string]string{
+	"":         "start",
+	"plan":     "pull",
+	"snapshot": "pull",
+	"apply":    "pydeps",
+	"deps":     "build",
+	"build":    "restart",
+	"restart":  "tail",
+}
+
+// ReceiptStopStep names the update step the run was in when it stopped, from
+// the name of the last stage its receipt recorded ("" = none recorded yet).
+// An unknown name gives "" (nothing is guessed).
+func ReceiptStopStep(lastRecorded string) string { return receiptStageNext[lastRecorded] }

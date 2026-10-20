@@ -57,6 +57,30 @@ func (c *winConsole) IsTerminal() bool {
 	return windows.GetConsoleMode(c.out, &m) == nil
 }
 
+// InputIsTerminal reports whether stdin is a console: only then can a person
+// type an answer (startReader fails otherwise and ReadKey just waits).
+func (c *winConsole) InputIsTerminal() bool {
+	var m uint32
+	return windows.GetConsoleMode(c.in, &m) == nil
+}
+
+// DrainInput throws away every key typed so far: the ones the reader already
+// queued, and the ones still in the console's input buffer.
+func (c *winConsole) DrainInput() {
+	c.mu.Lock()
+	ch := c.keyCh
+	c.mu.Unlock()
+	for ch != nil {
+		select {
+		case <-ch:
+			continue
+		default:
+		}
+		break
+	}
+	_ = windows.FlushConsoleInputBuffer(c.in)
+}
+
 // EnableVT turns on VT processing; repeated calls are fine (children reset
 // the mode). It fails on a pipe/file so the caller picks plain output.
 func (c *winConsole) EnableVT() (func(), error) {

@@ -83,6 +83,10 @@ type e2eWorld struct {
 	electron, desktopExe, userData, cuaExe string
 
 	selfPID int // the updater's pid in the fake table (0 = real)
+	// created replaces the world's creation-time lookup, which knows no process
+	// (the pids of the world are made up). Only a test that asks about this
+	// process's own pid may put the real one here.
+	created func(int) (time.Time, bool)
 
 	plat  *platform.Platform
 	procs *platform.FakeProcs
@@ -399,6 +403,8 @@ func (c *scriptConsole) script(s ...conStep) {
 }
 
 func (c *scriptConsole) IsTerminal() bool                    { return c.terminal }
+func (c *scriptConsole) InputIsTerminal() bool               { return true }
+func (c *scriptConsole) DrainInput()                         {}
 func (c *scriptConsole) EnableVT() (func(), error)           { return func() {}, nil }
 func (c *scriptConsole) Size() (int, int, bool)              { return 100, 30, true }
 func (c *scriptConsole) SetTitle(string) error               { return nil }
@@ -955,6 +961,15 @@ func (w *e2eWorld) migrator(c execx.Cmd, rest []string) (execx.Result, error) {
 
 // ---- running the CLI ----
 
+// processCreated is the world's creation-time lookup: it knows no process, so
+// a made-up pid never reaches the real OpenProcess (a test may replace it).
+func (w *e2eWorld) processCreated() func(int) (time.Time, bool) {
+	if w.created != nil {
+		return w.created
+	}
+	return func(int) (time.Time, bool) { return time.Time{}, false }
+}
+
 func (w *e2eWorld) environment() *environment {
 	var stderr io.Writer = &w.errb
 	if w.live != nil {
@@ -969,12 +984,13 @@ func (w *e2eWorld) environment() *environment {
 		self:     filepath.Join(w.home, "bin", "hermes-safe-update.exe"),
 		clock:    w.clock,
 		selfPID:  w.selfPID,
+		created:  w.processCreated(),
 		ver:      testToolVersion,
 		sleep:    w.sleep,
 		apiBase:  w.api.URL,
 		newUI: func(cfg *config.Config, out io.Writer) ui.Renderer {
 			if w.vt && !cfg.Run.Plain {
-				return ui.NewVT(out, w.plat, cfg.Theme, ui.Options{Clock: w.clock, NoTicker: w.pace == 0, Color: true})
+				return ui.NewVT(out, w.plat, cfg.Theme, ui.Options{Clock: w.clock, NoTicker: w.pace == 0, Color: true, NoWrap: true})
 			}
 			p := ui.NewPlain(out, w.plat.Console)
 			p.SetClock(w.clock)

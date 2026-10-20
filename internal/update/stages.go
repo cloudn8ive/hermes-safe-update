@@ -122,6 +122,12 @@ func stageLocal(ctx context.Context, r *Run) error {
 	if staleMarker {
 		r.note("stale update marker found (owner dead); it will be replaced")
 	}
+	// The order matters (R2-N6): the marker and lock stops above run before
+	// findUnfinished, which counts a log run whose process creation time is
+	// unknown as gone. A live earlier update holds the marker or the lock and
+	// has already stopped this run by here; reorder them and an update that is
+	// still running would be taken for an unfinished one.
+	r.findUnfinished(staleMarker)
 	if err := r.checkACL(ctx); err != nil {
 		return err
 	}
@@ -200,7 +206,7 @@ func stageRemote(ctx context.Context, r *Run) error {
 	}
 	// Still nothing closed: a missing ARM64 toolchain is told (or stops the
 	// run) here, once the update is known to be coming.
-	return r.checkARM64(ctx)
+	return r.checkARM64For(ctx, r.Facts.Again != AgainNone)
 }
 
 func remoteChecks(ctx context.Context, r *Run) error {
@@ -242,6 +248,38 @@ func (r *Run) verdict(ctx context.Context, c hermes.UpdateCheck, nothing string)
 	if c.Behind != nil && *c.Behind {
 		return nil
 	}
+	if c.Behind != nil && r.Facts.Previous != nil {
+		if r.Mode == ModeUpdate && (r.Facts.PreviousTried || r.Facts.OnceUnknown) && r.quiet() && !r.Config.Run.Force && !r.Repair {
+			// An earlier run already set out to finish this update and could
+			// not, or the log that would tell cannot be read. A run that asks
+			// nobody tries once per unfinished update, so a scheduled task does
+			// not close Hermes again every day; when that cannot be known it
+			// does not try (closing Hermes is the worse mistake). The card
+			// says so: this is not "up to date".
+			why := "an earlier attempt to finish it failed"
+			if !r.Facts.PreviousTried {
+				why = "Safe Update's own log could not be read (logging.level warn or error also hides the lines it looks for), so it cannot tell whether an earlier attempt already failed"
+			}
+			r.Facts.FinishSkipped = why
+			// warn, not info: it must reach the log at every logging.level,
+			// or the skip leaves no trace in a scheduled task.
+			r.warn("The last update did not finish, and %s; not trying again without asking. Run Hermes Safe Update from a terminal to try again.", why)
+			r.joinEarly(ctx)
+			return errUpToDate
+		}
+		// Nothing new, but the update before this one did not finish: Hermes'
+		// own `update` finishes it without a flag, so the run goes on.
+		r.goOnWithoutCommits(AgainFinish)
+		if r.Mode == ModeUpdate {
+			r.info("No new commits, but the last update did not finish; going on to finish it.")
+		}
+		return nil
+	}
+	if c.Behind != nil && r.Repair && r.Mode == ModeUpdate {
+		r.goOnWithoutCommits(AgainRepair)
+		r.info("No new commits; repairing: the update steps run again.")
+		return nil
+	}
 	if r.Config.Run.Force {
 		r.note("--force: running even though no update was found")
 		return nil
@@ -251,12 +289,114 @@ func (r *Run) verdict(ctx context.Context, c hermes.UpdateCheck, nothing string)
 			nothing = "Nothing to update."
 		}
 		r.info("%s (use --force to run anyway).", strings.TrimSuffix(nothing, "."))
-		r.joinEarly(ctx) // never leave the side job running
+		early, _ := r.joinEarly(ctx) // never leave the side job running
+		if r.repairCanBeAsked() {
+			if why := r.repairBlocker(ctx, early); why != "" {
+				r.info("A repair is not offered: %s", strings.TrimSuffix(why, ".")+".")
+				return errUpToDate
+			}
+			again, err := r.offerRepair(ctx)
+			if err != nil {
+				return err
+			}
+			if again {
+				return nil
+			}
+		}
 		return errUpToDate
 	}
 	r.stop("could not check for updates (see above); nothing was changed")
 	r.joinEarly(ctx)
 	return fmt.Errorf("%w: update check failed", apperr.ErrPreflightStop)
+}
+
+// noCommitSkips are the steps an update without new commits does not run (no
+// fetch, no pull; its output never says "Code updated!" or "Update complete!").
+var noCommitSkips = []string{"fetch", "pull", "finalize", "restart"}
+
+// goOnWithoutCommits records that the run goes on although no commit is
+// waiting, and tells the estimator, so the footer and the "about N min" in the
+// prompt do not wait for steps that cannot happen.
+func (r *Run) goOnWithoutCommits(again Again) {
+	r.Facts.NothingNew = true
+	if r.Mode != ModeUpdate {
+		return
+	}
+	r.Facts.Again = again
+	zero := 0
+	r.withEst(func(e *timings.Estimator) {
+		e.SetConditions(timings.Conditions{Commits: &zero})
+		for _, k := range noCommitSkips {
+			e.ExpectSkip(k, true)
+		}
+	})
+	r.Log.Info("update without new commits", slog.String("why", string(again)))
+}
+
+// repairCanBeAsked: the R offer needs a person at a console (typing on stdin,
+// not only a console on stdout: a task with stdin redirected would wait the
+// whole window for nobody) and is never made to a run that is not allowed to
+// ask (unattended, --yes, check), or that goes on anyway (--force).
+func (r *Run) repairCanBeAsked() bool {
+	c := r.Config.Run
+	return r.Mode == ModeUpdate && !c.Unattended && !c.Yes && !c.Force &&
+		r.Platform != nil && r.Platform.Console != nil && r.Platform.Console.IsTerminal() && r.Platform.Console.InputIsTerminal()
+}
+
+// repairBlocker says what the run already knows would stop it before it
+// closed Hermes, so an R that cannot work is not offered. "" = nothing known.
+func (r *Run) repairBlocker(ctx context.Context, early earlyResult) string {
+	switch {
+	case r.Facts.DiskLow:
+		return "there is not enough free disk space for the desktop rebuild (see the stop above)"
+	case r.chatEnv() != "":
+		return "this run is inside a Hermes chat, and updating would stop the process that runs it"
+	}
+	if _, ok := r.chatAncestor(early.procs); ok {
+		return "this run is inside a Hermes chat, and updating would stop the process that runs it"
+	}
+	// The pre-flight stops that come after this stage would end the run after
+	// the R. The ARM64 stop is the only one known now; the probe has no
+	// effect, and the warning of the default mode waits for the R.
+	return r.arm64RepairBlocker(ctx)
+}
+
+// noCommitPlan is the plan of an update without new commits, on a copy of the
+// estimator: the run's own estimator is left alone until someone says yes.
+func (r *Run) noCommitPlan() *timings.Estimator {
+	var hist []timings.Record
+	r.withEst(func(e *timings.Estimator) { hist = e.History })
+	c, zero := r.Facts.Check, 0
+	plan := timings.NewEstimator(timings.KindUpdate, timings.UpdateSteps(r.Config.Tunables.StepSeconds), hist, r.Config.Tunables, r.Clock)
+	plan.SetConditions(timings.Conditions{Source: c.Source, Mirror: ptr(c.Source == "mirror"), NPM: c.NPM, PyDeps: c.PyDeps, Commits: &zero})
+	for _, k := range noCommitSkips {
+		plan.ExpectSkip(k, true)
+	}
+	return plan
+}
+
+// offerRepair is the one window of the up-to-date screen: R repairs this
+// install (the run goes on as if the Y of the close prompt was given; every
+// safety step still applies), anything else, Ctrl+C included, or the timeout
+// leaves things as they are.
+func (r *Run) offerRepair(ctx context.Context) (bool, error) {
+	tun := r.Config.Tunables
+	plan := r.noCommitPlan()
+	text := fmt.Sprintf("Hermes is up to date. Press R to repair this install: Hermes closes and the update steps run again (dependencies, builds, gateway restart), %s. Any other key exits without changes (auto-exit in %s).",
+		withRough(fmt.Sprintf("about %d min", minutes(plan.PlannedTotal("close"))), plan.RoughNote("close")), ui.CountdownText(tun.ConfirmTimeoutS))
+	r.drainInput()
+	// every key but R ends the window, as the text says
+	a, err := r.askSpec(ctx, ui.PromptSpec{Text: text, Keys: []rune{'r'}, Timeout: tun.ConfirmTimeout(), CountdownLabel: "auto-exit in", AbortOnCtrlC: true, AnyKey: true}, text, true)
+	if err != nil {
+		return false, err
+	}
+	if a.Key != 'r' {
+		return false, nil
+	}
+	r.goOnWithoutCommits(AgainRepair)
+	r.Facts.Confirmed = true
+	r.info("Repairing: Hermes closes and the update steps run again.")
+	return true, nil
 }
 
 func kindText(v *bool, changed string) string {
@@ -616,13 +756,13 @@ func waitToClose(ctx context.Context, r *Run) error {
 		if err != nil {
 			return err
 		}
-		if r.Config.Run.Unattended || r.Config.Run.Yes {
+		if r.Config.Run.Unattended || r.Config.Run.Yes || r.Facts.Confirmed {
 			return nil
 		}
 		total := r.plannedTotal("close")
-		text := fmt.Sprintf("Hermes will close for the update. The update takes %s. Press Y to continue now, any other key to abort (auto-abort in %s).",
-			withRough(fmt.Sprintf("about %d min", minutes(total)), r.roughNote("close")), ui.CountdownText(tun.ConfirmTimeoutS))
+		text := r.closePrompt(total)
 		asked := r.Clock.Now()
+		r.drainInput()
 		a, err := r.ask(ctx, text, []rune{'y', 'n', 'a', 'q', '\r', 0x1b}, tun.ConfirmTimeout(), "auto-cancel in")
 		if err != nil {
 			return err
@@ -650,6 +790,27 @@ func waitToClose(ctx context.Context, r *Run) error {
 		}
 		r.info("%d session(s) became active while the confirmation waited; waiting for them to finish before closing Hermes", len(busy))
 	}
+}
+
+// closePrompt is the question before Hermes is closed. It says out loud what
+// is special about this run: an update before it that did not finish (finished
+// by this one, with or without new commits), or a repair.
+func (r *Run) closePrompt(total time.Duration) string {
+	tun := r.Config.Tunables
+	est := withRough(fmt.Sprintf("about %d min", minutes(total)), r.roughNote("close"))
+	auto := ui.CountdownText(tun.ConfirmTimeoutS)
+	prev := r.previousParen()
+	switch r.Facts.Again {
+	case AgainFinish:
+		return fmt.Sprintf("The last update did not finish%s%s. Hermes will close to finish it; that takes %s. Press Y to finish it now, any other key to abort (auto-abort in %s).", prev, r.triedText(), est, auto)
+	case AgainRepair:
+		return fmt.Sprintf("Hermes will close to repair this install: the update steps run again (dependencies, builds, gateway restart); that takes %s. Press Y to repair it now, any other key to abort (auto-abort in %s).", est, auto)
+	}
+	also := ""
+	if r.Facts.Previous != nil {
+		also = fmt.Sprintf(" This update also finishes the previous update, which did not finish%s%s.", prev, r.triedText())
+	}
+	return fmt.Sprintf("Hermes will close for the update.%s The update takes %s. Press Y to continue now, any other key to abort (auto-abort in %s).", also, est, auto)
 }
 
 // confirmRecheckAfter is how long the "Press Y" prompt may wait before the
@@ -704,6 +865,7 @@ func (r *Run) waitForIdle(ctx context.Context) (forced bool, err error) {
 // ---- 5 close (§2.7 4-6, §2.8 marker) ----
 
 func stageClose(ctx context.Context, r *Run) error {
+	r.logFinishingAttempt()
 	r.runHooks(ctx, config.HookPreClose, "unknown")
 	desk, err := r.procsOf(ctx, hermes.ClassDesktop)
 	if err != nil {
@@ -921,7 +1083,7 @@ func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 	argv := append([]string{r.Facts.Install.Launcher}, r.updateArgs()...)
 	cmdline := "hermes " + strings.Join(r.updateArgs(), " ")
 	r.UI.Command(cmdline)
-	r.Log.Info("== Running: " + cmdline)
+	r.Log.Info("== Running: " + cmdline) // starts with logRunningPrefix: unfinished.go reads it back
 
 	last := r.Clock.Now()
 	var lastMu = &r.mu
@@ -1134,6 +1296,7 @@ func stageVerify(ctx context.Context, r *Run) error {
 		r.rows(ui.Row{Key: "desktop app", Value: "build verified"})
 	} else {
 		vrc = 1
+		r.Facts.DesktopNotVerified = r.Verifier != nil
 		r.rows(ui.Row{Key: "desktop app", Value: "not verified: " + execx.Tail(vout, 300)})
 	}
 	res := hermes.EvaluateUpdate(hermes.VerifyInput{
@@ -1593,14 +1756,21 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 	}
 	r.complete(f.Verified)
 	unfinished := hermes.UnfinishedSteps(f.UpdateOutput)
-	headline := "Hermes is updated and verified."
+	done := "Hermes is updated and verified"
+	switch f.Again {
+	case AgainFinish:
+		done = "Unfinished update finished and verified"
+	case AgainRepair:
+		done = "Repair finished and verified"
+	}
+	headline := done + "."
 	switch {
 	case !f.Verified:
 		headline = "The update needs attention: see RESULT above."
 	case len(unfinished) == 1:
-		headline = "Hermes is updated and verified, but 1 step did not finish."
+		headline = done + ", but 1 step did not finish."
 	case len(unfinished) > 1:
-		headline = fmt.Sprintf("Hermes is updated and verified, but %d steps did not finish.", len(unfinished))
+		headline = fmt.Sprintf("%s, but %d steps did not finish.", done, len(unfinished))
 	}
 	var rows []ui.Row
 	if f.Versions[0] != "" {
@@ -1609,6 +1779,9 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 			v += "  (" + note + ")"
 		}
 		rows = addRow(rows, "Version", v)
+	} else if f.Again != AgainNone && f.HeadShort != "" && f.HeadFull != "" && f.HeadAfter == f.HeadFull {
+		// no new commits: the checkout stays where it was, and that is right
+		rows = addRow(rows, "Version", f.HeadShort+"  (unchanged; no new commits)")
 	}
 	rows = addRow(rows, "Channel", r.channelRow())
 	rows = addRow(rows, "Newer", r.newerRow(ctx))
@@ -1624,6 +1797,13 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 		rows = addRow(rows, "Time", t)
 	}
 	rows = addRow(rows, "Hermes app", r.appRow())
+	if f.Again != AgainNone && f.DesktopNotVerified {
+		// The finishing run (or repair) only redoes what Hermes thinks is
+		// owed; a desktop app it does not see (a torn swap that left none)
+		// is not rebuilt. Hermes has a full rebuild of its own; it takes
+		// minutes and Hermes is closed already, so it is named, never run.
+		rows = append(rows, ui.Row{Key: "Desktop rebuild", Value: "the desktop app did not verify; to rebuild it from scratch run `" + hermes.DesktopForceBuildCmd + "` (several minutes; Safe Update does not run it)", Verdict: ptr(ui.VerdictAttention)})
+	}
 	rows = addRow(rows, "Source", r.sourceLine())
 	if f.Settings != nil {
 		rows = addRow(rows, "Settings", f.Settings.Line)
@@ -1734,8 +1914,13 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 	r.complete(true)
 	var rows []ui.Row
 	rows = addRow(rows, "Channel", r.channelRow())
+	if f.Previous != nil {
+		rows = addRow(rows, "Last update", r.previousRowValue())
+	}
 	avail := "yes"
 	switch {
+	case f.NothingNew:
+		avail = "no new commits (the last update still needs finishing)"
 	case f.Channel.Plan.Release:
 		avail = r.releaseAvailable(f.Check.Commits)
 	case f.Check.Commits != nil:
@@ -1751,6 +1936,11 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 	plan.SetConditions(timings.Conditions{Source: f.Check.Source, Mirror: ptr(f.Check.Source == "mirror"), NPM: f.Check.NPM, PyDeps: f.Check.PyDeps, Commits: f.Check.Commits})
 	if f.Check.PyDeps != nil {
 		plan.ExpectSkip("pydeps", !*f.Check.PyDeps)
+	}
+	if f.NothingNew {
+		for _, k := range noCommitSkips {
+			plan.ExpectSkip(k, true)
+		}
 	}
 	rows = addRow(rows, "Update time", withRough(fmt.Sprintf("about %d min once Hermes closes", minutes(plan.PlannedTotal("close"))), plan.RoughNote("close")))
 	rows = addRow(rows, "Running", runningText(f.Procs))
@@ -1800,7 +1990,11 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 			rows = addRow(rows, "Mirror", "none (optional; updates check GitHub directly)")
 		}
 	}
-	r.summary(ui.Card{OK: nil, Headline: "Update available. Hermes was not touched.", Rows: rows})
+	headline := "Update available. Hermes was not touched."
+	if f.NothingNew {
+		headline = "The last update did not finish. Hermes was not touched."
+	}
+	r.summary(ui.Card{OK: nil, Headline: headline, Rows: rows})
 	r.offerMirror(ctx)
 	return nil
 }

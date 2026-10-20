@@ -103,12 +103,20 @@ func TestE2ENoUpdateAvailable(t *testing.T) {
 		w := newWorld(t)
 		w.vt = vt
 		w.apiStatus = "identical"
+		if vt {
+			// a console: the up-to-date screen offers a repair for ten minutes;
+			// nobody answers, the window ends and the run exits 0 as before
+			w.con.script(conStep{timeout: true})
+		}
 		before := w.storeBytes()
 		w.cli()
 		w.transcript("no-update")
 		w.wantCode(apperr.OK)
 		w.wantScreen("none, already up to date (GitHub API)", "Nothing to update", "Hermes is up to date")
 		w.nothingChanged(before)
+		if !vt && w.con.prompts != 0 {
+			t.Errorf("a run without a console asked %d question(s)", w.con.prompts)
+		}
 	})
 }
 
@@ -730,6 +738,7 @@ func TestE2EV022FleetFollowupIsOKWithNotFinishedRow(t *testing.T) {
 // is our own process's creation time.
 func TestE2EMarkerFormatThroughTheRealWiring(t *testing.T) {
 	w := newWorld(t)
+	w.created = platform.ProcessCreated // asked about this process's own pid only
 	var seen string
 	w.update = happyUpdate()
 	w.update[2].do = func(w *e2eWorld) { // while "→ Fetching updates" is running

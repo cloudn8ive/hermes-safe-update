@@ -184,6 +184,13 @@ type Key struct {
 type Console interface {
 	// IsTerminal reports whether stdout is a real console (not a pipe/file).
 	IsTerminal() bool
+	// InputIsTerminal reports whether stdin is a real console, i.e. whether a
+	// person can answer a prompt. stdout can be a console while stdin is
+	// redirected (a scheduled task with `< NUL`): ReadKey then never returns.
+	InputIsTerminal() bool
+	// DrainInput throws away keys typed ahead, before a prompt is shown, so a
+	// key pressed while the pre-flight ran cannot answer the question.
+	DrainInput()
 	// EnableVT turns on ANSI/VT processing (Windows) and returns a restore
 	// func. Must be safe to call repeatedly (children reset the mode).
 	EnableVT() (restore func(), err error)

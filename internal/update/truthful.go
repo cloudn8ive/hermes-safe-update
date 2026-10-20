@@ -88,8 +88,14 @@ func (r *Run) updateComplete() bool {
 // gateways stopped on purpose and restarts them with its next command. With
 // torn set, a half-finished update also says no: the update stopped partway
 // after the code moved, so a gateway started now could boot on a half-written
-// tree. A failure before HEAD moved is fine either way: the old code is whole.
-// The verify stage sets torn only for an update that did not finish (non-zero
+// tree. A failure before HEAD moved is fine either way: the old code is whole,
+// unless an earlier update did not finish (Facts.Previous): the crash left a
+// tree that is applied but may lack its dependencies or builds, with or
+// without new commits waiting, and HEAD proves nothing there, so torn is
+// enough. A plain repair has no Previous (a repair that meets an unfinished
+// update finishes it instead), so it keeps the rule "HEAD unchanged = old
+// code whole". The
+// verify stage sets torn only for an update that did not finish (non-zero
 // exit and no "Update complete!"); a clean exit is never torn. The abort paths
 // and the stale restart always set it. why is a sentence for the summary.
 func (r *Run) gatewayStartAllowed(ctx context.Context, torn bool) (ok bool, why string) {
@@ -106,6 +112,14 @@ func (r *Run) gatewayStartAllowed(ctx context.Context, torn bool) (ok bool, why 
 	}
 	if r.headMoved(ctx) {
 		return false, "the update stopped partway after the code changed, so a gateway started now could boot on a half-updated tree; run `hermes update` again, then `hermes gateway start` if it is still down"
+	}
+	if r.Facts.Previous != nil {
+		// An earlier update did not finish: the tree is whatever it left,
+		// applied with the dependencies or the builds missing (a run that only
+		// finishes it never moves HEAD; one with new commits may fail before
+		// HEAD moves). HEAD proves nothing there, and Hermes itself warns that
+		// it may not start until the dependencies are installed.
+		return false, "the update that did not finish could not be finished, so the tree may still be half-updated and a gateway started now could boot on it; run `hermes update` again, then `hermes gateway start` if it is still down"
 	}
 	return true, ""
 }

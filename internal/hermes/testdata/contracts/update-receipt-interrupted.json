@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "started_at": "2026-09-27T20:55:05.123456+00:00",
+  "finished_at": null,
+  "pid": 7001,
+  "pid_create_time": 1790000000.5,
+  "outcome": "interrupted",
+  "interrupted_detected_at": "2026-09-28T10:30:00.000000+00:00",
+  "stop_reason": "process exited during the update (last stage: deps)",
+  "update_id": "0f1e2d3c4b5a69780f1e2d3c4b5a6978",
+  "stages": [
+    {"name": "plan", "outcome": "success", "at": "2026-09-27T20:55:06.000000+00:00"},
+    {"name": "apply", "outcome": "success", "at": "2026-09-27T20:55:30.000000+00:00"},
+    {"name": "deps", "outcome": "success", "at": "2026-09-27T20:56:10.000000+00:00"}
+  ]
+}

@@ -24,6 +24,10 @@ type Options struct {
 	TickEvery time.Duration // default 1 s
 	Color     bool          // false = NO_COLOR: same layout, no colour (bold stays)
 	Restore   func()        // console-mode restore from EnableVT, called by Close
+	// NoWrap leaves long lines to the console (tests: the e2e transcripts
+	// swap the temp root for a shorter path after rendering, so wrap points
+	// would depend on this machine).
+	NoWrap bool
 }
 
 func (o Options) clock() timings.Clock {
@@ -124,6 +128,14 @@ func (v *VT) width() int {
 		w = 40
 	}
 	return w
+}
+
+// wrapWidth is the width long lines wrap at, 0 when wrapping is off.
+func (v *VT) wrapWidth() int {
+	if v.opts.NoWrap {
+		return 0
+	}
+	return v.width()
 }
 
 func (v *VT) col() config.Colors { return v.th.Colors }
@@ -594,28 +606,42 @@ func (v *VT) Line(level Level, text string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	c, g := v.col(), v.th.Glyphs
-	var out string
+	var out, glyph string // glyph: the mark the continuation lines hang behind
 	switch level {
 	case LevelNote:
+		glyph = g.Info
 		out = "   " + v.st.sgr(g.Info+" ", c.Accent, bold) + strings.TrimSpace(strings.TrimPrefix(text, "note:"))
 	case LevelWarn:
 		v.warnings++
+		glyph = g.Warn
 		out = "   " + v.st.sgr(g.Warn+" ", c.Warn, bold) + v.st.sgr(trimPrefixFold(text, "WARN"), c.Warn)
 	case LevelStop:
+		glyph = g.Err
 		out = "   " + v.st.sgr(g.Err+" "+trimPrefixFold(text, "STOP"), c.Err, bold)
 	case LevelOK:
+		glyph = g.OK
 		out = "   " + v.st.sgr(g.OK+" "+text, c.OK, bold)
 	case LevelResult:
 		t := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text), "RESULT:"))
 		if strings.HasPrefix(t, "OK") {
-			out = v.st.fit([]seg{{t: "   " + g.OK + " ", codes: []string{c.OK, bold}}, {t: strings.Trim(t, ": "), codes: []string{c.OK, bold}}}, v.width())
+			glyph = g.OK
+			out = v.st.join([]seg{{t: "   " + g.OK + " ", codes: []string{c.OK, bold}}, {t: strings.Trim(t, ": "), codes: []string{c.OK, bold}}})
 		} else {
+			glyph = g.Err
 			out = "   " + v.st.sgr(g.Err+" "+t, c.Err, bold)
 		}
 	default:
-		out = v.st.free(text)
+		v.printLocked(v.st.free(text, v.wrapWidth()))
+		return
 	}
-	v.printLocked(out)
+	v.printLocked(v.wrapHung(out, 3+runeLen(glyph)+1))
+}
+
+// wrapHung wraps one printed line to the usable width (read now, so a
+// resized window wraps to its new size); continuation lines start hangW
+// blank columns in, under the text.
+func (v *VT) wrapHung(line string, hangW int) string {
+	return wrapStyled(line, v.wrapWidth(), spaces(hangW), hangW)
 }
 
 func (v *VT) Rows(rows ...Row) {
@@ -626,7 +652,7 @@ func (v *VT) Rows(rows ...Row) {
 	defer v.mu.Unlock()
 	lines := make([]string, len(rows))
 	for i, r := range rows {
-		lines[i] = v.st.kv(r)
+		lines[i] = v.st.kv(r, v.wrapWidth())
 	}
 	v.printLocked(strings.Join(lines, "\n"))
 }
@@ -679,13 +705,21 @@ func (v *VT) Output(line string) {
 	gutter := v.st.sgr("   "+g.Gutter+" ", v.st.hue(grp, true))
 	indent := len(body) - len(strings.TrimLeft(body, " \t"))
 	text := strings.TrimSpace(body)
+	// lead is the width of a leading glyph and the blanks after it: a
+	// wrapped line continues under the text that follows the glyph.
+	lead := func(glyph, rest string) int {
+		return runeLen(glyph) + runeLen(rest) - runeLen(strings.TrimLeft(rest, " "))
+	}
+	hang := 0
 	for _, m := range marks {
 		if strings.HasPrefix(text, m.src) {
+			hang = lead(m.dst, text[len(m.src):])
 			text = v.st.sgr(m.dst, m.colour, bold) + text[len(m.src):]
 			break
 		}
 	}
 	if strings.HasPrefix(text, g.Arrow) {
+		hang = lead(g.Arrow, text[len(g.Arrow):])
 		text = v.st.sgr(g.Arrow, v.st.hue(grp, false), bold) + v.st.sgr(text[len(g.Arrow):], bold)
 	}
 	var colour []string
@@ -698,15 +732,20 @@ func (v *VT) Output(line string) {
 	if len(colour) > 0 {
 		text = v.st.sgr(text, colour...)
 	}
-	v.printLocked(gutter + strings.Repeat(" ", indent) + text)
+	// The gutter repeats on every continuation line, then the blanks up to
+	// the first character of the text.
+	gutterW := 3 + runeLen(g.Gutter) + 1
+	v.printLocked(wrapStyled(gutter+strings.Repeat(" ", indent)+text, v.wrapWidth(),
+		gutter+spaces(indent+hang), gutterW+indent+hang))
 }
 
 func (v *VT) Command(argv string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	c := v.col()
-	v.printLocked("   " + v.st.sgr(v.th.Glyphs.Command+" ", v.st.hue(v.group(), false), bold) +
-		v.st.sgr("command  ", c.Label) + v.st.sgr(argv, c.Soft))
+	const label = "command  "
+	v.printLocked(v.wrapHung("   "+v.st.sgr(v.th.Glyphs.Command+" ", v.st.hue(v.group(), false), bold)+
+		v.st.sgr(label, c.Label)+v.st.sgr(argv, c.Soft), 3+runeLen(v.th.Glyphs.Command)+1+len(label)))
 }
 
 func (v *VT) waitLocked(label string, deadline time.Time, countdown string) {
@@ -769,8 +808,8 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// readAnswer reads keys until one of spec.Keys, Ctrl+C (if allowed), the
-// timeout or ctx. Arrow and function keys are ignored (D3).
+// readAnswer reads keys until one of spec.Keys (any key with spec.AnyKey), Ctrl+C (if allowed), the
+// timeout or ctx. Without AnyKey, arrow and function keys are ignored (D3).
 func readAnswer(ctx context.Context, con platform.Console, p PromptSpec) (Answer, error) {
 	rctx := ctx
 	if p.Timeout > 0 {
@@ -794,6 +833,9 @@ func readAnswer(ctx context.Context, con platform.Console, p PromptSpec) (Answer
 				return Answer{Abort: true}, nil
 			}
 			continue
+		}
+		if p.AnyKey {
+			return Answer{Key: k.Rune}, nil // an arrow or function key has Rune 0
 		}
 		if k.Other || k.Rune == 0 {
 			continue
@@ -828,9 +870,9 @@ func (v *VT) Summary(card Card) {
 	case card.OK != nil:
 		m, col = g.Err, c.Err
 	}
-	lines := []string{"", "   " + v.st.sgr(m+" "+card.Headline, col, bold)}
+	lines := []string{"", v.wrapHung("   "+v.st.sgr(m+" "+card.Headline, col, bold), 3+runeLen(m)+1)}
 	for _, r := range card.Rows {
-		lines = append(lines, v.st.kv(r))
+		lines = append(lines, v.st.kv(r, v.wrapWidth()))
 	}
 	v.printLocked(strings.Join(lines, "\n"))
 }

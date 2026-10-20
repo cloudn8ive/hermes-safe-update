@@ -1,0 +1,45 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: none, already up to date (GitHub API)
+No new commits; repairing: the update steps run again.
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+== 2/5 Close Hermes
+Hermes will close to repair this install: the update steps run again (dependencies, builds, gateway restart); that takes about 6 min (rough: no earlier runs like this; uses defaults). Press Y to repair it now, any other key to abort (auto-abort in 10 min).
+== Close
+closing desktop app (pid 4242)
+stopping leftover backend pid 5310
+== 3/5 Update
+command: hermes update --yes --keep-stash --branch main
+  | → Update channel: main
+  | → Stopping Windows gateway (pid 8211) so files can be replaced…
+  | → Updating Python dependencies (uv sync)…
+  |   ✓ Python dependencies are current
+== 4/5 Build
+  | → Building desktop packaged app…
+  | → Packaging the desktop app…
+  | → Restarting the gateway…
+  | ✓ Already up to date!
+hermes update exit code: 0
+== 5/5 Finish
+== Verify
+gateway: running the new code 5d41402abc
+desktop app: build verified
+RESULT: OK
+== Settings
+settings: migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-095200
+relaunched Hermes desktop
+== Dependency generation cleanup
+removed: removed 2 old dependency set(s), freed 612 MB
+
+Repair finished and verified.
+  Version      5d41402  (unchanged; no new commits)
+  Channel      main (set in Hermes)
+  Time         4:38 until Hermes reopened  (estimate was 6:26)
+  Source       GitHub (checked via the API)
+  Settings     migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-095200
+  Cleanup      removed 2 old dependency set(s), freed 612 MB
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

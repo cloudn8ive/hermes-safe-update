@@ -38,7 +38,7 @@ func TestParseChannelFlag(t *testing.T) {
 	for _, args := range [][]string{
 		{"--channel", "stable", "list-backups"}, {"migrate-settings", "--channel", "main"}, {"mirror", "status", "--channel", "main"},
 	} {
-		if _, err := parseArgs(args); err == nil || !strings.Contains(err.Error(), "--channel applies to run and check only") {
+		if _, err := parseArgs(args); err == nil || !strings.Contains(err.Error(), "--channel applies to run, repair and check only") {
 			t.Errorf("%v: %v", args, err)
 		}
 	}

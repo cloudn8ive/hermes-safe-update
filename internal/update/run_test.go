@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -339,11 +340,16 @@ type harness struct {
 	wrap      execx.Runner      // replaces runner when set
 	cards     *[]ui.Card        // when set, every summary card is appended here
 	logSink   io.Writer         // receives the run's log (default: discarded)
+	logLevel  slog.Level        // its logging.level (zero = info)
 	env       map[string]string // updater's environment (nil = empty)
 	selfPID   int               // the updater's pid in the fake process table (0 = real)
 	exists    func(string) bool // FileExists (nil = everything exists)
 
 	managedPython func() string // Deps.ManagedPython (nil = the install's value)
+
+	receipts ReceiptSource                       // Deps.Receipts (nil = not looked at)
+	logTail  func(string, int64) ([]byte, error) // Deps.LogTail (nil = a readable log that holds this run only)
+	repair   bool                                // Deps.Repair (the repair command)
 
 	mainCheck string     // answer of `hermes update --check --branch main` (default: 3 commits behind)
 	onRun     func(*Run) // called with the Run before it executes (tests read its facts)
@@ -474,6 +480,9 @@ func (h *harness) run(flags ...string) error {
 		Title:         "Hermes Safe Update",
 		TimingsPath:   h.timings,
 		LogPath:       tHome + `\logs\safe-update.log`,
+		Receipts:      h.receipts,
+		LogTail:       h.logTailOrDefault(),
+		Repair:        h.repair,
 	}
 	r := NewRun(d)
 	if h.onRun != nil {
@@ -486,11 +495,25 @@ func (h *harness) run(flags ...string) error {
 	return Execute(ctx, r, Flow(h.mode))
 }
 
+// logTailOrDefault is the log the run reads: h.logTail, else a log that holds
+// this run only (a readable log with no earlier run in it).
+func (h *harness) logTailOrDefault() func(string, int64) ([]byte, error) {
+	if h.logTail != nil {
+		return h.logTail
+	}
+	return func(path string, _ int64) ([]byte, error) {
+		if strings.HasSuffix(path, ".1") {
+			return nil, os.ErrNotExist
+		}
+		return []byte(ownStart(h.clock.Now())), nil
+	}
+}
+
 func (h *harness) logger() *slog.Logger {
 	if h.logSink == nil {
 		return nil
 	}
-	return slog.New(slog.NewTextHandler(h.logSink, nil))
+	return slog.New(slog.NewTextHandler(h.logSink, &slog.HandlerOptions{Level: h.logLevel}))
 }
 
 func (h *harness) output() string { return h.out.String() }

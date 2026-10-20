@@ -41,7 +41,7 @@ run on a real Linux kernel (WSL2) in an audit. Nobody has run a real Hermes
 update with it on macOS or Linux; on those systems the code paths are tested
 with fakes only.
 There it prints a warning and, before a command that closes, updates or
-writes something (`run`, `mirror setup`, `channel set`, the settings commands), asks you to
+writes something (`run`, `repair`, `mirror setup`, `channel set`, the settings commands), asks you to
 confirm once. Your answer (Y, or `--accept-untested`) is remembered in
 `safe-update.json`, so later runs, scheduled ones included, do not ask again;
 `--unattended` needs `--accept-untested` the first time. The look-only
@@ -177,6 +177,7 @@ cd $env:LOCALAPPDATA\Programs\hermes-safe-update
 .\hermes-safe-update.exe --check       # look only: leaves Hermes as it is (may fetch commits, like git fetch)
 .\hermes-safe-update.exe               # update, asking before anything is closed
 .\hermes-safe-update.exe --unattended  # for a scheduled task: never asks
+.\hermes-safe-update.exe repair        # run the update steps again although Hermes is up to date (asks first)
 .\hermes-safe-update.exe channel       # which Hermes update channel (stable or main) this install uses
 ```
 
@@ -187,6 +188,7 @@ On macOS and Linux, in a terminal (the binary is on your `PATH`, see
 hermes-safe-update --check             # look only; never asks the untested-platform question
 hermes-safe-update                     # update; asks once that you accept the untested platform
 hermes-safe-update --unattended --accept-untested   # for cron, launchd or systemd (see FAQ)
+hermes-safe-update repair              # run the update steps again although Hermes is up to date; asks first, same untested question as the update
 hermes-safe-update channel             # which Hermes update channel this install uses; never asks
 ```
 
@@ -220,7 +222,14 @@ the footer and only drops the colours.
 
 An unattended run still waits for idle sessions (up to 30 minutes by
 default). If sessions are still busy after that, it ends with exit code 3
-and nothing has been changed.
+and nothing has been changed. An unattended run also finishes an update that
+did not finish, without asking (once; see
+[An update that did not finish, and repair](#an-update-that-did-not-finish-and-repair)).
+
+When Hermes is up to date, an interactive run does not exit at once: at a
+real console it offers `R` to repair for up to 10 minutes (any other key
+ends it, exit 0). That offer is never made with `--unattended`, `--yes`,
+`--force` or `--check`, or when output or keyboard is redirected.
 
 ## What a run does
 
@@ -243,13 +252,19 @@ and nothing has been changed.
    uses is explained in [Update channel](#update-channel-stable-or-main). The
    new stops, their settings and how to fix each one are in
    [docs/how-it-works.md](docs/how-it-works.md) and
-   [docs/configuration.md](docs/configuration.md#preflight).
+   [docs/configuration.md](docs/configuration.md#preflight). It also looks
+   (read-only, never a stop) for an update that did not finish; see
+   [below](#an-update-that-did-not-finish-and-repair). If Hermes is up to
+   date and nothing is unfinished, an interactive run offers `R` to repair
+   before it ends (see the same section).
 3. **Look for running processes**: desktop app, gateway, backends, kernels.
 4. **Wait.** If anything is about to be stopped, it reads every profile's
    `state.db` (read-only) for sessions active in the last 3 minutes. While
    any are active it waits. You can press `A` to abort or `F` to go ahead
    anyway. Then it asks for a final `Y` (10 minutes, then it aborts;
-   `--delay N` changes that). If you answer more than a minute after the
+   `--delay N` changes that). When the run is special the question says so:
+   the last update did not finish, or this is a repair. After `R` at the
+   repair offer there is no second `Y`. If you answer more than a minute after the
    prompt, it checks the sessions once more before closing: if a chat has
    become busy it goes back to waiting for idle and asks again. Whatever the
    mode (also after `F`, with `--yes` or `--unattended`, after a long wait
@@ -306,7 +321,10 @@ and nothing has been changed.
     app was not reopened (`Hermes app`). Rows that report what Safe Update
     did about the gateway or the launcher (`Gateway check`, `Stale gateway`,
     `Gateway rescue`, `Double launch`, `Launcher`) are notes: they never
-    change the result or the exit code.
+    change the result or the exit code. A run that finishes an unfinished
+    update or repairs says so in its headline ("Unfinished update finished and
+    verified", "Repair finished and verified") and its `Version` row reads
+    "unchanged; no new commits".
 
 **Pre-flight stops, in short** (all exit 4, nothing closed. `check` shows
 the same stops and also exits 4 on a held lock or a `tools\` entry you cannot
@@ -342,6 +360,77 @@ update from an older Hermes; those paths are covered by automated tests with
 fakes and synthetic Hermes output only.
 
 The stages in more detail: [docs/how-it-works.md](docs/how-it-works.md).
+
+## An update that did not finish, and repair
+
+A crash, a power loss or a killed terminal can stop `hermes update` halfway,
+for example while the desktop app is being packaged. The next run then finds
+no new commit and, before v0.5.0, said "up to date" and left it at that.
+Now Safe Update looks first. It counts the last update as unfinished when any
+one of these is true:
+
+- Hermes' newest update record (`logs\update_receipts\update_*.json`, in the
+  root Hermes home also when Safe Update works in a profile's home) says the
+  update was still running although the process that ran it is gone, or says
+  it was interrupted. A Hermes without these records gives no signal.
+- Safe Update's own log shows an earlier run that got as far as `hermes
+  update` and never wrote its final `done` line, and no update that ran to
+  its end began after it (if you then ran `hermes update` by hand and it
+  worked, nothing is owed).
+- A leftover update marker names a process that is gone.
+
+All of this is read-only. Anything it cannot read counts as "unknown" and
+changes nothing. A `last update` row says what was found and when ("did not
+finish (stopped during building the apps at yesterday 8:56 PM)"). Then:
+
+- **No new commits:** the run goes on through the usual steps with the same
+  `hermes update` command. As far as Hermes' code shows, that redoes what an
+  update still owes (stash restore, dependencies, builds, gateway restart)
+  without fetching. The final question says "The last update did not finish
+  (...). Hermes will close to finish it ... Press Y to finish it now".
+- **New commits:** a normal update, with one added sentence in the question.
+- **`--unattended` or `--yes`:** finishes it without asking, once per
+  unfinished update. If an earlier attempt already failed, or if Safe Update's
+  own log cannot be read (so it cannot tell), a run that asks nobody leaves it
+  alone: it ends with exit 1 ("needs attention", so a scheduled task shows
+  it) and a card "The last update did not finish, and it was not retried:
+  nothing was changed" that names the reason and says how to finish it (run
+  Safe Update from the Start menu or a terminal), not with "Hermes is up to
+  date". It also writes a WARN line to the log, which stays at every
+  `logging.level`. An attempt that got as far as `hermes update` counts as made: the
+  next run reports the then current state. An interactive run asks again and
+  says the earlier attempt failed.
+- **`--check`:** shows the `last update` row in the pre-flight (and `Last
+  update` in the summary card) and closes nothing.
+
+If the finishing run's `hermes update` fails, no gateway is started on the
+tree the crash left, also when new commits were waiting; the summary says why
+and names `hermes update`.
+
+If the desktop app still does not verify after such a run, a `Desktop
+rebuild` row names `hermes desktop --force-build`, Hermes' own full rebuild
+(several minutes). Safe Update never runs it.
+
+**Repair.** When Hermes is up to date and nothing is unfinished, an
+interactive run (output and keyboard both a console; not `--unattended`,
+`--yes`, `--force` or `--check`) offers one window of 10 minutes: "Press R to
+repair this install: Hermes closes and the update steps run again
+(dependencies, builds, gateway restart) ... Any other key exits without
+changes". Only `R` goes on, and it replaces the final `Y`; the wait for busy
+sessions, the checkout-lock look and the pre-flight stops still apply. Any
+other key, Ctrl+C or the timeout ends the run as before: the "up to date" card,
+exit 0. The offer is skipped when the run already knows it would stop (low disk,
+inside a Hermes chat, missing ARM64 build tools with `preflight.arm64_toolchain:
+stop`: the run ends as "up to date", exit 0, and a line says why; in the default
+`warn` mode the offer is made, the toolchain is not mentioned on a run that
+repairs nothing, and the warning comes once after the `R`).
+`hermes-safe-update repair` is the same without
+waiting for the up-to-date screen: it goes ahead with no new commits, asks
+the usual `Y` and takes `--yes` and `--unattended` like any run. `--force`
+still runs without new commits too, with the ordinary wording.
+
+None of this has run against a real Hermes yet, nor after a real crash; it is
+covered by automated tests with fakes.
 
 ## Update channel (stable or main)
 
@@ -411,7 +500,8 @@ writes anything; it runs a read-only release check first and asks for a `Y`
 
 - It never closes Hermes over running work. A session database it cannot
   read counts as busy, never as idle.
-- Nothing in Hermes or its settings is changed before you confirm. (The tool
+- Nothing in Hermes or its settings is changed before you confirm (`Y`, or `R`
+  at the repair offer). (The tool
   may refresh its local mirror and fetch commits into the checkout from it,
   and it writes its own log and timing files.) An abort before that leaves
   Hermes running and no marker behind.
@@ -510,13 +600,22 @@ newest 3 are kept (`settings.backup_retention`). Merge rules and revert:
   (`gateway_state.json` in the root folder), not one per profile.
 - An MSIX or Store build of the Hermes desktop app that runs next to a source
   checkout is not closed by Safe Update, so close it yourself before an update.
+- Finishing an unfinished update, the repair offer and `repair` have not been
+  run against a real Hermes or after a real crash; only automated tests with
+  fakes cover them. They run the ordinary `hermes update`; whether that
+  rebuilds a desktop app that was left half-packaged depends on Hermes (see
+  [above](#an-update-that-did-not-finish-and-repair)).
+- The unfinished-update check reads the last 20 update records of Hermes and the
+  last 512 KB of Safe Update's log (plus the end of the rotated log). An
+  unfinished update that is older than that, or whose log has been cleared, is
+  not seen.
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | done: updated and verified, check finished, or already up to date |
-| 1 | the update ran but needs attention, or an unexpected error |
+| 1 | the update ran but needs attention, or an unexpected error; also a run that asks nobody and left an unfinished update alone because an earlier attempt failed or Safe Update's own log could not be read (its card says "was not retried") |
 | 2 | no way to run Hermes was found: the `hermes` launcher is missing and (for `run` and `check`) Hermes cannot be run through its managed Python either |
 | 3 | cancelled before anything changed (you, a timeout, idle wait exceeded, the desktop app would not close, untested platform declined) |
 | 4 | pre-flight stop: another update running or holding Hermes' checkout lock, an administrator terminal (`--allow-elevated` goes on), `tools\` entries your account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed, started from inside a Hermes chat, `update.channel: stable` on a Hermes without release channels, an update that would move Hermes back to an older release (you answered no, or `--unattended`), or `channel set` refused |
@@ -530,7 +629,9 @@ cron-job failure, 2 is no free space or no location for the mirror, 3 is
 `logs\update-mirror.log`).
 
 Ctrl+C while the tool is still waiting or asking for confirmation ends the
-run with code 3. Ctrl+C while
+run with code 3. (The one exception is the repair offer on the up-to-date
+screen: Ctrl+C, like any key but `R` and like the timeout, ends it with code 0
+and the "up to date" card.) Ctrl+C while
 `hermes update` is running reaches Hermes itself (it shares the
 console). The run then ends with code 1, because something may already have
 changed.
@@ -712,6 +813,14 @@ unattended update started by a Windows scheduled task has run and verified
   the run like Ctrl+C and the update marker is released. The Hermes cron job
   of `mirror setup` runs `mirror refresh`, which never asks the
   untested-platform question.
+- A scheduled `--unattended` run never offers the repair. It does finish an
+  update that did not finish (closing Hermes for it), once per unfinished
+  update. A later run does not close Hermes for it again and exits 1, so the
+  task shows "needs attention": it logs a WARN line and says
+  "was not retried" when the earlier attempt stopped before `hermes update` or
+  Safe Update's own log cannot be read, and reports what is true then (with no
+  new commit: "up to date") when the earlier attempt got as far as `hermes
+  update`. Read that attempt's own summary or log if it failed.
 
 ## Troubleshooting
 
@@ -757,6 +866,12 @@ unattended update started by a Windows scheduled task has run and verified
 - **Garbled symbols in the progress display.** On Windows use Windows
   Terminal; on macOS and Linux use a terminal with a UTF-8 locale and a font
   that has the symbols. Or run with `--plain`, or change `theme.glyphs`.
+- **Hermes said "up to date" but something is still broken.** If the last
+  update crashed, current Safe Update says so (a `last update` row) and
+  finishes it. If nothing is recorded, run `hermes-safe-update` at a console
+  and press `R` at the offer, or run `hermes-safe-update repair`. For a
+  desktop app that stays unverified, the summary row names `hermes desktop
+  --force-build`.
 
 ## License
 

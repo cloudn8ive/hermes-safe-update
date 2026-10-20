@@ -13,8 +13,8 @@ mirror and fetch new commits and `v*` tags into the checkout's git data
 | # | Stage | What happens | Can stop the run |
 |---|---|---|---|
 | 0 | install check | Is this a managed source checkout with a `hermes` launcher? Packaged installs get advice instead. If there is no working launcher, `run` and `check` try to run Hermes through its managed Python (see "The launcher" below). | exit 5; exit 2 when no way to run Hermes is found (no launcher, and the managed Python route fails too) |
-| 1 | local | Running elevated (administrator)? Is another update's marker held by a live process? Does a process hold Hermes' checkout lock (an update running, or a child a killed update left behind)? Can your account open Hermes' `tools\` entries (an elevated install leaves some it cannot)? Free disk at least `min_free_gb`? Dirty checkout (information only)? Current commit. All of these only read; see "Pre-flight stops" below and `preflight` in configuration.md. | exit 4 |
-| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back and the rollback guard asks). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). On Windows ARM64 (Hermes' managed Python is the `win32-arm64` one), when Python dependencies are expected to change (or cannot be told), it also looks for the ARM64 C++ tools and `clang.exe` the way Hermes does, and warns (or stops, `preflight.arm64_toolchain: stop`) if they are missing. | up to date: exit 0. Check failed, release not resolvable, a stable request on a Hermes without channels, an update that would move Hermes back to an older release (rollback guard; asks first when attended), or missing ARM64 build tools with `arm64_toolchain: stop`: exit 4 |
+| 1 | local | Running elevated (administrator)? Is another update's marker held by a live process? Does a process hold Hermes' checkout lock (an update running, or a child a killed update left behind)? Can your account open Hermes' `tools\` entries (an elevated install leaves some it cannot)? Free disk at least `min_free_gb`? Dirty checkout (information only)? Current commit. Did the last update finish (a `last update` row; see "An update that did not finish" below)? All of these only read; see "Pre-flight stops" below and `preflight` in configuration.md. | exit 4 |
+| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back and the rollback guard asks). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). On Windows ARM64 (Hermes' managed Python is the `win32-arm64` one), when Python dependencies are expected to change (or cannot be told), it also looks for the ARM64 C++ tools and `clang.exe` the way Hermes does (also when the run goes on without new commits), and warns (or stops, `preflight.arm64_toolchain: stop`) if they are missing. Before the repair offer it only looks: with `stop` and the tools missing no repair is offered; the warning of `warn` mode comes after the `R`. | up to date and nothing unfinished: exit 0 (an interactive run first offers `R` to repair; an unfinished update is finished instead of ending here). Check failed, release not resolvable, a stable request on a Hermes without channels, an update that would move Hermes back to an older release (rollback guard; asks first when attended), or missing ARM64 build tools with `arm64_toolchain: stop` on a run that goes ahead: exit 4 |
 | 3 | procs | Classify running processes: desktop, gateway, backend, kernel. On Windows, probe whether Hermes' own gateway pause would work. | |
 | 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`; it waits `confirm_timeout_s`, default 600 s, and if the answer comes more than a minute after the prompt the busy-session check runs once more and a busy chat sends the run back to waiting for idle). Right before the close stage, in every mode (also after `F`, with `--yes`, `--unattended`, after a long idle wait), the checkout lock is probed again when the last probe is more than a minute old; a lock now held ends the run with exit 4 before anything closes. | exit 3 |
 | 5 | close | `pre-close` hooks, graceful close with `graceful_close_s` to finish, force only after that, stop leftover backends and kernels, then claim the update-in-progress marker. | exit 3 if the app will not exit |
@@ -52,7 +52,7 @@ set stable|main` does, and it asks Hermes to (`hermes update --set-channel`).
 
 On a release channel the stage 2 verdicts are Hermes': an available release
 proceeds; "up to date" and "no newer release ... waits for the next release"
-end the run with exit 0 (nothing to do); `Could not resolve the stable source
+end the run with exit 0 (nothing to do, unless an update that did not finish is found, which is finished; an interactive run offers `R` to repair first); `Could not resolve the stable source
 channel` (GitHub unreachable) is a pre-flight stop with Hermes' reason; text
 that matches nothing is a warning and a stop, never a silent success.
 
@@ -70,6 +70,22 @@ both versions (`--yes` does not skip it; any other key or a timeout is exit
 command to do it by hand (`hermes-safe-update run`, attended, or `hermes
 update`). `--force` does not skip it, and a release check that fails or times
 out stops the run (exit 4) with or without `--force`.
+
+## An update that did not finish
+
+A crash can stop `hermes update` halfway. In the pre-flight a run asks, read-only
+and never as a stop, whether the last update finished: Hermes' newest update
+record (in the root Hermes home), Safe Update's own log, a leftover update
+marker. One yes is enough; an update that you finished by hand with `hermes
+update` afterwards does not count. It is shown as a `last update` row in the
+pre-flight (`Last update` in the summary of `--check`). With no new commits the
+run then does not end "up to date": it goes through close, update and verify
+and the 10-minute question names the unfinished update. `--unattended` and
+`--yes` finish it once; a run that asks nobody and may not retry ends with a
+card "The last update did not finish, and it was not retried" (exit 1, with a WARN line in the log). When
+Hermes is up to date and nothing is unfinished, an interactive run offers `R` to
+repair. Details: the README section "An update that did not finish, and
+repair", and design.md 3.2.
 
 ## Nothing changes before the point of no return
 

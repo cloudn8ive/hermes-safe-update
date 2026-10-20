@@ -45,7 +45,7 @@ func TestHelpListsSubcommandsAndExitCodes(t *testing.T) {
 		if code != 0 {
 			t.Errorf("%v exit %d", args, code)
 		}
-		for _, want := range []string{"check", "migrate-settings", "revert-settings", "backup-settings", "list-backups", "mirror", "version", "--accept-untested", "--unattended", "--no-elevate", "Exit codes"} {
+		for _, want := range []string{"check", "repair", "migrate-settings", "revert-settings", "backup-settings", "list-backups", "mirror", "version", "--accept-untested", "--unattended", "--no-elevate", "Exit codes"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("%v: help lacks %q", args, want)
 			}
@@ -82,6 +82,8 @@ func TestParseSubcommandsAndFlags(t *testing.T) {
 		{nil, "run", func(o options) bool { return true }},
 		{[]string{"--check"}, "check", func(o options) bool { return true }},
 		{[]string{"check", "--plain"}, "check", func(o options) bool { return o.plain }},
+		{[]string{"repair"}, "repair", func(o options) bool { return !o.force }},
+		{[]string{"--yes", "repair", "--channel", "main", "--allow-elevated"}, "repair", func(o options) bool { return o.yes && o.channel == "main" && o.allowElev }},
 		{[]string{"--unattended", "--delay", "10", "--no-relaunch", "--force", "--no-elevate", "--yes"}, "run", func(o options) bool {
 			return o.unattended && o.delay == 10 && o.noRelaunch && o.force && o.noElevate && o.yes
 		}},

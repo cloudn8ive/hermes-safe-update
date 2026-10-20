@@ -84,7 +84,8 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger, route *
 		d.Gateway = gw
 		d.Repo = &hermes.GitRepo{Git: in.Git, Checkout: in.Checkout, Run: r}
 		d.Verifier = &hermes.CLIVerifier{Launcher: in.Launcher, Run: r}
-		d.Marker = &hermes.Marker{Home: in.Home, Pid: os.Getpid(), Procs: p.Procs, Now: env.now, Created: platform.ProcessCreated}
+		d.Marker = &hermes.Marker{Home: in.Home, Pid: os.Getpid(), Procs: p.Procs, Now: env.now, Created: env.processCreated()}
+		d.Receipts = &hermes.ReceiptReader{Home: in.Home, Procs: p.Procs, Created: env.processCreated()}
 		d.GC = gc.New(gc.Deps{Runner: r, Python: in.Python, PythonNow: managedPython, Home: in.Home, Checkout: in.Checkout, Applicable: p.OS == "windows"})
 		d.CUA = cua.New(cua.Deps{Runner: r, Launcher: in.Launcher, Autostart: p.Autostart, Home: in.Home,
 			Log: func(s string) { log.Info(s) }})
@@ -117,8 +118,8 @@ func newMirror(cfg *config.Config, env *environment, in hermes.Install, log *slo
 	return mirror.New(d)
 }
 
-// runFlow is the handler of `run` and `check`.
-func runFlow(mode update.Mode) func(context.Context, options, *config.Config, *environment, *slog.Logger) error {
+// runFlow is the handler of `run`, `repair` and `check`.
+func runFlow(mode update.Mode, repair bool) func(context.Context, options, *config.Config, *environment, *slog.Logger) error {
 	return func(ctx context.Context, o options, cfg *config.Config, env *environment, log *slog.Logger) error {
 		home := env.home(cfg)
 		if home == "" {
@@ -140,7 +141,7 @@ func runFlow(mode update.Mode) func(context.Context, options, *config.Config, *e
 		loc.AllowDirect = true
 		d := update.Deps{
 			Config: cfg, Platform: env.platform, Runner: route.Wrap(env.run()), Log: log, UI: r, Clock: env.clock, Sleep: env.sleep,
-			Locator: loc, Wire: wireInstall(cfg, env, log, route), Route: route, Mode: mode, SelfPID: env.selfPID, Getenv: env.getenv,
+			Locator: loc, Wire: wireInstall(cfg, env, log, route), Route: route, Mode: mode, Repair: repair, SelfPID: env.selfPID, Getenv: env.getenv, Created: env.processCreated(),
 			TimingsPath: filepath.Join(home, "logs", "safe-update-timings.json"),
 			LogPath:     filepath.Join(home, "logs", "safe-update.log"),
 		}

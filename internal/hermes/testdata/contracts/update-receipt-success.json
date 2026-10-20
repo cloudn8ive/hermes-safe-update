@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "started_at": "2026-09-28T10:32:55.358465+00:00",
+  "finished_at": "2026-09-28T10:36:26.229111+00:00",
+  "pid": 7003,
+  "pid_create_time": 1790060000.0,
+  "outcome": "success",
+  "update_id": "1f1e2d3c4b5a69780f1e2d3c4b5a6978",
+  "stages": [
+    {"name": "plan", "outcome": "success", "at": "2026-09-28T10:32:56.000000+00:00"},
+    {"name": "apply", "outcome": "success", "at": "2026-09-28T10:33:20.000000+00:00"},
+    {"name": "deps", "outcome": "success", "at": "2026-09-28T10:33:48.000000+00:00"},
+    {"name": "build", "outcome": "success", "at": "2026-09-28T10:35:51.000000+00:00"},
+    {"name": "restart", "outcome": "success", "at": "2026-09-28T10:35:56.000000+00:00"}
+  ]
+}

@@ -448,7 +448,7 @@ func TestParseChannelCommand(t *testing.T) {
 		{[]string{"channel", "set"}, "channel set needs the channel"},
 		{[]string{"channel", "stable"}, "channel takes no argument"},
 		{[]string{"channel", "set", "stable", "main"}, "unexpected argument"},
-		{[]string{"channel", "--channel", "main"}, "--channel applies to run and check only"},
+		{[]string{"channel", "--channel", "main"}, "--channel applies to run, repair and check only"},
 		{[]string{"channel", "--check"}, "--check cannot be combined"},
 		{[]string{"set", "stable"}, "unknown command"},
 	} {

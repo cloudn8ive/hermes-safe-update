@@ -200,3 +200,30 @@ func TestNewWiresWindowsBackends(t *testing.T) {
 		t.Errorf("home %q %v", h, err)
 	}
 }
+
+// DrainInput empties the keys the reader already queued (the console's own
+// buffer is flushed with a Windows call that a fake handle cannot show).
+func TestWinConsoleDrainInputEmptiesTheQueuedKeys(t *testing.T) {
+	c := &winConsole{in: windows.InvalidHandle, keyCh: make(chan Key, 16)}
+	c.keyCh <- Key{Rune: 'r'}
+	c.keyCh <- Key{Rune: 'x'}
+	c.DrainInput()
+	if n := len(c.keyCh); n != 0 {
+		t.Errorf("%d keys still queued after DrainInput", n)
+	}
+	(&winConsole{in: windows.InvalidHandle}).DrainInput() // no reader started yet: nothing to empty, no panic
+}
+
+// A pipe is not a console: no person can answer a prompt on it.
+func TestWinConsoleInputIsNotATerminalOnAPipe(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	c := &winConsole{in: windows.Handle(r.Fd())}
+	if c.InputIsTerminal() {
+		t.Error("a pipe reads as a console")
+	}
+}

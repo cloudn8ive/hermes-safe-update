@@ -100,7 +100,7 @@ func Execute(ctx context.Context, r *Run, stages []Stage) (err error) {
 		r.UI.Start(r.Title, r.steps, r.Est, r.Mode == ModeUpdate)
 		r.uiStarted = true
 	}
-	r.Log.Info("==== Hermes safe update started", slog.Int("pid", os.Getpid()),
+	r.Log.Info(logStarted, slog.Int("pid", os.Getpid()),
 		slog.Bool("check", r.Mode == ModeCheck), slog.Bool("unattended", r.Config.Run.Unattended))
 	if r.histErr != nil {
 		r.note("timing history unreadable (%v); estimates use defaults", r.histErr)
@@ -158,7 +158,20 @@ func (r *Run) finally(ctx context.Context, err error) error {
 	case errors.Is(err, errUpToDate):
 		err = nil
 		r.complete(true)
-		r.summary(ui.Card{OK: ptr(true), Headline: "Hermes is up to date", Rows: []ui.Row{{Key: "Log", Value: r.LogPath}}})
+		if why := r.Facts.FinishSkipped; why != "" && r.Facts.Previous != nil {
+			// Not "up to date": an unfinished update was found and a run that
+			// asks nobody did not retry it. Nothing failed in this run, but the
+			// work is still owed: exit 1 ("needs attention"), so a scheduled
+			// task shows it.
+			err = fmt.Errorf("%w: %s", apperr.ErrNotRetried, why)
+			r.summary(ui.Card{Headline: "The last update did not finish, and it was not retried: nothing was changed", Rows: []ui.Row{
+				{Key: "Last update", Value: r.previousWhat(), Verdict: ptr(ui.VerdictAttention)},
+				{Key: "Not retried", Value: why + "; a run that asks nobody tries once", Verdict: ptr(ui.VerdictAttention)},
+				{Key: "Finish it", Value: "run Hermes Safe Update from the Start menu or a terminal; it asks first"},
+				{Key: "Log", Value: r.LogPath}}})
+		} else {
+			r.summary(ui.Card{OK: ptr(true), Headline: "Hermes is up to date", Rows: []ui.Row{{Key: "Log", Value: r.LogPath}}})
+		}
 		if r.Mode == ModeCheck {
 			r.offerMirror(fctx)
 		}
@@ -179,7 +192,7 @@ func (r *Run) finally(ctx context.Context, err error) error {
 		r.complete(false)
 	}
 	r.saveTimings()
-	r.Log.Info("==== done", slog.Int("exit", apperr.ExitCode(err)))
+	r.Log.Info(logDone, slog.Int("exit", apperr.ExitCode(err)))
 	return err
 }
 
@@ -314,12 +327,37 @@ func (r *Run) ask(ctx context.Context, text string, keys []rune, timeout time.Du
 
 // askLog is ask with a separate text for the log (no personal paths).
 func (r *Run) askLog(ctx context.Context, text, logText string, keys []rune, timeout time.Duration, countdown string) (ui.Answer, error) {
+	return r.askStep(ctx, text, logText, keys, timeout, countdown, false)
+}
+
+// askStep is askLog; excuse takes the time spent answering out of the step
+// that was running (a question in the middle of a measured step: the answering
+// time is not that step's work, and the footer must not show it as an overrun
+// when it resumes). The estimator does it when the wait ends.
+func (r *Run) askStep(ctx context.Context, text, logText string, keys []rune, timeout time.Duration, countdown string, excuse bool) (ui.Answer, error) {
+	return r.askSpec(ctx, ui.PromptSpec{Text: text, Keys: keys, Timeout: timeout, CountdownLabel: countdown, AbortOnCtrlC: true}, logText, excuse)
+}
+
+// askSpec is askStep for a prompt that needs more than the usual spec.
+func (r *Run) askSpec(ctx context.Context, spec ui.PromptSpec, logText string, excuse bool) (ui.Answer, error) {
 	r.Log.Info("prompt: " + logText)
-	r.UI.Waiting("Waiting for your answer", r.Clock.Now().Add(timeout), countdown)
+	if excuse {
+		r.withEst(func(e *timings.Estimator) { e.ExcuseWaits(true) })
+		defer r.withEst(func(e *timings.Estimator) { e.ExcuseWaits(false) })
+	}
+	r.UI.Waiting("Waiting for your answer", r.Clock.Now().Add(spec.Timeout), spec.CountdownLabel)
 	defer r.UI.Waiting("", time.Time{}, "")
-	a, err := r.UI.Prompt(ctx, ui.PromptSpec{Text: text, Keys: keys, Timeout: timeout, CountdownLabel: countdown, AbortOnCtrlC: true})
+	a, err := r.UI.Prompt(ctx, spec)
 	r.Log.Info("prompt answer", slog.String("key", string(a.Key)), slog.Bool("timeout", a.TimedOut), slog.Bool("abort", a.Abort))
 	return a, err
+}
+
+// drainInput throws away keys typed ahead, right before a question that one
+// key answers: a key pressed while the pre-flight ran answered nothing.
+func (r *Run) drainInput() {
+	if r.Platform != nil && r.Platform.Console != nil {
+		r.Platform.Console.DrainInput()
+	}
 }
 
 // minutes renders a planned duration as "about N min" (D11 RoundToEven).

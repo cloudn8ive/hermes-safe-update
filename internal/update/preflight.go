@@ -69,7 +69,7 @@ func (r *Run) checkCheckoutLock(ctx context.Context, staleMarker bool) error {
 		self = os.Getpid()
 	}
 	lock := hermes.CheckoutLock{Probe: r.Platform.Locks, Procs: r.Platform.Procs,
-		Created: platform.ProcessCreated, Now: r.Clock.Now, SelfPID: self}
+		Created: r.Created, Now: r.Clock.Now, SelfPID: self}
 	st := lock.Check(ctx, r.Facts.Install.Checkout)
 	if st.Err == nil {
 		r.lockProbedAt = r.Clock.Now()
@@ -240,26 +240,72 @@ func joinMax(items []string, limit int) string {
 
 // ---- ARM64 build tools ----
 
-func (r *Run) checkARM64(ctx context.Context) error {
+// arm64Report probes the ARM64 build toolchain when it can matter for this
+// run (see checkARM64For for noCommits). It has no effect on the run: it
+// installs nothing and prints nothing; the probe is made once and kept, so
+// the repair offer and the remote stage share it. ok=false: it cannot matter
+// (or nothing could be decided), so nothing is missing as far as is known.
+func (r *Run) arm64Report(ctx context.Context, noCommits bool) (rep hermes.ARM64Report, ok bool) {
 	mode := r.Config.Preflight.ARM64Toolchain
 	c := r.Facts.Check
-	if mode == config.PreflightOff || c.Behind == nil || !*c.Behind || (c.PyDeps != nil && !*c.PyDeps) {
-		return nil // no update, or the Python dependencies stay as they are
+	if mode == config.PreflightOff || (!noCommits && (c.Behind == nil || !*c.Behind || (c.PyDeps != nil && !*c.PyDeps))) {
+		return rep, false // no update, or the Python dependencies stay as they are
+	}
+	if r.arm64Rep != nil {
+		return *r.arm64Rep, true
 	}
 	python := r.Facts.Install.Python
 	if r.ManagedPython != nil {
 		python = r.ManagedPython()
 	}
 	if hermes.ManagedTarget(python) != hermes.ARM64Target || r.Getenv == nil || r.Runner == nil {
-		return nil
+		return rep, false
 	}
-	rep := hermes.ARM64Tools{Getenv: r.Getenv, Exists: r.FileExists, Run: r.Runner}.Probe(ctx)
+	rep = hermes.ARM64Tools{Getenv: r.Getenv, Exists: r.FileExists, Run: r.Runner}.Probe(ctx)
+	r.arm64Rep = &rep
 	switch {
 	case rep.Unknown != "":
 		r.Log.Info("arm64 build tools: not decided", "reason", rep.Unknown)
-		return nil
 	case !rep.Missing():
 		r.Log.Info("arm64 build tools: found", "visual_studio", rep.VS, "clang", rep.Clang)
+	}
+	return rep, true
+}
+
+// arm64RepairBlocker is the reason a repair is not offered: the run would stop
+// at the ARM64 check after the R (preflight.arm64_toolchain: stop) and the
+// tools are missing. Nothing was going to be closed, so the run ends as "up
+// to date" instead; in warn mode the offer is made and the warning comes with
+// the R. "" = nothing known.
+func (r *Run) arm64RepairBlocker(ctx context.Context) string {
+	if r.Config.Preflight.ARM64Toolchain != config.PreflightStop {
+		return ""
+	}
+	rep, ok := r.arm64Report(ctx, true)
+	if !ok || rep.Unknown != "" || !rep.Missing() {
+		return ""
+	}
+	_, fix := arm64Text(rep)
+	return "the ARM64 build tools are missing and preflight.arm64_toolchain is stop, so the repair would stop before anything is closed. " + fix
+}
+
+// checkARM64For tells (or stops the run for) a missing ARM64 build toolchain
+// before anything is closed. noCommits: the run goes on without new commits
+// (finishing an unfinished update, or a repair); `hermes update` then runs the
+// dependency step anyway, whatever the commit check said. It is decided once
+// per run, when the run really goes ahead: the repair offer only looks
+// (arm64RepairBlocker), the warning or stop comes from the remote stage.
+func (r *Run) checkARM64For(ctx context.Context, noCommits bool) error {
+	if r.arm64Done {
+		return nil
+	}
+	mode := r.Config.Preflight.ARM64Toolchain
+	rep, ok := r.arm64Report(ctx, noCommits)
+	if !ok {
+		return nil
+	}
+	r.arm64Done = true
+	if rep.Unknown != "" || !rep.Missing() {
 		return nil
 	}
 	head, fix := arm64Text(rep)

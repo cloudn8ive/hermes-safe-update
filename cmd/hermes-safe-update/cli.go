@@ -13,7 +13,7 @@ import (
 // options are the parsed command line. Owner after T1: I1b (other tasks
 // request flag changes through their handoff).
 type options struct {
-	command string // run | check | migrate-settings | backup-settings | revert-settings | list-backups | mirror setup|refresh|status | channel | channel set | version | help
+	command string // run | repair | check | migrate-settings | backup-settings | revert-settings | list-backups | mirror setup|refresh|status | channel | channel set | version | help
 
 	// global
 	configPath     string
@@ -45,7 +45,7 @@ type options struct {
 }
 
 var subcommands = map[string]bool{
-	"run": true, "check": true, "migrate-settings": true, "backup-settings": true,
+	"run": true, "repair": true, "check": true, "migrate-settings": true, "backup-settings": true,
 	"revert-settings": true, "list-backups": true, "mirror": true, "channel": true, "version": true, "help": true,
 }
 
@@ -152,11 +152,11 @@ func parseArgs(args []string) (options, error) {
 		}
 		o.command = "check"
 	}
-	if o.set["channel"] && o.command != "run" && o.command != "check" {
-		return o, usageError("--channel applies to run and check only, not %s", o.command)
+	if o.set["channel"] && o.command != "run" && o.command != "check" && o.command != "repair" {
+		return o, usageError("--channel applies to run, repair and check only, not %s", o.command)
 	}
-	if o.set["allow-elevated"] && o.command != "run" && o.command != "check" {
-		return o, usageError("--allow-elevated applies to run and check only, not %s", o.command)
+	if o.set["allow-elevated"] && o.command != "run" && o.command != "check" && o.command != "repair" {
+		return o, usageError("--allow-elevated applies to run, repair and check only, not %s", o.command)
 	}
 	if o.set["delay"] && o.delay <= 0 {
 		return o, usageError("--delay must be greater than 0")
@@ -171,7 +171,16 @@ Usage:
 
 Commands:
   run (default)        check, wait for idle sessions, close Hermes, update,
-                       verify, migrate desktop settings, reopen Hermes
+                       verify, migrate desktop settings, reopen Hermes. When the
+                       last update did not finish, it is finished even with no
+                       new commits; when Hermes is up to date, an interactive
+                       run offers R to repair
+  repair               run the update steps again although no new commits are
+                       waiting (dependencies, builds, gateway restart), with the
+                       usual Y question; the same as pressing R on the
+                       up-to-date screen. When the last update did not finish
+                       it is finished first (with the finish wording); with new
+                       commits this is an ordinary update
   check                look-only pre-flight: closes and updates nothing, but may
                        fetch commits into the git data, like git fetch (same
                        as --check)
@@ -197,30 +206,38 @@ Flags:
   --config FILE        safe-update.yaml to use (default: <hermes home>/safe-update.yaml)
   --yes                skip the final "Press Y" confirmation (never skips the
                        busy-session check; for channel set: confirm a switch
-                       that would move Hermes back to an older release)
-  --unattended         never ask; wait for idle sessions (max 30 min), then go
+                       that would move Hermes back to an older release). Like
+                       --unattended it finishes an unfinished update once
+  --unattended         never ask; wait for idle sessions (max 30 min), then go.
+                       Finishes an update that did not finish, once: a later
+                       run that finds it again leaves it alone and says so
   --accept-untested    macOS/Linux: accept the untested-platform warning; remembered
                        in safe-update.json, so it is asked (or passed) only once
-  --plain              plain text output (also HERMES_SAFE_UPDATE_PLAIN=1, NO_COLOR)
+  --plain              plain text output (also HERMES_SAFE_UPDATE_PLAIN=1 or
+                       TERM=dumb; NO_COLOR keeps the layout and only drops the
+                       colours)
   --log-level LEVEL    debug | info | warn | error
   --check              same as the check command
   --delay N            seconds the final confirmation waits (default 600)
   --no-relaunch        do not reopen the desktop app afterwards
-  --force              run even when no update is available
+  --force              run even when no update is available (repair does the same
+                       with the repair wording)
   --no-elevate         Windows only: never show a UAC prompt (log the admin command
                        instead); no effect on macOS/Linux
-  --allow-elevated     Windows only: run, check: go on although this terminal is
+  --allow-elevated     Windows only: run, repair, check: go on although this terminal is
                        elevated (administrator). Without it, run stops before
                        closing anything: an elevated update leaves files in
                        Hermes' tools folder that a normal account cannot update
-  --channel CHANNEL    run, check: which Hermes update channel to follow for this
+  --channel CHANNEL    run, repair, check: which Hermes update channel to follow for this
                        run: follow (default; whatever Hermes uses for this
                        install), stable (latest release) or main (every commit);
                        beats update.channel in safe-update.yaml
 
 Exit codes:
   0  done (updated and verified, check finished, or already up to date)
-  1  the update needs attention, or an unexpected error
+  1  the update needs attention, or an unexpected error; also a run that asks
+     nobody and left an unfinished update alone because an earlier run already
+     tried it or Safe Update's own log could not be read (its card says so)
   2  no way to run Hermes was found (no hermes launcher, and for run and check
      no managed Python route either)
   3  cancelled before anything changed (Hermes left running)

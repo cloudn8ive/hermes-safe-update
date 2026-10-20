@@ -208,14 +208,22 @@ type FakeConsole struct {
 	Terminal   bool
 	Cols, Rows int
 	Background bool // IsForeground() returns !Background
-	Keys       []Key
+	// NoInputTerminal: stdin is redirected (stdout may still be a console), so
+	// InputIsTerminal() returns false.
+	NoInputTerminal bool
+	Keys            []Key
+	// TypeAhead are keys typed before the prompt was shown: ReadKey hands them
+	// out first, until DrainInput throws them away.
+	TypeAhead []Key
 
 	mu      sync.Mutex
 	Titles  []string
 	Flashes int
+	Drains  int // DrainInput calls
 }
 
 func (c *FakeConsole) IsTerminal() bool                    { return c.Terminal }
+func (c *FakeConsole) InputIsTerminal() bool               { return !c.NoInputTerminal }
 func (c *FakeConsole) EnableVT() (func(), error)           { return func() {}, nil }
 func (c *FakeConsole) Size() (int, int, bool)              { return c.Cols, c.Rows, c.Cols > 0 }
 func (c *FakeConsole) SetIdentity(string, []string) string { return "fake" }
@@ -234,8 +242,22 @@ func (c *FakeConsole) Flash() {
 	c.mu.Unlock()
 }
 
+// DrainInput discards the type-ahead and counts the call.
+func (c *FakeConsole) DrainInput() {
+	c.mu.Lock()
+	c.Drains++
+	c.TypeAhead = nil
+	c.mu.Unlock()
+}
+
 func (c *FakeConsole) ReadKey(ctx context.Context) (Key, error) {
 	c.mu.Lock()
+	if len(c.TypeAhead) > 0 {
+		k := c.TypeAhead[0]
+		c.TypeAhead = c.TypeAhead[1:]
+		c.mu.Unlock()
+		return k, nil
+	}
 	if len(c.Keys) > 0 {
 		k := c.Keys[0]
 		c.Keys = c.Keys[1:]

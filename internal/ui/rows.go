@@ -141,7 +141,9 @@ const nestedLabelW = 34
 
 // kv is one aligned key/value row: values start at the value column; a
 // verdict dot precedes the label; continuation lines hang under the value.
-func (s *style) kv(r Row) string {
+// A line wider than width wraps under the value (the text after the "· " of
+// an extra line); width <= 0 never wraps.
+func (s *style) kv(r Row, width int) string {
 	dotC, valC := s.verdictColours(r)
 	var base []string
 	if valC != "" {
@@ -149,8 +151,10 @@ func (s *style) kv(r Row) string {
 	}
 	first, rest, _ := strings.Cut(r.Value, "\n")
 	var head string
+	headW := s.valueCol()
 	if r.Nested && runeLen(r.Key) >= s.th.LabelWidth {
 		head = "     " + s.sgr(padRight(r.Key, nestedLabelW), s.th.Colors.Label)
+		headW = 5 + nestedLabelW
 	} else {
 		label := padRight(truncRunes(r.Key, s.th.LabelWidth-1), s.th.LabelWidth)
 		dot := "  "
@@ -159,32 +163,34 @@ func (s *style) kv(r Row) string {
 		}
 		head = "   " + dot + s.sgr(label, s.th.Colors.Label)
 	}
-	lines := []string{head + s.paint(first, base)}
+	lines := []string{wrapStyled(head+s.paint(first, base), width, spaces(headW), headW)}
 	if rest != "" || strings.Contains(r.Value, "\n") {
 		for _, extra := range strings.Split(rest, "\n") {
 			extra = strings.TrimLeft(strings.TrimSpace(extra), s.th.Glyphs.Sep+" ")
-			lines = append(lines, strings.Repeat(" ", s.valueCol())+
-				s.sgr(s.th.Glyphs.Sep+" ", s.th.Colors.Faint)+s.paint(extra, []string{s.th.Colors.Soft}))
+			extraW := s.valueCol() + runeLen(s.th.Glyphs.Sep+" ")
+			lines = append(lines, wrapStyled(strings.Repeat(" ", s.valueCol())+
+				s.sgr(s.th.Glyphs.Sep+" ", s.th.Colors.Faint)+s.paint(extra, []string{s.th.Colors.Soft}), width, spaces(extraW), extraW))
 		}
 	}
 	return strings.Join(lines, "\n")
 }
 
 // free renders a free-form message line: "label: value" with a short label
-// becomes a key/value row, anything else is painted text.
-func (s *style) free(text string) string {
+// becomes a key/value row, anything else is painted text. Wrapping as in kv.
+func (s *style) free(text string, width int) string {
 	lead := len(text) - len(strings.TrimLeftFunc(text, unicode.IsSpace))
 	t := strings.TrimSpace(text)
 	if head, rest, ok := strings.Cut(t, ": "); ok {
 		if n := runeLen(head); n >= 2 && n <= 34 && !strings.ContainsAny(head, `\/`) {
 			switch {
 			case n < s.th.LabelWidth:
-				return s.kv(Row{Key: head, Value: rest, Nested: lead > 0})
+				return s.kv(Row{Key: head, Value: rest, Nested: lead > 0}, width)
 			case lead > 0:
-				return "     " + strings.Repeat(" ", lead) + s.sgr(padRight(head, nestedLabelW), s.th.Colors.Label) + s.paint(rest, nil)
+				hw := 5 + lead + nestedLabelW
+				return wrapStyled("     "+strings.Repeat(" ", lead)+s.sgr(padRight(head, nestedLabelW), s.th.Colors.Label)+s.paint(rest, nil), width, spaces(hw), hw)
 			}
-			return s.kv(Row{Key: head, Value: rest})
+			return s.kv(Row{Key: head, Value: rest}, width)
 		}
 	}
-	return "   " + strings.Repeat(" ", lead) + s.paint(t, nil)
+	return wrapStyled("   "+strings.Repeat(" ", lead)+s.paint(t, nil), width, spaces(3+lead), 3+lead)
 }

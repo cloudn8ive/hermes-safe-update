@@ -142,10 +142,15 @@ The script imports `tools.skills_sync` from the Hermes checkout (the hash and
 discovery helpers Hermes itself uses; it needs them to agree with Hermes about
 what "edited" means). If the bare Python lacks Hermes' packages it calls
 `pm.environments.activate_dependencies` from the checkout to select them.
-These are private Hermes interfaces: a future Hermes version can rename them.
-If the import fails, or a helper it needs is gone, the script prints
-`bundled skills: skipped - ...` with the reason, exits 1 and **changes
-nothing**. Then this example needs an update; it is not a data risk.
+These are Hermes internals: a future Hermes version can rename them. It
+already copes with one rename: Hermes made `_dir_hash` public as `dir_hash`
+(October 2026, no alias kept), so the script takes each helper by its public
+name first and by the older private name second (`dir_hash` / `_dir_hash`,
+and the same for the other four), and runs on Hermes from before and after.
+If the import fails, or a helper it needs has neither name, the script prints
+`bundled skills: skipped - ...` with the reason (naming both candidates),
+exits 1 and **changes nothing**. Then this example needs an update; it is not
+a data risk.
 
 It writes into your Hermes home: the skill folders you edited,
 `skills/.bundled_manifest`, `skill-merge.json`, `backups/`, and per profile

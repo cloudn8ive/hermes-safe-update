@@ -37,7 +37,8 @@
    ████████████████<ESC>[1m   12%<ESC>[0m   0:41 elapsed · about 9 min left (rough) · 9:09 AM<ESC>[K
   <ESC>[1m ► <ESC>[0m<ESC>[1mLooking for running Hermes processes<ESC>[0m  0:00                  step 3 of 19<ESC>[K
    <ESC>[1m► Check<ESC>[0m ── ○ Close Hermes ── ○ Update ── ○ Build ── ○ Finish  stage 1 of 5<ESC>[K<CR><ESC>[4A<ESC>[J     ● sessions       <ESC>[1m2<ESC>[0m active
-                      · 20260101_000000_aaaaaa  Drafting the weekly project summary
+                      · 20260101_000000_aaaaaa  Drafting the weekly project
+                        summary
                       · 20260101_000001_bbbbbb  Fix the nightly build
 <ESC>[?25l  <ESC>[K
    ── Hermes Safe Update ──────────────────────────────────── started 9:00 AM<ESC>[K
@@ -168,7 +169,8 @@
   <ESC>[1m √ <ESC>[0mFinished<ESC>[K
    √ Check ── √ Close Hermes ── √ Update ── √ Build ── √ Finish  all stages d<ESC>[K<CR><ESC>[4A<ESC>[J  
      <ESC>[1m√ Hermes is updated and verified.<ESC>[0m
-     ● Version        v0.21.5+4156.g34e09bf → v0.21.5+4160.g1b8569f  (<ESC>[1m3<ESC>[0m commits)
+     ● Version        v0.21.5+4156.g34e09bf → v0.21.5+4160.g1b8569f  (<ESC>[1m3<ESC>[0m
+                      commits)
      ● Time           <ESC>[1m5<ESC>[0m:<ESC>[1m19<ESC>[0m until Hermes reopened  (estimate was <ESC>[1m6<ESC>[0m:<ESC>[1m26<ESC>[0m)
      ● Source         local mirror, refreshed <ESC>[1m10 min<ESC>[0m ago
      ● Warnings       <ESC>[1m1<ESC>[0m (see above)

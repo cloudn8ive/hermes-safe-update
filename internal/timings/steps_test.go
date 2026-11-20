@@ -35,7 +35,7 @@ func TestStepListsMatchPythonOrderAndSeeds(t *testing.T) {
 			t.Errorf("seed not applied: %+v", s)
 		}
 	}
-	if len(CheckSteps(seed)) != 6 {
-		t.Error("check list should have 6 steps")
+	if len(CheckSteps(seed)) != 7 {
+		t.Error("check list should have 7 steps")
 	}
 }

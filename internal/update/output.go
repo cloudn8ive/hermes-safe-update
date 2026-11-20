@@ -1,6 +1,7 @@
 package update
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
@@ -24,10 +25,27 @@ type outputFilter struct {
 	// logon-task support off Windows): the line would otherwise promise a
 	// refresh that never happens and hide the one hint the user can act on.
 	cuaHintStays bool
+	// afterNotice: the previous line was the plugin catalog notice, whose
+	// "apply:" line follows it.
+	afterNotice bool
 }
+
+// noticeApplyRe is the second line of Hermes' catalog plugin notice.
+var noticeApplyRe = regexp.MustCompile(`^\s*apply:\s+hermes plugins update\b`)
 
 // display returns the screen text for line ("" = hide).
 func (f *outputFilter) display(line string) string {
+	// The plugin catalog notice is shown once, in the Plugins row of the
+	// card (the log keeps both lines); hiding it here only when it parses.
+	after := f.afterNotice
+	f.afterNotice = false
+	if len(hermes.ParseCatalogNotices(line)) > 0 {
+		f.afterNotice = true
+		return ""
+	}
+	if after && noticeApplyRe.MatchString(line) {
+		return ""
+	}
 	if f.cuaHintStays && (strings.Contains(line, hermes.CuaDeferred) || strings.Contains(line, hermes.CuaManualHint)) {
 		return line
 	}

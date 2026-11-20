@@ -4,6 +4,299 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Dates are UTC.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-19
+
+### Changed
+
+- **Compaction is offered only where Hermes has work to do.** v0.9.0 offered
+  `hermes sessions optimize-storage` for every `state.db` over 1 GiB, but a
+  database already on the compact search-index layout has nothing to compact
+  (Hermes: "Search index is already on the compact layout - nothing to do."),
+  so the question, which stops the gateway, freed nothing. Safe Update now
+  reads each oversized database read-only (`mode=ro`, `query_only`, 3 s busy
+  timeout, never a write) and mirrors Hermes' `fts_optimize_available()`
+  (v0.23.1, `hermes_state_search.py:592-604`): an older FTS layout, an
+  interrupted optimize (`fts_rebuild_high_water`), leftover `fts_v22_trash_*`
+  tables, or an empty external index with messages. Already compact: no
+  question, no gateway stop, the row says `work 4.5 GB, default 1.3 GB
+  over Hermes' 1 GiB snapshot limit (search index already compact; Safe Update
+  keeps its own copy)`, and the own verified copy is made as before. Anything
+  the probe cannot tell (locked or unreadable file, unknown schema, a stale
+  index, Hermes 0.23.0 CJK markers, a Hermes other than release 0.23.0, 0.23.1,
+  0.23.2 or 0.23.3, including derived `+N.g<sha>` builds) is
+  "unknown": the compaction is offered as in 0.9.0, with "could not tell
+  whether compaction helps". The schema names and keys are in
+  `internal/hermes/contracts.go` with file:line citations.
+
+### Dependencies
+
+- Updated direct modules: go.yaml.in/yaml/v3 v3.0.5 -> v3.0.6, golang.org/x/sys
+  v0.48.0 -> v0.50.0, golang.org/x/term v0.46.0 -> v0.48.0, modernc.org/sqlite
+  v1.60.1 -> v1.62.0 (bundled SQLite 3.53.4 -> 3.54.1; indirect:
+  go-humanize v1.1.0, go-strftime v1.1.0, modernc.org/libc v1.80.1).
+  `NOTICE` and `docs/third-party.md` list the new versions.
+
+### Security
+
+- Built with Go 1.26.11, which fixes two reachable standard-library
+  vulnerabilities (GO-2026-6859 in net/http, GO-2026-6809 in crypto/x509).
+
+## [0.9.0] - not released separately (included in 0.9.1)
+
+### Added
+
+- **Session databases over Hermes' 1 GiB snapshot limit.** `hermes update` skips
+  any `state.db` over 1 GiB in its pre-update snapshot (and its snapshot prune),
+  per profile. Safe Update now (1) shows the sizes in every run, `check`
+  included (`state.db  work 4.6 GB, default 1.3 GB over Hermes' 1 GiB
+  snapshot limit`); (2) on an attended run, with Hermes 0.23.0 or newer, offers
+  `hermes sessions optimize-storage` per oversized profile after Hermes is
+  closed and before `hermes update`, with the gateway stopped (Hermes refuses
+  while any process holds the database; its refusal and holder list are shown,
+  `--force` is never passed); a refusal, failure, timeout, lack of disk or
+  Ctrl+C never loses data and never makes the update fail; (3) keeps its own
+  verified copy (`VACUUM INTO` on a read-only connection, `PRAGMA quick_check`,
+  newest one per profile, in `backups\safe-update-statedb`) of every database
+  still over the limit, on attended and unattended runs, never when it would
+  leave less than 10 GB free. Older Hermes (before 0.23) is never offered the
+  compaction: one row says so. New keys `statedb.compact` (`ask`|`off`),
+  `statedb.backup` (`on`|`off`), `statedb.min_free_gb` (10). The wording of
+  Hermes' skip lines and the version gate are in `internal/hermes/contracts.go`
+  with tests. Fix round: the copy is made before the compaction (and before
+  Hermes is closed when there is no compaction); the compaction's disk peak is
+  counted as twice the file; a VACUUM that Hermes skipped is an attention row,
+  not a success; no copy while Hermes holds a non-WAL database; the copy's disk
+  need counts the `-wal`; `profiles/default` and non-profile folder names are
+  handled; the question waits 2 minutes, not 10, and no longer promises that
+  Ctrl+C stops at once.
+
+## [0.8.1] - not released separately (included in 0.9.1)
+
+### Fixed
+
+- **A hold by Hermes itself is no longer reported as an update.** `hermes update`
+  can hold the build instead of updating (Hermes v0.22.7 and v0.23.0: "This
+  build is newer than the <channel> release <sha12>: that release predates the
+  gateway runtime your sessions use, so there is nothing to update to yet." and
+  "Holding at this build until a newer <channel> release ships.", exit 0, HEAD
+  unchanged). Safe Update used to end such a run with "Hermes is updated and
+  verified". Now, when Hermes printed the hold, exited 0 and HEAD did not move,
+  the card says "Hermes did not update: it held this build (the stable release
+  0123456789ab predates the gateway runtime your sessions use)", has no Version
+  row, a `Hermes held` row names `hermes-safe-update channel set main`, and the
+  exit code is 0 (nothing failed, like "Nothing to update"). Hermes still ran
+  its "already up to date" tail on the same code, so the verification, the
+  settings step, the cleanup, the cua refresh, the plugin guard and the extras
+  (plugin, skill and tool questions) run as after any update, and Hermes is
+  reopened as usual. `post-update` hooks are skipped (no new code); `post-relaunch`
+  hooks run, as `pre-close` did and Hermes was reopened. The verify line says
+  "running this build <sha>" instead of "running the new code". If an
+  unrestored stash replaced Hermes' "Holding" line, the "This build is newer ..."
+  line alone counts as the hold (same guards: exit 0, no "Update complete!",
+  HEAD unmoved) and the `Hermes held` row names the stash. A hold printed with
+  an unreadable HEAD afterwards is a WARN and not treated as a hold. A hold with a HEAD that moved
+  anyway is not a hold: HEAD wins, with a WARN. A repair or an unfinished-update
+  run that meets the hold keeps its own headline ("Repair finished and
+  verified") and gets the `Hermes held` row. The wording is in
+  `internal/hermes/contracts.go` (any channel name; ASCII-mapped glyphs and CRLF
+  tolerated) with synthetic fixtures.
+- **Plugins installed with `--ref` are never offered.** Hermes v0.23.0 skips
+  catalog plugins installed with `plugins install <name> --ref <sha>` in the
+  no-name `plugins update`, but the named form that Safe Update uses moves them
+  off the pin, and `plugins check-updates --json` does not say they are held.
+  Safe Update now reads Hermes' own install record (`plugins/.install-metadata.json`,
+  the same shape in v0.22.7 and v0.23.0, read-only): a catalog install with
+  `pinned: true` and an empty `catalog.pin` (Hermes' `held_with_ref`), or a git
+  install with `pinned: true`, is not asked about and not updated; the Plugins
+  row says `notes-demo pinned to 89abcdef (not updated; hermes plugins update
+  notes-demo moves it off the pin)`. A record that cannot be read or has an
+  unknown shape (no file, bad JSON, no entry for the plugin, a `catalog_name`-only
+  record) counts as unknown: the plugin is skipped with a note, never touched.
+  Right before a named update the record is read again; a plugin found pinned
+  then is shown like the probe's pinned row (not a failure, no "run it in a
+  terminal" hint). A git plugin with no install record counts as unknown and is
+  skipped, which is more cautious than Hermes.
+
+### Added
+
+- **The end-of-update plugin catalog notice of Hermes v0.23.0 is folded into the
+  Plugins row.** `hermes update` ends with "N plugin update(s) from the new
+  catalog in <this profile|label>: a, b" and an "apply:" line. Safe Update reads
+  it (contract and fixture), logs it, hides the two lines from the screen and
+  adds what it says to the Plugins row: the plugin probe that runs after every
+  update stays the only source of the questions (so nothing is asked twice); a
+  name only the notice has is shown with `hermes plugins update <name>`, other
+  profiles' notices are named, and with `extras.plugins: off`, or when the
+  extras stage does not run, the row carries the notice and the command.
+
+## [0.8.0] - not released separately (included in 0.9.1)
+
+### Added
+
+- **Extras: plugins, hub skills and tools are kept in view on every channel.**
+  After the Hermes verdict of every run (up to date, waiting for stable,
+  `check`, and after a verified update, once Hermes is back) Safe Update asks,
+  read-only, with time limits and side by side: `hermes plugins check-updates
+  --json`, `hermes skills check` and `hermes pm doctor` (and, in `check` only,
+  `hermes pm update --check`, listed and never applied). The card gets rows
+  such as `Plugins  2 updates: holographic, homeassistant`, `Skills  up to
+  date`, `Tools  git: files changed since install (see log)`; the detail is in
+  the log. An attended run asks for each plugin (y/N, default no; the memory
+  provider is named and goes last) and updates it with `hermes plugins update
+  <name>` (never with force, so Hermes' security scan still refuses what it
+  flags; a plugin that adds dependencies needs a terminal and the row says so),
+  and asks once for the hub skills (`hermes skills update`). Hermes' own plugin
+  update is all-or-nothing and never evicts a plugin, so the usual failure is
+  "refused, nothing changed"; Safe Update writes no file around it and only
+  checks afterwards (exit code, plugin still enabled, `memory.provider`
+  unchanged) and names the command to run if not. Nothing is applied when
+  this run's Hermes was not verified (after an unfinished update or too little
+  disk, or an update that did not verify), in `--unattended`, `--yes`, `check`
+  or a Hermes chat (the parent chain is checked too).
+- **Plugin guard around the Hermes update.** The eviction of 22 Oct (a plugin
+  switched off and `memory.provider` cleared) happens inside `hermes update`,
+  not in a plugin update. Safe Update reads `plugins.enabled`,
+  `plugins.disabled` and `memory.provider` in the pre-flight and again after
+  every Hermes update, repair or finish; if Hermes switched a plugin off or
+  cleared the provider the card says so (a plugin you had disabled yourself,
+  or a provider you changed before the run, does not count), Hermes' reason
+  line goes to the log, and an attended run asks once (Y only) to put it back
+  with Hermes' own `hermes plugins enable <name>` and, if the provider was
+  cleared, `hermes config set memory.provider <name>`. `--unattended`, `--yes`
+  and `check` print the commands. `config.yaml` is never edited.
+  Every `hermes` child of the extras is started with a tree kill, and the
+  apply steps run on their own time budget, not in the five-minute clean-up
+  window of an up-to-date run.
+  Settings: `extras.plugins` and `extras.skills` (`ask`, `report`, `off`),
+  `extras.tools` (`report`, `off`). The Hermes checkout, the Python/Node pins
+  and the tools themselves are never changed.
+- **Stale stable row.** On a release channel, when the latest stable release
+  is older than `extras.stale_days` (default 14; 0 = off) or main has commits
+  since it whose subject names a CVE, a GHSA or "security", the card shows the
+  age and count and the one-time way out, `hermes-safe-update --channel main`.
+  Release date and subjects come from git only (the mirror's main, else the
+  checkout's `origin/main` as last fetched); nothing is fetched and nothing is
+  done automatically.
+
+- **Stable hold: a run on the stable channel never moves Hermes back.**
+  Hermes, with a stored stable record, moves a checkout that is *newer* than
+  the latest release back to that release with no question (for example a
+  build 230 commits ahead of stable v0.22.4). Safe Update now runs `hermes update` on
+  the stable channel only when the release is proven to contain the installed
+  commit (Hermes' own "newer than the selected release", then git
+  `merge-base --is-ancestor` both ways, then GitHub's compare when the release
+  commit is not in the checkout yet). A release that is older than your build,
+  diverged from it, or cannot be proven to contain it (a shallow clone, git or
+  GitHub not answering, no release named) ends the run like an up-to-date one:
+  exit 0, nothing closed or changed, also with `--unattended` and `check`, a
+  green card "Waiting for stable: this build (v0.22.4+230.g36f7966) is 230
+  commits newer than stable v0.22.4; Safe Update stays on it until a stable
+  release includes it." and no repair offer. When a stable release contains
+  your build, the run updates to it as before. While it waits, `repair`,
+  `--force` and finishing an unfinished update are refused (exit 4, nothing
+  changed) because each would pass the stable update to Hermes; the message
+  names the one-run way (`--channel main`, which also updates Hermes to the
+  newest main commits). The `channel` command explains the wait. Main never
+  waits. The checkout is looked at once more after the confirm prompt or the
+  wait for idle chats, right before Hermes is closed: if its commit changed
+  meanwhile (a manual `hermes update --branch main` finished), the run stops
+  with exit 4 and nothing closed instead of passing the stable argv with a
+  decision made on the old commit. When Hermes' stable record is set and its
+  check says "up to date" or "waits for the next release", a run that could
+  still run `hermes update` (finishing an unfinished update, `repair`,
+  `--force`, the `R` offer) first has to prove that the release contains your
+  build, like an "available" release; it does not rely on Hermes keeping that
+  verdict for checkouts without a record.
+- **`update.older_release: wait | ask` and `--allow-rollback`.** `wait` is the
+  default described above. `ask` keeps the v0.5.0 behaviour (an attended run
+  asks for an explicit Y before moving back; `--unattended` and `check` stop
+  with exit 4), so the move back stays reachable without a flag;
+  `--allow-rollback` (on `run`, `repair`, `check`) is `ask` for one run. The
+  wait screen names both. A `safe-update.yaml` that sets `older_release` is
+  not accepted by v0.5.0 (the loader is strict).
+
+### Changed
+
+- **Questions before the repair offer.** On an attended up-to-date run the
+  order is now: verdict, probes, one question per plugin, the skills question,
+  then "Press R to repair" (any other key now "ends the run without
+  repairing", which stays true after a plugin was updated). If R is pressed,
+  the plugin settings are read again right before the repair's `hermes update`
+  so the guard compares against the state after your plugin updates, and the
+  extras stage does not run twice. The waiting-for-stable screen has no offer
+  and keeps its order (verdict, then extras, then the card).
+- Plugins, Skills and Tools rows are printed once on screen (in the end card);
+  the log keeps both the stage line and the card line.
+- The hold texts name the channel the run is on, not always "stable".
+- Hermes' own "Holding at this build: ... predates the gateway runtime" (its
+  `update --check` wording) is read as the hold, never as unknown.
+- `channel set stable` while the checkout is ahead of the release: the warning
+  now says what really protects it (`update.older_release` wait or ask) and
+  that Hermes' own `hermes update` moves Hermes back without asking.
+- Dev builds report `vX.Y.Z-dev+N.sha` when the top CHANGELOG heading is marked
+  Unreleased (no tag needed).
+
+- **Upgrade note: a stable run on a build newer than the release now ends
+  with exit 0.** With v0.5.0 the same situation stopped with exit 4 ("would
+  move Hermes back"), or asked in an attended run. Set
+  `update.older_release: ask` to get that back.
+
+- **The dependency lines no longer say "unchanged" after an update that did
+  not finish.** The check compares the dependency files of your checkout with
+  the target's, so "unchanged" only meant that the new commits do not touch
+  them. When the last update did not finish (the same signals as the `last
+  update` row), the pre-flight lines and the check summary say "unchanged in
+  the new commits; the last update did not finish, so Hermes may still
+  reinstall the Python packages" or "... rebuild the Node packages", because that
+  update may have left an install owed that the comparison cannot see. Safe
+  Update does not read Hermes' own owed-work marker for this: it lives in
+  Hermes' internal install state, is keyed by a hash of the checkout path and
+  says the update tail is owed, not which step failed.
+
+### Fixed
+
+- Hermes symbols the console font lacks (the diamond bullet of "Pre-update
+  snapshot", hourglass, arrows, emoji, braille art, ...) are mapped to
+  renderable stand-ins on screen. Only on the classic Windows console host
+  (no Windows Terminal, ConEmu or `TERM_PROGRAM`) does anything else outside
+  the console font's character set become `?`; elsewhere CJK and emoji are
+  shown as they are. The mapping now covers every Hermes-derived text on
+  screen (warnings, rows, cards, questions), not only the update output. The
+  log keeps the original text. Tabs and carriage returns in Hermes' lines are
+  expanded for the screen (tab stops count from the gutter, escape sequences
+  take no column), so the column count used for wrapping is right.
+- With nobody at the console, only the first extras question waits for its
+  timeout; the other plugin and skills questions are skipped (the rows say
+  so) and the repair offer follows as usual.
+- The hold texts on a beta channel also name it in the `Stale stable` row and
+  in the "until stable passes it" line.
+- A prompt-watch cut no longer applies to a child that exited 0; the plugin
+  snapshot for the guard is retaken only after a plugin update actually ran.
+- A Hermes plugin command stuck at a `[y/N]` question nobody can answer is cut
+  after 60 seconds of silence (not 15 minutes; the cut is logged with the question) with the command to run in a
+  terminal; 15 minutes stays the hard cap.
+- Ctrl+C during a plugin or skills step says at once that the step is being
+  finished and for how long at most.
+
+- **Card label "Nothing to upd".** A free line whose text before the first
+  colon is as wide as the label column (the sentence "Nothing to update: ...")
+  was cut like a label; it is now printed as text.
+- **Hermes' check mark in the echoed `update --check` line** rendered as a box
+  in conhost (no U+2713 in the font); Hermes' marks in free-text lines are now
+  mapped to the tool's own glyphs, as the update output already was. The log
+  keeps the raw text.
+
+- **The desktop settings migration finds Hermes' Electron where npm now puts
+  it.** Hermes pinned Electron (commit 21693bdf29) and npm hoisted it from
+  `apps/desktop/node_modules/electron` to `node_modules/electron` in the
+  checkout root. The old folder is gone after such an update, so the Settings
+  stage warned "the bundled Electron of Hermes was not found" although the
+  update itself was fine. Safe Update now looks in `apps/desktop/node_modules`
+  first (older Hermes), then in the checkout root, and honours `path.txt` in
+  whichever folder holds the package. It also looks again after `hermes
+  update`, because the update is what moves the package. When it is in
+  neither place, the warning names both folders.
+
 ## [0.5.0] - 2026-10-20
 
 ### Changed
@@ -743,7 +1036,8 @@ First release. Replaces a set of personal Python scripts with one Go binary.
 
 Binaries are not code-signed.
 
-[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.5.0...v0.9.1
 [0.5.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/cloudn8ive/hermes-safe-update/compare/v0.2.0...v0.3.0

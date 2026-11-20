@@ -62,6 +62,7 @@ type Overrides struct {
 	AllowElevated   *bool
 	Origin          *string // migrate-settings --origin
 	Channel         *string // run/check --channel (beats update.channel)
+	AllowRollback   *bool   // run/check/repair --allow-rollback (update.older_release: ask for this run)
 }
 
 // LoadOptions says where to read from. Empty paths are skipped. A missing
@@ -166,6 +167,9 @@ func applyFlags(cfg *Config, f Overrides) {
 	if f.Channel != nil {
 		cfg.Update.Channel = *f.Channel
 		cfg.Run.ChannelFlag = true
+	}
+	if f.AllowRollback != nil && *f.AllowRollback {
+		cfg.Update.OlderRelease = OlderReleaseAsk
 	}
 	setB(&cfg.Run.Plain, f.Plain)
 	setB(&cfg.Run.Yes, f.Yes)

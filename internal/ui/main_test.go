@@ -7,4 +7,8 @@ import (
 )
 
 // TestMain blocks every non-loopback network attempt (see testutil.Main).
-func TestMain(m *testing.M) { testutil.Main(m) }
+func TestMain(m *testing.M) {
+	// the glyph tests describe the classic console; the gate has its own tests
+	allowlistFallback = func() bool { return true }
+	testutil.Main(m)
+}

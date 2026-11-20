@@ -38,6 +38,7 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
 	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
+	"github.com/cloudn8ive/hermes-safe-update/internal/statedb"
 	"github.com/cloudn8ive/hermes-safe-update/internal/testutil"
 	"github.com/cloudn8ive/hermes-safe-update/internal/ui"
 )
@@ -95,8 +96,18 @@ type e2eWorld struct {
 	api   *httptest.Server
 
 	// scripted behaviour (set before cli())
-	vt          bool
-	yaml        string
+	vt     bool
+	yaml   string
+	extras bool // the scenario scripts the extras stage (see cli)
+	// xAnswers are the answers to the extras commands ("plugins check-updates
+	// --json", "skills check", "pm doctor", ...); xHooks run when one is asked
+	// (a plugin update that changes files). xConfig is appended to config.yaml.
+	xAnswers map[string]execx.Result
+	xHooks   map[string]func() // "update" runs inside `hermes update` (what a dependency rebuild does)
+	// xNoKill collects the extras commands that were started without a tree
+	// kill for their timeout (there must be none).
+	xNoKill     []string
+	xConfig     string
 	apiStatus   string // "ahead" (default), "identical", "down"
 	installed   int    // `git rev-list --count old..new` (0 = 3, like the API forecast; <0 = git fails)
 	newerMode   string // compare <new HEAD>...main: "" (503) | "identical" | "ahead"
@@ -107,19 +118,24 @@ type e2eWorld struct {
 	// Release channels (v0.3.0). The default world is a Hermes with channels
 	// whose record for this install says main, so follow resolves to main and
 	// every main-path scenario keeps its exact screens.
-	help       string   // `update --help`: "" = with --channel, "legacy" = a Hermes without release channels, "noset" = channels but no --set-channel
-	version    string   // `hermes --version` version (""= v0.21.5, v0.21.6 after the update)
-	setRC      int      // `update --set-channel` exit code (0 = writes the record and confirms)
-	setOut     string   // its output when setRC != 0
-	record     string   // channel record in the home config.yaml: "main" (default), "none" (no record) or a channel name
-	origin     string   // [remote "origin"] url of the checkout ("" = the official GitHub URL)
-	releaseOut string   // `update --check` output of a release channel (bare or --channel)
-	applyArgv  []string // argv `hermes update` is expected to be started with (nil = the legacy main argv)
+	help       string                  // `update --help`: "" = with --channel, "legacy" = a Hermes without release channels, "noset" = channels but no --set-channel
+	sd         statedb.Service         // session database service (nil = the real one, on the world's small databases)
+	optimize   map[string]execx.Result // `hermes sessions optimize-storage` answers, by argv after the launcher
+	version    string                  // `hermes --version` version (""= v0.21.5, v0.21.6 after the update)
+	setRC      int                     // `update --set-channel` exit code (0 = writes the record and confirms)
+	setOut     string                  // its output when setRC != 0
+	record     string                  // channel record in the home config.yaml: "main" (default), "none" (no record) or a channel name
+	origin     string                  // [remote "origin"] url of the checkout ("" = the official GitHub URL)
+	releaseOut string                  // `update --check` output of a release channel (bare or --channel)
+	applyArgv  []string                // argv `hermes update` is expected to be started with (nil = the legacy main argv)
 	// The release v0.22.1 (commit e2eRelease) of the stable scenarios: whether
 	// the checkout has it (tag and commit), and what GitHub answers.
 	releaseLocal  bool // the tag / commit is in the checkout already
 	releaseBehind bool // the release commit is an ancestor of HEAD (`merge-base --is-ancestor` says so)
-	shallow       bool // `rev-parse --is-shallow-repository` says true
+	// releaseDiverged: neither contains the other (HEAD is no ancestor of the
+	// release either). Without releaseBehind or this, a local release contains HEAD.
+	releaseDiverged bool
+	shallow         bool // `rev-parse --is-shallow-repository` says true
 
 	// probeBarrier makes `update --help` and `update --install-id` wait for
 	// each other (3 s at most): rvOverlap says whether both were in flight at
@@ -537,7 +553,15 @@ func (w *e2eWorld) Run(ctx context.Context, c execx.Cmd) (execx.Result, error) {
 	case a0 == w.git && slices.Contains(rest, "ls-remote"):
 		return w.lsRemote(c, rest)
 	case a0 == w.git && slices.Contains(rest, "merge-base") && slices.Contains(rest, e2eRelease):
-		// is the release commit an ancestor of HEAD? (the rollback test of a release run)
+		// `merge-base --is-ancestor A B`. A = the release: is it an ancestor of
+		// HEAD (the rollback test of a release run)? B = the release: does it
+		// contain HEAD (the stable hold needs that proof to update)?
+		if i := slices.Index(rest, "--is-ancestor"); i >= 0 && i+2 < len(rest) && rest[i+2] == e2eRelease {
+			if w.releaseBehind || w.releaseDiverged {
+				return execx.Result{Code: 1}, nil
+			}
+			return execx.Result{}, nil
+		}
 		if w.releaseBehind {
 			return execx.Result{}, nil
 		}
@@ -655,6 +679,25 @@ func (w *e2eWorld) hermesCLI(c execx.Cmd, rest []string) (execx.Result, error) {
 		w.mutate("cua install")
 		w.advance(4 * time.Second)
 		return execx.Result{Output: "Preparing the pinned cua-driver with Hermes PM...\ncua-driver ready: 0.21.0.\n"}, nil
+	}
+	if res, ok := w.optimize[strings.Join(rest, " ")]; ok {
+		w.mutate("optimize-storage")
+		return res, nil
+	}
+	if strings.Join(rest, " ") == "sessions optimize-storage --help" {
+		return execx.Result{Output: "usage: hermes sessions optimize-storage [-h] [--yes]\n"}, nil
+	}
+	if res, ok := w.xAnswers[strings.Join(rest, " ")]; ok && w.extras {
+		if c.KillTree == nil {
+			w.mu.Lock()
+			w.xNoKill = append(w.xNoKill, strings.Join(rest, " "))
+			w.mu.Unlock()
+		}
+		if hook := w.xHooks[strings.Join(rest, " ")]; hook != nil {
+			w.mutate(strings.Join(rest, " "))
+			hook()
+		}
+		return res, nil
 	}
 	return w.unexpected(c)
 }
@@ -794,6 +837,16 @@ func (w *e2eWorld) hook(c execx.Cmd) (execx.Result, error) {
 
 // Stream is only used for `hermes update`.
 func (w *e2eWorld) Stream(ctx context.Context, c execx.Cmd, onLine func(string)) (execx.Result, error) {
+	if res, ok := w.optimize[strings.Join(c.Argv[1:], " ")]; ok && c.Argv[0] == w.launcher {
+		w.mu.Lock()
+		w.calls = append(w.calls, append([]string(nil), c.Argv...))
+		w.mu.Unlock()
+		w.mutate("optimize-storage")
+		for _, l := range strings.Split(res.Output, "\n") {
+			onLine(l)
+		}
+		return res, nil
+	}
 	want := append([]string{w.launcher}, w.updateArgv()...)
 	if strings.Join(c.Argv, "\x00") != strings.Join(want, "\x00") {
 		w.t.Errorf("replay: unexpected streamed command %q", c.Argv)
@@ -803,6 +856,9 @@ func (w *e2eWorld) Stream(ctx context.Context, c execx.Cmd, onLine func(string))
 	w.calls = append(w.calls, append([]string(nil), c.Argv...))
 	w.mu.Unlock()
 	w.mutate("update")
+	if hook := w.xHooks["update"]; hook != nil && w.extras {
+		hook()
+	}
 	w.procs.Add(platform.Process{PID: pidUpdate, Name: "hermes.exe", Cmdline: strings.Join(c.Argv, " ")})
 	w.procs.Add(platform.Process{PID: pidUpdateCh, PPID: pidUpdate, Name: "node.exe", Cmdline: "node.exe npm-cli.js ci"})
 	var lines []string
@@ -850,6 +906,10 @@ func happyUpdate() []updateLine {
 		{20 * time.Second, "✓ Update complete! (v0.21.5 → v0.21.6)", nil},
 	}
 }
+
+// askBeforeRollback is update.older_release: ask, for the scenarios of the
+// rollback guard (the default, wait, never moves Hermes back at all).
+func (w *e2eWorld) askBeforeRollback() { w.yaml += "update:\n  older_release: ask\n" }
 
 func (w *e2eWorld) setHead(h string) { w.mu.Lock(); w.head = h; w.mu.Unlock() }
 func (w *e2eWorld) Head() string     { w.mu.Lock(); defer w.mu.Unlock(); return w.head }
@@ -986,6 +1046,7 @@ func (w *e2eWorld) environment() *environment {
 		selfPID:  w.selfPID,
 		created:  w.processCreated(),
 		ver:      testToolVersion,
+		statedb:  w.sd,
 		sleep:    w.sleep,
 		apiBase:  w.api.URL,
 		newUI: func(cfg *config.Config, out io.Writer) ui.Renderer {
@@ -1001,7 +1062,15 @@ func (w *e2eWorld) environment() *environment {
 
 func (w *e2eWorld) cli(args ...string) int {
 	w.t.Helper()
-	writeFile(w.t, filepath.Join(w.home, "safe-update.yaml"), w.yaml)
+	yaml := w.yaml
+	if !w.extras {
+		// The v0.7.0 extras stage runs extra `hermes` commands. The older
+		// scenarios do not script them (and their golden screens have no rows
+		// for them), so the world switches the stage off; the scenarios of
+		// e2e_extras_test.go set extras and bring their own extras: block.
+		yaml += "extras:\n  plugins: off\n  skills: off\n  tools: off\n  stale_days: 0\n"
+	}
+	writeFile(w.t, filepath.Join(w.home, "safe-update.yaml"), yaml)
 	w.writeChannelFiles()
 	w.con.terminal = w.vt
 	w.code = run(context.Background(), args, w.environment())
@@ -1171,7 +1240,7 @@ func (w *e2eWorld) writeChannelFiles() {
 	if rec == "none" {
 		_ = os.Remove(cfg)
 	} else {
-		writeFile(w.t, cfg, "model: synthetic\nupdate:\n  installs:\n    "+harnessInstallID+":\n      path: synthetic\n      channel: "+rec+"\n")
+		writeFile(w.t, cfg, "model: synthetic\nupdate:\n  installs:\n    "+harnessInstallID+":\n      path: synthetic\n      channel: "+rec+"\n"+w.xConfig)
 	}
 	origin := w.origin
 	if origin == "" {

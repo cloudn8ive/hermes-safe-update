@@ -46,19 +46,20 @@
    [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
-  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-exit in 10 min[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  ending in 10 min[0m[K
    [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J  
      [38;5;221;1m? [0m[1mHermes is up to date. Press R to repair this install: Hermes closes and the update steps[0m
        [1mrun again (dependencies, builds, gateway restart), about 6 min (rough: no earlier runs[0m
-       [1mlike this; uses defaults). Any other key exits without changes (auto-exit in 10 min).[0m
+       [1mlike this; uses defaults). Any other key ends the run without repairing (it ends by itself[0m
+       [1min 10 min).[0m
 [?25l  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
-  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-exit in 10 min[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  ending in 10 min[0m[K
    [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
-  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  auto-exit in 10 min[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  ending in 10 min[0m[K
    [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:02 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
@@ -81,7 +82,7 @@
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;2;95;175;255m██████[0m[38;5;236m██████████████████████████████[0m[1m   16%[0m[38;5;250m   0:02 elapsed · about 6 min left (rough) · 9:53 AM[0m[K
   [38;5;80;1m ► [0m[1mLooking for running Hermes processes[0m  0:00                                     [38;5;250m step 3 of 15[0m[K
-   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;78m● [0m[38;5;110mgateway pause  [0mOK (default (pid [1m8211[0m))
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     gateway pause check: OK (default (pid [1m8211[0m))
 [?25l  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;2;95;175;255m██████[0m[38;5;236m██████████████████████████████[0m[1m   16%[0m[38;5;250m   0:02 elapsed · about 6 min left (rough) · 9:53 AM[0m[K
@@ -181,7 +182,7 @@
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;2;95;175;255m██████[0m[38;2;95;182;234m██████[0m[38;2;95;189;214m██████[0m[38;2;95;196;193m██████[0m[38;2;95;202;173m██████[0m[38;2;95;209;152m███[0m[38;5;236m███[0m[1m   92%[0m[38;5;250m   4:35 elapsed · about 1 min left (rough) · 9:52 AM[0m[K
   [38;5;141;1m ► [0m[1mPackaging the desktop app[0m  0:25[38;5;245m  (usually 0:22)[0m                                [38;5;250m step 8 of 14[0m[K
-   [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;78m√ Close Hermes[0m[38;5;240m ── [0m[38;5;78m√ Update[0m[38;5;240m ── [0m[38;5;141;1m► Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 4 of 5[0m[K[4A[J     [38;5;242m● [0m[38;5;110mhermes update  [0m[1m0[0m
+   [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;78m√ Close Hermes[0m[38;5;240m ── [0m[38;5;78m√ Update[0m[38;5;240m ── [0m[38;5;141;1m► Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 4 of 5[0m[K[4A[J     hermes update exit code: [1m0[0m
 [?25l  [K
    [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
    [38;2;95;175;255m██████[0m[38;2;95;182;234m██████[0m[38;2;95;189;214m██████[0m[38;2;95;196;193m██████[0m[38;2;95;202;173m██████[0m[38;2;95;209;152m███[0m[38;5;236m███[0m[1m   92%[0m[38;5;250m   4:35 elapsed · about 1 min left (rough) · 9:52 AM[0m[K

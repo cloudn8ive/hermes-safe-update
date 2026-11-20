@@ -181,7 +181,10 @@ func (s *style) free(text string, width int) string {
 	lead := len(text) - len(strings.TrimLeftFunc(text, unicode.IsSpace))
 	t := strings.TrimSpace(text)
 	if head, rest, ok := strings.Cut(t, ": "); ok {
-		if n := runeLen(head); n >= 2 && n <= 34 && !strings.ContainsAny(head, `\/`) {
+		// A top-level head as wide as the label column or wider is a sentence
+		// ("Nothing to update: already at ..."), not a label: the label column
+		// would cut it ("Nothing to upd"). Indented heads keep the wide layout.
+		if n := runeLen(head); n >= 2 && n <= 34 && !strings.ContainsAny(head, `\/`) && (lead > 0 || n < s.th.LabelWidth) {
 			switch {
 			case n < s.th.LabelWidth:
 				return s.kv(Row{Key: head, Value: rest, Nested: lead > 0}, width)

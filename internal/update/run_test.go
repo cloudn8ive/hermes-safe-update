@@ -17,11 +17,13 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/config"
 	"github.com/cloudn8ive/hermes-safe-update/internal/cua"
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
+	"github.com/cloudn8ive/hermes-safe-update/internal/extras"
 	"github.com/cloudn8ive/hermes-safe-update/internal/gc"
 	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
 	"github.com/cloudn8ive/hermes-safe-update/internal/mirror"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
 	"github.com/cloudn8ive/hermes-safe-update/internal/settings"
+	"github.com/cloudn8ive/hermes-safe-update/internal/statedb"
 	"github.com/cloudn8ive/hermes-safe-update/internal/testutil"
 	"github.com/cloudn8ive/hermes-safe-update/internal/timings"
 	"github.com/cloudn8ive/hermes-safe-update/internal/ui"
@@ -351,6 +353,16 @@ type harness struct {
 	logTail  func(string, int64) ([]byte, error) // Deps.LogTail (nil = a readable log that holds this run only)
 	repair   bool                                // Deps.Repair (the repair command)
 
+	// extrasOn wires the real extras service (internal/extras) onto the run's
+	// fake runner: home is its Hermes home, git the git it asks about the
+	// release date (empty = none).
+	sd               statedb.Service // Deps.StateDB (nil = the stage is skipped)
+	extrasOn         bool
+	extrasHome, xGit string
+	// extrasWrap wraps the extras service (a spy).
+	extrasWrap func(extras.Service) extras.Service
+
+	onCheck   func()     // runs when `hermes update --check --branch main` is asked
 	mainCheck string     // answer of `hermes update --check --branch main` (default: 3 commits behind)
 	onRun     func(*Run) // called with the Run before it executes (tests read its facts)
 }
@@ -368,6 +380,10 @@ func backendProc() platform.Process {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	cfg := &config.Config{File: config.Defaults()}
+	// The release-channel tests of this package were written for the rollback
+	// guard (update.older_release: ask). The default, wait, has its own tests
+	// (hold_test.go), which call holdHarness.
+	cfg.Update.OlderRelease = config.OlderReleaseAsk
 	h := &harness{
 		t:        t,
 		cfg:      cfg,
@@ -394,7 +410,12 @@ func newHarness(t *testing.T) *harness {
 	h.procs.Add(gatewayProc())
 	// update available
 	h.mainCheck = "3 commits behind origin/main"
-	h.runner.OnFunc([]string{tLauncher, "update", "--check", "--branch", "main"}, func(execx.Cmd) execx.Result { return execx.Result{Output: h.mainCheck} })
+	h.runner.OnFunc([]string{tLauncher, "update", "--check", "--branch", "main"}, func(execx.Cmd) execx.Result {
+		if h.onCheck != nil {
+			h.onCheck()
+		}
+		return execx.Result{Output: h.mainCheck}
+	})
 	// a successful `hermes update`: moves HEAD and the gateway to the new code
 	h.onUpdate(0, "→ Fetching updates\nInstalling Python dependencies…\nBuilding desktop packaged app…\nUpdate complete! (v1.0 → v1.1)", true)
 	h.runner.OnFunc([]string{tLauncher, "update", "--yes"}, func(c execx.Cmd) execx.Result {
@@ -481,6 +502,8 @@ func (h *harness) run(flags ...string) error {
 		TimingsPath:   h.timings,
 		LogPath:       tHome + `\logs\safe-update.log`,
 		Receipts:      h.receipts,
+		Extras:        h.extrasService(runner),
+		StateDB:       h.sd,
 		LogTail:       h.logTailOrDefault(),
 		Repair:        h.repair,
 	}
@@ -1539,4 +1562,17 @@ func (h *harness) newUI() ui.Renderer {
 		return cardSpy{Renderer: u, cards: h.cards}
 	}
 	return u
+}
+
+// extrasService is the real extras service on the run's runner, or nil.
+func (h *harness) extrasService(runner execx.Runner) extras.Service {
+	if !h.extrasOn {
+		return nil
+	}
+	svc := extras.Service(extras.New(extras.Deps{Runner: runner, Launcher: tLauncher, Home: h.extrasHome, Git: h.xGit, Checkout: h.install.Checkout, Now: h.clock.Now,
+		Wait: func(time.Duration) {}, KillTree: func(int) error { return nil }}))
+	if h.extrasWrap != nil {
+		svc = h.extrasWrap(svc)
+	}
+	return svc
 }

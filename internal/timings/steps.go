@@ -13,7 +13,9 @@ func UpdateSteps(seed map[string]int) []Step {
 		{Key: "remote", Group: "Check", Label: "Checking for updates", Cond: "source", Class: "network"},
 		{Key: "procs", Group: "Check", Label: "Looking for running Hermes processes"},
 		{Key: "wait", Group: "Close Hermes", Label: "Waiting for idle sessions / your OK"},
+		{Key: "statedb_pre", Group: "Close Hermes", Label: "Checking the session databases"},
 		{Key: "close", Group: "Close Hermes", Label: "Closing the desktop app"},
+		{Key: "statedb", Group: "Close Hermes", Label: "Compacting the session databases"},
 		{Key: "gateway_stop", Group: "Update", Label: "Pausing the gateway"},
 		{Key: "fetch", Group: "Update", Label: "Fetching the new commits", Cond: "mirror", Class: "network"},
 		{Key: "pull", Group: "Update", Label: "Pulling code, clearing caches", Cond: "mirror", Class: "network"},
@@ -39,6 +41,7 @@ func CheckSteps(seed map[string]int) []Step {
 		{Key: "remote", Group: "Updates", Label: "Checking for updates", Cond: "source", Class: "network"},
 		{Key: "procs", Group: "Hermes", Label: "Looking for running Hermes processes"},
 		{Key: "sessions", Group: "Hermes", Label: "Checking for active sessions"},
+		{Key: "statedb", Group: "Hermes", Label: "Checking the session database sizes"},
 		{Key: "gc_preview", Group: "Housekeeping", Label: "Previewing dependency cleanup"},
 		{Key: "cua_status", Group: "Housekeeping", Label: "Checking the cua-driver logon task"},
 	})

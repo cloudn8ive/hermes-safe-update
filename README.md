@@ -29,7 +29,7 @@ session id in it is made up.
 
 | OS | Architectures | Status |
 |---|---|---|
-| Windows 10 | amd64 | unit-tested. Many real interactive updates have run and verified on Windows 10 22H2 amd64 with v0.1.x to v0.3.0 builds (what ran for real with the current release is in its release notes), and one real unattended update (started by a scheduled task); the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. The first real update (v0.1.0 development build) failed at the settings step because that Hermes range removed renderer-server.ts; this was fixed (file:// detection, backup when detection fails). Since the fix, one real update has migrated a real settings store from the old `http://127.0.0.1` origin to `file://` (with a backup), and every later real update found nothing left to migrate. No other real migration scenario has been run |
+| Windows 10 | amd64 | unit-tested. Many real interactive updates have run and verified on Windows 10 22H2 amd64 with v0.1.x to v0.5.0 release builds and v0.7.0 to v0.9.1 development builds (what ran for real with the current release, and which newer paths have only run against fakes and fixtures, is in its release notes), and one real unattended update (started by a scheduled task); the Start-menu and Ctrl+K launches were tried. The settings migration was run in a sandbox on a copy of a real desktop settings store and in an automated test on synthetic data, both with the real Electron. The first real update (v0.1.0 development build) failed at the settings step because that Hermes range removed renderer-server.ts; this was fixed (file:// detection, backup when detection fails). Since the fix, one real update has migrated a real settings store from the old `http://127.0.0.1` origin to `file://` (with a backup), and every later real update found nothing left to migrate. No other real migration scenario has been run |
 | Windows 11 | amd64 | expected to work; not yet tested |
 | Windows 10 / 11 | arm64 | builds; not run on arm64 hardware |
 | macOS | arm64, amd64 | **untested, proceed at your own risk** |
@@ -304,7 +304,9 @@ ends it, exit 0). That offer is never made with `--unattended`, `--yes`,
 8. **Settings.** Back up and migrate the desktop settings if the address
    changed (see above). Hermes is closed at this point.
 9. **Hooks, only after a verified update:** your `post-update` hooks run
-   while Hermes is still closed.
+   while Hermes is still closed (not when Hermes itself held the build and
+   nothing was updated; the `post-relaunch` hooks still run then, because
+   Hermes was closed and reopened).
 10. **Reopen** the desktop app if it was running (setting
     `desktop.relaunch`: `always` also reopens it when you had already closed
     it before starting the update, `never` leaves it closed; see
@@ -415,11 +417,15 @@ rebuild` row names `hermes desktop --force-build`, Hermes' own full rebuild
 interactive run (output and keyboard both a console; not `--unattended`,
 `--yes`, `--force` or `--check`) offers one window of 10 minutes: "Press R to
 repair this install: Hermes closes and the update steps run again
-(dependencies, builds, gateway restart) ... Any other key exits without
-changes". Only `R` goes on, and it replaces the final `Y`; the wait for busy
-sessions, the checkout-lock look and the pre-flight stops still apply. Any
-other key, Ctrl+C or the timeout ends the run as before: the "up to date" card,
-exit 0. The offer is skipped when the run already knows it would stop (low disk,
+(dependencies, builds, gateway restart) ... Any other key ends the run
+without repairing". The plugin, skill and tool questions of the next section
+come first, so the offer is the last thing asked (it can no longer be
+followed by an update). Only `R` goes on, and it replaces the final `Y`; the
+wait for busy sessions, the checkout-lock look and the pre-flight stops still
+apply, and the plugin settings are read again right before the repair's
+`hermes update`, so a plugin you just updated is the baseline of the guard.
+Any other key, Ctrl+C or the timeout ends the run as before: the "up to date"
+card, exit 0. The offer is skipped when the run already knows it would stop (low disk,
 inside a Hermes chat, missing ARM64 build tools with `preflight.arm64_toolchain:
 stop`: the run ends as "up to date", exit 0, and a line says why; in the default
 `warn` mode the offer is made, the toolchain is not mentioned on a run that
@@ -439,9 +445,11 @@ Hermes v0.21.6 and later update from one of two channels:
 - **stable**: only published, tested releases. Fewer updates. If you never
   chose a channel in Hermes, a checkout that is already ahead of the latest
   release waits for the next one. If you picked stable yourself (or Safe
-  Update's `stable` setting does it over a main record or a fork), the next
-  update moves the checkout back to that release; the rollback guard below
-  asks first.
+  Update's `stable` setting does it over a main record or a fork), Hermes'
+  own update would move the checkout back to that release. Safe Update does
+  not: by default it waits ("Waiting for stable") until a stable release
+  includes your build; the stable hold above and the rollback guard below
+  (`update.older_release: ask`) describe the two behaviours.
 - **main**: every change the day it lands. The newest fixes, more risk.
 
 Hermes keeps the choice per install: Settings → About in the desktop app, or
@@ -465,6 +473,23 @@ them. Now `update.channel` in `safe-update.yaml` decides
 If you use stable in Hermes, Safe Update now stays on stable. If you want
 main whatever Hermes says, set `update.channel: main`.
 
+**A build that is newer than the latest release.** On the stable channel,
+Hermes moves a checkout *back* to the latest release, with no question, when
+that release is older than the checkout (and a stable record is stored in
+Hermes). Safe Update never does that by default (`update.older_release: wait`).
+When the latest stable release is older than your build, diverged from it, or
+cannot be proven to contain it (a shallow clone, git or GitHub not answering),
+a run stays on your build and ends like an up-to-date one, exit 0, with
+"Waiting for stable: this build (v0.22.4+230.g36f7966) is 230 commits newer
+than stable v0.22.4; Safe Update stays on it until a stable release includes
+it." When a stable release contains your build, the run updates to it as
+usual. While it waits, Safe Update runs nothing that would pass the stable
+update to Hermes: `repair`, `--force` and finishing an unfinished update are
+refused (exit 4, nothing changed) and name the one-run way on main
+(`--channel main`; this also updates Hermes to the newest main commits). To be asked before moving back to the older release
+instead, set `update.older_release: ask` (or pass `--allow-rollback` for one
+run). `hermes-safe-update channel` shows which of the two applies.
+
 **Look and switch.** `hermes-safe-update channel` prints the channel Hermes
 uses for this install, what `update.channel` is set to and what the next run
 will do. It needs no network and never asks the untested-platform question.
@@ -478,10 +503,12 @@ set), 3 you answered no, 4 refused (a Hermes that cannot switch, Hermes
 refused, or a question that cannot be asked), 64 for any other name than
 `stable` or `main`.
 
-**Rollback guard.** On stable, your checkout can be *newer* than the selected
+**Rollback guard (`update.older_release: ask`, or `--allow-rollback` for one
+run).** On stable, your checkout can be *newer* than the selected
 release (for example after switching from main to stable). Updating would
 then move Hermes **back** to that release, and Hermes does
-not ask. Safe Update stops before it closes anything: an attended run asks
+not ask. By default Safe Update waits instead (see above); with `ask` it stops
+before it closes anything: an attended run asks
 for an explicit `Y` that names both versions (`--yes` does not skip this
 question; any other key, or no answer, exits 4 with nothing changed). An
 `--unattended` run never rolls back: exit 4, and the message names the
@@ -516,7 +543,7 @@ writes anything; it runs a read-only release check first and asks for a `Y`
   Hermes folder either, on any OS: use `paths.hermes_home`) and
   `PYTHONIOENCODING=utf-8`
   is added.
-- `state.db` is only ever opened read-only. Desktop settings are changed on
+- Safe Update opens `state.db` only read-only (`mode=ro`). Its own copy (`statedb.backup`) is a new file under `backups\safe-update-statedb`, and the optional compaction is Hermes' own `hermes sessions optimize-storage`, which does write the database. Desktop settings are changed on
   a copy that is verified before it is swapped in, with a backup and
   automatic rollback.
 - A step whose result the tool cannot confirm does not count as success: the
@@ -546,6 +573,94 @@ way it was installed, or setting `paths.checkout`; it also exits with code 5
 and changes nothing. These detections are code plus unit tests on every
 platform; what has been run for real is stated in the
 [Platforms](#platforms) table.
+
+## Plugins, skills and tools (extras)
+
+On the stable channel Hermes itself updates rarely, but things that do not
+depend on the Hermes version keep moving. After the Hermes verdict of every
+run (up to date, waiting for stable, `check`, and after a verified update)
+Safe Update looks at them side by side, through Hermes' own check commands,
+writing nothing itself and without touching Hermes' checkout (Hermes may
+refresh its own caches while it answers):
+
+- **Plugins**: catalog and git plugins with an update. An attended run asks
+  for each plugin (y/N, default no; your memory provider is named and goes
+  last) and then runs `hermes plugins update <name>`. Hermes applies that
+  all or nothing, so the usual failure is "refused, nothing changed" (a plugin
+  that adds dependencies or capabilities needs a terminal: run it yourself).
+  Safe Update writes no file around it; afterwards it only checks that the
+  plugin is still enabled and `memory.provider` unchanged, and says what to
+  run if not. A plugin update cannot switch a plugin off; `hermes update` can
+  (a dependency rebuild that no longer builds a plugin did once, and cleared
+  `memory.provider`). So Safe Update reads the plugin settings before the
+  Hermes update and compares them after it: if Hermes switched a plugin off,
+  the card and a WARN say so, and an attended run asks once to put it back
+  with Hermes' own `hermes plugins enable <name>` (then `hermes config set
+  memory.provider <name>` if the provider was cleared). It never edits
+  `config.yaml`. `--unattended`, `--yes` and `check` only report and name
+  the commands. Nothing is applied when this run's Hermes was not verified.
+- **Skills**: hub skills with an update, applied with `hermes skills update`
+  after a Y.
+- **Pinned plugins**: a plugin installed with `hermes plugins install <name>
+  --ref <sha>` is never asked about or updated. Hermes' named `plugins update`
+  would move it off the commit you chose, and the check does not say it is
+  held, so Safe Update reads Hermes' install record (read-only) and shows
+  `notes-demo pinned to 89abcdef (not updated; hermes plugins update notes-demo
+  moves it off the pin)`. A plugin whose record cannot be read is skipped with
+  a note, not updated. This includes a git-installed plugin that has no entry
+  in the install record: its pin state is unknown, so Safe Update leaves it
+  alone (more cautious than Hermes itself).
+- **After a Hermes update** (v0.23.0 and later): Hermes ends `hermes update` with
+  "N plugin update(s) from the new catalog". Safe Update hides those two lines
+  and adds them to the Plugins row; the questions still come from its own
+  check, so nothing is asked twice, and a name only Hermes listed is shown with
+  the command. With `extras.plugins: off` the row carries the notice and the
+  command.
+- **Tools**: faults `hermes pm doctor` finds (for example `git: files changed
+  since install`), with the fix named only where Hermes has a command for it;
+  `check` also lists newer tool versions. Tools are never updated here.
+- **Stale stable**: on a release channel, a row when the latest stable
+  release is older than `extras.stale_days` (14) or when security-looking
+  commits are waiting on main, with the one-time way out
+  (`hermes-safe-update --channel main`). Nothing happens by itself.
+
+On an attended up-to-date run the order is: verdict, the read-only probes,
+one question per plugin, the skills question, and only then the repair offer.
+The rows (Plugins, Skills, Tools, ...) are shown once, in the end card; the
+log keeps the stage line and the card line. A Hermes command that stops at a
+`[y/N]` question nobody can answer (a capability consent, for example) is cut
+after 60 seconds of silence and the row names the command to run in a
+terminal (15 minutes stays the hard cap). Ctrl+C during a plugin or skills
+step prints at once that the step is being finished and for how long at most.
+
+| Setting | Default | Values |
+|---|---|---|
+| `extras.plugins` | `ask` | `ask`, `report`, `off` |
+| `extras.skills` | `ask` | `ask`, `report`, `off` |
+| `extras.tools` | `report` | `report`, `off` |
+| `extras.stale_days` | `14` | days; `0` = no row |
+
+Details: [docs/configuration.md](docs/configuration.md#extras).
+
+## Big session databases (state.db over 1 GiB)
+
+`hermes update` leaves a `state.db` over 1 GiB out of its pre-update snapshot.
+Safe Update shows the sizes in every run (`check` included), offers Hermes'
+own `sessions optimize-storage` compaction on an attended run (Hermes 0.23 or
+newer only; after Hermes is closed, with the gateway stopped, before the
+update; it never fails the update), and keeps its own verified copy of any
+database that is still over the limit, attended or not. The compaction is
+offered only for a database where Hermes has work to do (an older search-index
+layout, an interrupted optimize, leftover tables); one already on the compact
+layout is not asked about and the gateway is not stopped.
+
+| Setting | Default | Values |
+|---|---|---|
+| `statedb.compact` | `ask` | `ask`, `off` |
+| `statedb.backup` | `on` | `on`, `off` |
+| `statedb.min_free_gb` | `10` | GB that stay free after a copy or compaction |
+
+Details: [docs/configuration.md](docs/configuration.md#statedb).
 
 ## Configuration
 
@@ -614,11 +729,11 @@ newest 3 are kept (`settings.backup_retention`). Merge rules and revert:
 
 | Code | Meaning |
 |---|---|
-| 0 | done: updated and verified, check finished, or already up to date |
+| 0 | done: updated and verified, check finished, already up to date, waiting for stable (the stable release does not contain your newer build yet), or Hermes itself held the build ("Hermes did not update: it held this build"; nothing failed) |
 | 1 | the update ran but needs attention, or an unexpected error; also a run that asks nobody and left an unfinished update alone because an earlier attempt failed or Safe Update's own log could not be read (its card says "was not retried") |
 | 2 | no way to run Hermes was found: the `hermes` launcher is missing and (for `run` and `check`) Hermes cannot be run through its managed Python either |
 | 3 | cancelled before anything changed (you, a timeout, idle wait exceeded, the desktop app would not close, untested platform declined) |
-| 4 | pre-flight stop: another update running or holding Hermes' checkout lock, an administrator terminal (`--allow-elevated` goes on), `tools\` entries your account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed, started from inside a Hermes chat, `update.channel: stable` on a Hermes without release channels, an update that would move Hermes back to an older release (you answered no, or `--unattended`), or `channel set` refused |
+| 4 | pre-flight stop: another update running or holding Hermes' checkout lock, an administrator terminal (`--allow-elevated` goes on), `tools\` entries your account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed, started from inside a Hermes chat, `update.channel: stable` on a Hermes without release channels, an update that would move Hermes back to an older release (`update.older_release: ask` only: you answered no, or `--unattended`), `repair`, `--force` or finishing an unfinished update while Safe Update waits for stable, or `channel set` refused |
 | 5 | not a managed source checkout: nothing changed |
 | 6 | settings command refused because the desktop app is running |
 | 64 | bad command line or invalid configuration |
@@ -841,15 +956,21 @@ unattended update started by a Windows scheduled task has run and verified
   updater was started from inside a Hermes chat
   (run it from a normal terminal or a shortcut; updating would stop the
   process that runs it. `--check` works anywhere).
-- **Exit 4, "would move Hermes back".** Your checkout is newer than the latest
+- **Exit 4, "would move Hermes back" (only with `update.older_release: ask` or
+  `--allow-rollback`).** Your checkout is newer than the latest
   stable release. Nothing was changed. Run `hermes-safe-update channel` to see
   the channel, `channel set main` to follow main, or run
-  `hermes-safe-update run` yourself and answer `Y` to go back on purpose.
-- **Exit 4 (or a question) on a release channel in a shallow clone.** A shallow
-  clone cannot prove that a release is newer than your checkout, so an
-  attended run asks before updating and an unattended run stops. Fix: make the
-  clone full with `git fetch --unshallow` in the Hermes folder, or set
-  `update.channel: main`.
+  `hermes-safe-update run` yourself and answer `Y` to go back on purpose. With
+  the default (`update.older_release: wait`) there is no stop: the run ends
+  with exit 0 and "Waiting for stable: ..." and Hermes stays as it is.
+- **"Waiting for stable" although a release is out, in a shallow clone.** A
+  shallow clone cannot prove that a release contains your checkout, so by
+  default the run waits (exit 0) and says it could not confirm it (with
+  `update.older_release: ask` an attended run asks and an unattended run
+  stops, exit 4). Fix: make the clone full with `git fetch --unshallow` in the
+  Hermes folder, or set `update.channel: main`. The same wait happens when
+  GitHub could not compare the release (rate limit, offline) and the release
+  commit is not in the checkout yet; the next run tries again.
 - **Exit 3 after waiting.** Sessions stayed busy for 30 minutes. Nothing was
   changed. Try again when idle, or raise `tunables.idle_wait_max_s`.
 - **Exit 6.** Close the Hermes desktop app, including any tray icon, and run

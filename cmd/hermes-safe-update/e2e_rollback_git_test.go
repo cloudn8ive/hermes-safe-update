@@ -16,6 +16,7 @@ import (
 func behindWorld(t *testing.T) *e2eWorld {
 	t.Helper()
 	w := newWorld(t)
+	w.askBeforeRollback()
 	w.record = "stable"
 	w.releaseOut = readContract(t, "update-check-stable-available.txt")
 	w.applyArgv = []string{"update", "--yes", "--keep-stash"}

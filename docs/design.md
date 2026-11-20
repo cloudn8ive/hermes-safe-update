@@ -112,7 +112,7 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 | 1 | local | Check | in this order, all read-only (D20): elevated token (`checkElevation`: `run` stops unless `--allow-elevated`, `check` warns); marker held by a live pid (v1 or v2: a recorded creation time must match, a live `delegate:` pid counts); Hermes' checkout lock held (`checkCheckoutLock`, `hermes.CheckoutLock` over `platform.LockProbe`); did the last update finish (`findUnfinished`, 3.2: a `last update` row, never a stop; it runs after the marker and lock stops on purpose, see 3.2); `tools\` entries the token cannot open (`checkACL`, `hermes.ACLChecker` over `platform.Access`; `preflight.acl_check`); free disk >= `min_free_gb`; dirty checkout (info); HEAD | `ErrPreflightStop` (4, D1) |
 | 2 | remote | Check | main: mirror -> GitHub API -> `hermes update --check --branch main`; npm/pydeps prediction against `origin/main`. Release channel: Hermes' own `--check` is the verdict; for an available release the target is the release commit, never main: `Mirror.SeedRelease` puts the tag into the checkout (mirror refreshed first if it lacks the tag), then git (`ResolveRelease`: the tag if local and at the commit Hermes named, else the commit by its 12-digit prefix, ambiguity = unknown) or `compare/<HEAD>...<tag>` gives the commit count and the npm/pydeps change; nothing resolvable = unknown, never a guess. Last, `checkARM64For` (D20): `win32-arm64` managed Python + update coming (new commits, or a run that goes on without them, finishing or repair: the dependency step runs whatever the commit check said) + pydeps true or unknown -> `hermes.ARM64Tools` (PATH, `Program Files\LLVM\bin`, VS LLVM dirs, vswhere); `preflight.arm64_toolchain`; decided once per run when the run goes ahead; the R question only looks (a side-effect-free probe, kept for the run): `stop` mode with the tools missing makes no R offer ("A repair is not offered: ...", exit 0), `warn` mode prints nothing until the R is pressed | up to date and nothing unfinished: exit 0 (an interactive run first offers R, 3.2); check failed: 4; ARM64 tools missing with `arm64_toolchain: stop` on a run that goes ahead (new commits, finishing, `repair`, or R): 4; with nothing to do the tools are not a stop (the R offer is withheld instead) |
 | 3 | procs | Check | process classes (desktop/gateway/backend/kernel); Windows pause-gate probe | - |
-| 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s` (`waitForIdle`); then Y confirm unless `--yes`/`--unattended`, `confirm_timeout_s` (600). A Y that came more than `confirmRecheckAfter` (60 s) after the prompt, and not after F, re-reads the busy sessions (`busySessions`; unreadable = busy); busy -> back to `waitForIdle` with a fresh idle budget, then the prompt again. Last, in every mode (F, `--yes`, `--unattended` included): `recheckLockBeforeClose` probes the checkout lock again when `Run.lockProbedAt` is more than `lockRecheckAfter` (60 s) old; held -> exit 4, nothing closed | `ErrCancelled` (3) |
+| 4 | wait | Close Hermes | if anything will be stopped (D2): busy sessions -> A/F prompt (attended) or wait (unattended, real elapsed time, D3) up to `idle_wait_max_s` (`waitForIdle`); then Y confirm unless `--yes`/`--unattended`, `confirm_timeout_s` (600). A Y that came more than `confirmRecheckAfter` (60 s) after the prompt, and not after F, re-reads the busy sessions (`busySessions`; unreadable = busy); busy -> back to `waitForIdle` with a fresh idle budget, then the prompt again. Last, in every mode (F, `--yes`, `--unattended` included): `recheckLockBeforeClose` probes the checkout lock again when `Run.lockProbedAt` is more than `lockRecheckAfter` (60 s) old; held -> exit 4, nothing closed; then, on a release channel, `recheckHeadBeforeClose` reads HEAD again and a HEAD that is not `Facts.HeadFull` (or cannot be read) is exit 4, nothing closed (S1: the hold and the rollback guard decided from the pre-flight HEAD) | `ErrCancelled` (3) |
 | 5 | close | Close Hermes | pre-close hooks; graceful close; force after `graceful_close_s` with blocker diagnosis; leftover backends/kernels; **claim the marker only now** (Hermes' format v2 with our creation time where it is readable in Hermes' clock, i.e. Windows; else v1) | `ErrCancelled` (3) if the app will not exit |
 | 6 | gateway_stop .. restart | Update, Build, Finish | `hermes update` (no `--gateway`), timeout `update_timeout_s`, gate retry once. `Facts.UpdateStarted` is set when it starts; the time of the "Stopping Windows gateway" line is kept (`GW.TStop`). When it ends, `reresolveLauncher` (D22) | - |
 | 7 | verify | Finish | gateway `code_sha` == HEAD and alive, only if a gateway ran before the update (pre-flight process list or a live pid in `gateway_state.json`; none before = not required, not started); alive on a different `code_sha` -> `restartStale` once; not alive -> start, unless `gatewayStartAllowed` says no (D21); `desktop_update_verify` (D17); known false fleet warning; tolerated relaunch exit (D21) | sets `Facts.Verified`; never flipped later |
@@ -121,7 +121,9 @@ stage key (`timings.UpdateSteps`); inside the update stage, lines of
 | 10 | relaunch | Finish | `desktop.relaunch`: `auto` = if the desktop was running; `always` = also if it was closed at the start, but only verified and not `--unattended`; `never` = no; never with `--no-relaunch`. Then post-relaunch hooks (whatever the result) | WARN only |
 | 11 | cleanup | Finish | dependency-generation GC (verified only; Windows) | WARN only |
 | 12 | cua | Finish | cua-driver refresh when the update deferred it (verified only) | WARN only |
-| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. The Version row counts HEAD_before..HEAD_after with git only when the new HEAD descends from the old one (a rewind says `moved back N commits`; diverged histories get no number); fallback: the `Found N new commit(s)` contract, then (main only) the forecast. The `Channel` row (after Version, also in the check card) names the channel and why: the update output's `Update channel:` line, else the check's, else the plan (`--channel`, `update.channel in safe-update.yaml`, `set in Hermes`, `Hermes default`); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row (on a release channel `Mirror.NewerRelease` instead: GitHub `releases/latest`, strict `vX.Y.Z`, not a draft or prerelease, then `compare/<HEAD>...<tag>` status `ahead` = "release vX was published while this ran"; main moving is never reported there): any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened. `gatewayRows` and `launcherRow` add the rows `Gateway check`, `Stale gateway`, `Gateway rescue`, `Double launch` and `Launcher` (Attention verdict; D21, D22) | exit 0 verified / 1 problem |
+| 12b | extras | Finish | v0.7.0 `internal/extras`, `update/extras.go`: plugins (`hermes plugins check-updates --json`), hub skills (`hermes skills check`), `pm doctor` faults, check-only `pm update --check`, the stale-stable row; read-only probes side by side with time limits, one row each (`Facts.ExtraRows`). v0.8.1: plugins whose install record (`plugins/.install-metadata.json`, `hermes.PinStore`) says `--ref` or cannot be read are never offered (`PluginsResult.Held`, re-read in `UpdatePlugin`); the v0.23.0 catalog notice of `hermes update` (`Facts.CatalogNotices`, parsed in `readApplyOutput`, lines hidden by `outputFilter`) is folded into the Plugins row (`noticeText`; `noticeFallback` when the probe does not run). Runs after the relaunch and cleanup of a verified update (never in the closed window); in the check flow after `cua_status`; a run that ends early (up to date, waiting for stable, the unfinished card of `engine.go`) runs it once before its card (`runExtras`, `Run.extrasDone`). Apply (`extras.plugins`/`skills` = `ask`): only attended (console, no `--unattended`/`--yes`, no Hermes chat env or chat ancestor) and only on a verified Hermes (`applyBlock`), Y only, one question per plugin (the memory provider named, last), `hermes plugins update <name>` (no `--force`), then a read-only check (exit code, still enabled, `memory.provider` unchanged); no file is written. The plugin guard (12a, `update/pluginguard.go`) watches the Hermes update itself. Never `pm update`/`repair`/`install`; never touches the checkout | WARN only |
+| 12a | plugin_guard | Finish | the pre-flight reads `plugins.enabled`, `plugins.disabled`, `memory.provider` (`Facts.PluginsBefore`); after any run that ran `hermes update` (also an interrupted one, report only, from `finally`) `extras.Compare` finds plugins newly in `plugins.disabled` (Hermes leaves them in `plugins.enabled`, so leaving enabled is not the signal) and a cleared/changed provider; enable runs with stdin closed and a timeout and is verified by re-reading config, not by wording. Hit: WARN + `Plugins` row; attended and verified: one Y-only question, then `hermes plugins enable <n>` and, only if that worked and the provider was cleared from that plugin, `hermes config set memory.provider <old>`. Otherwise the commands are printed. Never edits `config.yaml` | WARN only |
+| 13 | summary | - | card, timings saved (also in plain mode, D5), mirror offer. v0.8.1: when `hermes update` printed its own hold (`hermes.ParseApplyHold`), exited 0 and HEAD did not move (`Facts.HermesHeld`, set in `readApplyOutput`), the headline is "Hermes did not update: it held this build (...)", there is no Version row, a `Hermes held` row is added, the exit code is 0; verify/settings/cleanup/cua/guard/extras still run (Hermes ran its up-to-date tail), post-update hooks are skipped (`heldNoUpdate`), post-relaunch hooks run; the "Holding" line may be replaced by Hermes' unrestored-stash notice, then the "This build is newer" line alone is the hold and the Hermes held row names the stash; the re-check in `UpdatePlugin` returns `StatusPinned` (not a refusal); in a repair/finish run (`Again`) the headline stays and only the row is added. The Version row counts HEAD_before..HEAD_after with git only when the new HEAD descends from the old one (a rewind says `moved back N commits`; diverged histories get no number); fallback: the `Found N new commit(s)` contract, then (main only) the forecast. The `Channel` row (after Version, also in the check card) names the channel and why: the update output's `Update channel:` line, else the check's, else the plan (`--channel`, `update.channel in safe-update.yaml`, `set in Hermes`, `Hermes default`); the Source row describes the mirror as of the check (the seed reports `Refreshed`/`Current`); after a verified update `Mirror.NewerThan` (GitHub API compare, else `git ls-remote` plus a read-only `merge-base --is-ancestor`; 4+5 s limits, 6 s overall) may add a `Newer` row (on a release channel `Mirror.NewerRelease` instead: GitHub `releases/latest`, strict `vX.Y.Z`, not a draft or prerelease, then `compare/<HEAD>...<tag>` status `ahead` = "release vX was published while this ran"; main moving is never reported there): any failure omits it and it never changes `Verified` or the exit code; `Hermes app` says why the app was not reopened. `gatewayRows` and `launcherRow` add the rows `Gateway check`, `Stale gateway`, `Gateway rescue`, `Double launch` and `Launcher` (Attention verdict; D21, D22) | exit 0 verified / 1 problem |
 
 Closing on Linux (stage 5) is one `SIGTERM` to the Electron main process (never
 a `--type=` helper, never twice), then the `graceful_close_s` wait, then
@@ -256,9 +258,15 @@ running the same `hermes update` argv; it adds no rebuild step.
   both be a console; not when the run already knows it would stop: low disk, inside a Hermes chat
   by environment or by process ancestor, or missing ARM64 build tools with
   `arm64_toolchain: stop`, which is decided first) one
-  `confirm_timeout_s` window offers R; R continues as if confirmed (no second
+  `confirm_timeout_s` window offers R, after the extras questions (plugins,
+  skills; v0.8.0: nothing is asked after the offer, whose other keys now "end
+  the run without repairing"); R continues as if confirmed (no second
   Y; busy-session wait, lock re-check and pre-flight stops still apply), any
   other key or the timeout exits 0 with today's card.
+  Worst case with nobody there (F3): the first extras question waits one
+  `confirm_timeout_s` (default 600 s); the other extras questions are skipped
+  (the Plugins/Skills row says why), then the repair offer waits one more, so
+  at most 2 x `confirm_timeout_s` (20 min by default), not one per plugin.
 - **Accepting a no-commit run**: HEAD unchanged is correct (the Version row
   says so, no "0 commits installed"); the steps that cannot happen (`fetch`,
   `pull`, `finalize`, `restart` in `noCommitSkips`) are skipped in the
@@ -304,11 +312,11 @@ Errors are wrapped with `%w`; callers use `errors.Is/As`. One function,
 
 | Code | Meaning |
 |---|---|
-| 0 | done: update verified, check finished, or already up to date |
+| 0 | done: update verified, check finished, already up to date, waiting for stable, or Hermes itself held the build (nothing failed) |
 | 1 | the update ran but needs attention (RESULT PROBLEM), a run that asks nobody and left an unfinished update alone (card: "was not retried", 3.2), or an unexpected error. A `hermes update` exit 1 that is only Hermes' own unconfirmed gateway relaunch is OK, not 1 (D21) |
 | 2 | no way to run Hermes was found: no launcher, and (`run`, `check`) Hermes cannot be run through its managed Python either (D22) |
 | 3 | cancelled before anything changed (user, timeout, idle wait exceeded, app would not exit, untested platform declined, Ctrl+C) |
-| 4 | pre-flight stop: another update holds the marker or Hermes' checkout lock, running elevated (`--allow-elevated` overrides), `tools\` entries the account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed (D1); `update.channel: stable` on a Hermes without channels, or a release check that cannot resolve or read (D19); the rollback guard said no (D19); `channel set` refused or failed |
+| 4 | pre-flight stop: another update holds the marker or Hermes' checkout lock, running elevated (`--allow-elevated` overrides), `tools\` entries the account cannot open (`preflight.acl_check`), missing ARM64 build tools (`preflight.arm64_toolchain: stop`), low disk, update check failed (D1); `update.channel: stable` on a Hermes without channels, or a release check that cannot resolve or read (D19); the rollback guard said no (D19, `older_release: ask`), or `repair`, `--force` or an unfinished update while waiting for stable; `channel set` refused or failed |
 | 5 | not a managed source checkout: nothing changed, advice printed |
 | 6 | settings command refused because the desktop app is running |
 | 64 | bad command line or invalid configuration |
@@ -405,7 +413,32 @@ Binding decisions:
   read-only `update --check --channel stable` that warns about a rollback
   (`Y` needed attended; `--yes` goes ahead; unattended or without a
   terminal it refuses; a check that cannot run still needs the `Y`). A
-  stable channel is not a timing-pool dimension.
+  stable channel is not a timing-pool dimension. Stable hold (v0.6.0,
+  `update.older_release: wait`, the default; `ask` = the rollback guard above;
+  `--allow-rollback` = `ask` for one run): Hermes with a stored stable record
+  rolls a newer checkout back with no prompt, and Safe Update's `repair`,
+  `--force`, finishing an unfinished update and a normal run all pass that
+  argv, so on the stable channel Safe Update runs `hermes update` only when the
+  release is proven to contain the installed commit (`internal/update/hold.go`:
+  Hermes' "newer than the selected release" = newer; else git
+  `merge-base --is-ancestor` both ways, "neither" counting only in a full clone;
+  else GitHub's `HEAD...tag` compare, `ahead`/`identical` = contains, `behind` =
+  newer, `diverged`; no proof = unproven). Newer, diverged and unproven all
+  end the run as an up-to-date one (`errUpToDate`, exit 0, green card "Waiting
+  for stable: ...", also unattended and `check`, no R offer, no amber);
+  `repair`, `--force` and an unfinished update while waiting stop with exit 4
+  (they would pass the stable argv; the text names `--channel main` and says
+  that this also updates Hermes to the newest main commits). Hermes'
+  own "waits for the next release" and "up to date with the release" verdicts
+  are unchanged when Safe Update read no stored stable record, and main never
+  waits. With a stored record (`SourceRecord`) and one of those verdicts, a run
+  that could still run `hermes update` (finish, `repair`, `--force`, the R
+  offer) first goes through the same relation check (`holdBeforeUpdatePaths`):
+  Hermes only words "waits for the next release" without a record
+  (`update_channel.py` `rides_default_channel`, `source_releases.py` `ahead`),
+  so with one the verdict is not trusted to mean that nothing moves. The `Newer` row was already channel
+  aware (on a release channel it looks for a newer release, never for main
+  commits). `channel` prints an `Older release` line on the stable channel.
 - D20 pre-flight stops (v0.4.0). Each answers "will this update fail or be
   refused?" with a read-only probe, and every one runs before the close stage
   (exit 4, `ErrPreflightStop`, nothing closed). The probes are
@@ -712,3 +745,50 @@ Short notes on how individual packages work.
   (Linux menu entry) and the two `.command` files (macOS Finder) launch
   them through `sh`, so only the launched file needs the exec bit. The tool
   never creates or edits shortcuts or menu entries on any OS.
+
+
+## 12. Extras (v0.7.0)
+
+Why: on the stable channel Hermes itself updates rarely, while catalog plugins,
+hub skills and the bundled tools drift independently of its version.
+
+Decisions:
+
+- **JSON, not scraping, for plugins.** `hermes plugins check-updates --json`
+  is structured (`internal/hermes/contracts.go` still owns the field names and
+  the refusal wording). The skills table, `pm doctor` and `pm update --check`
+  are scraped there, with fixtures `testdata/contracts/extras-*`. A reword
+  shows as "could not read Hermes' answer" in a row, never as "up to date".
+- **Order.** Probes and questions come after the Hermes verdict and, for an
+  update, after the relaunch and cleanup: Hermes' window stays as short as
+  before. A plugin update rebuilds the plugin's Python environment and Hermes
+  reloads plugins with the gateway running (the 25 Oct `plugins enable` did),
+  so applying does not need Hermes closed. A run inside a Hermes chat never
+  asks (the rebuild runs under that process).
+- **Eviction guard around the Hermes update, nothing around a plugin update.**
+  Read from the Hermes source (v0.22.5): only `hermes update`, its follow-ups
+  and install repair call the dependency manager with
+  `evict_incompatible_plugins=True`. `hermes plugins update` stages and builds
+  the new tree and publishes it only on success; the live plugin is untouched
+  on failure and it never evicts. So the 22 Oct eviction happens inside the
+  Hermes update. Safe Update snapshots `plugins.enabled`/`plugins.disabled`/
+  `memory.provider` in the pre-flight and compares after the update; putting
+  a plugin back goes through Hermes' own commands (`plugins enable`, `config
+  set`), which fail atomically. An earlier design that copied the plugin
+  folder, the install record and `config.yaml` and restored them was removed:
+  it rested on a wrong model of Hermes and could itself leave the tree, the
+  record and the environment disagreeing.
+- **Apply gate.** Plugins and skills are changed only when this run's Hermes
+  state is known good: after a verified update, or a clean up-to-date verdict
+  (no earlier unfinished update, enough disk). The repair offer of an attended
+  up-to-date screen is shown on every such run and answering no is not a
+  sign of trouble. The apply steps get their own context (never finally's five
+  minutes) and are not cut by Ctrl+C; every `hermes` child gets a tree kill.
+- **`pm update --check` is check-only.** It needs the network, takes about
+  a minute and sometimes hits GitHub 504s; every normal run would pay that.
+  `pm doctor` (about 30 s, local) runs everywhere.
+- **Digest mismatch**: Hermes records a digest, not a file list, so the stray
+  files cannot be named; the advice says what is known.
+- **Stale stable** reads git only (release date, `rev-list`, subjects in
+  `tag..main`): the mirror's main if configured, else the checkout's
+  `origin/main` as of its last fetch. No new network call.

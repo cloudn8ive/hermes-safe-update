@@ -216,19 +216,32 @@ func (l *RealLocator) findGit(home string) string {
 }
 
 func (l *RealLocator) findElectron(checkout string) string {
-	nm := filepath.Join(checkout, "apps", "desktop", "node_modules", "electron")
-	leaf := l.Paths.ElectronLeaf()
-	if b, err := os.ReadFile(filepath.Join(nm, ElectronPathFile)); err == nil {
-		if s := strings.TrimSpace(string(b)); s != "" {
-			leaf = s
-		}
-	}
-	if leaf == "" {
+	return FindElectron(l.Paths, checkout)
+}
+
+// FindElectron returns the Electron executable bundled with a Hermes
+// checkout, "" when there is none. It looks in each place npm may have put
+// the package (ElectronPackageDirs, desktop-local first) and honours that
+// package's path.txt; the first package folder whose executable exists
+// wins, so a stale or half-installed folder does not hide a good one. It
+// reads the disk each time: an update can move the package.
+func FindElectron(paths platform.Paths, checkout string) string {
+	if paths == nil || checkout == "" {
 		return ""
 	}
-	p := filepath.Join(nm, "dist", filepath.FromSlash(leaf))
-	if exists(p) {
-		return p
+	for _, nm := range ElectronPackageDirs(checkout) {
+		leaf := paths.ElectronLeaf()
+		if b, err := os.ReadFile(filepath.Join(nm, ElectronPathFile)); err == nil {
+			if s := strings.TrimSpace(string(b)); s != "" {
+				leaf = s
+			}
+		}
+		if leaf == "" {
+			continue
+		}
+		if p := filepath.Join(nm, "dist", filepath.FromSlash(leaf)); exists(p) {
+			return p
+		}
 	}
 	return ""
 }

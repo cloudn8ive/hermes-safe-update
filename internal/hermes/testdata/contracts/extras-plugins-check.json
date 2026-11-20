@@ -1,0 +1,52 @@
+[
+  {
+    "name": "memory-demo",
+    "class": "catalog",
+    "current": "0123456789abcdef0123456789abcdef01234567",
+    "latest": "89abcdef0123456789abcdef0123456789abcdef",
+    "update_available": true,
+    "needs_fixing": null,
+    "min_hermes": null,
+    "reason": ""
+  },
+  {
+    "name": "notes-demo",
+    "class": "git",
+    "current": "1111111111111111111111111111111111111111",
+    "latest": "1111111111111111111111111111111111111111",
+    "update_available": false,
+    "needs_fixing": null,
+    "min_hermes": null,
+    "reason": ""
+  },
+  {
+    "name": "broken-demo",
+    "class": "catalog",
+    "current": "2222222222222222222222222222222222222222",
+    "latest": "3333333333333333333333333333333333333333",
+    "update_available": true,
+    "needs_fixing": "manifest requires a newer Hermes",
+    "min_hermes": "9.9.9",
+    "reason": ""
+  },
+  {
+    "name": "pipped-demo",
+    "class": "pip",
+    "current": "1.0",
+    "latest": "1.1",
+    "update_available": true,
+    "needs_fixing": null,
+    "min_hermes": null,
+    "reason": ""
+  },
+  {
+    "name": "by-hand",
+    "class": "manual",
+    "current": null,
+    "latest": null,
+    "update_available": null,
+    "needs_fixing": null,
+    "min_hermes": null,
+    "reason": "no provenance; not auto-updatable"
+  }
+]

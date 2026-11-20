@@ -113,7 +113,8 @@ type Paths interface {
 	// first, then PATH).
 	BundledGitGlobs(home string) []string
 	// ElectronLeaf is the Electron executable relative to
-	// node_modules/electron/dist when path.txt is missing.
+	// node_modules/electron/dist when the package folder has no path.txt
+	// (the file wins when it exists, in whichever folder holds the package).
 	ElectronLeaf() string
 	// PackagedInstallHints lists paths whose existence means Hermes was
 	// installed as a package (macOS Hermes.app, MSIX, ...) rather than as a

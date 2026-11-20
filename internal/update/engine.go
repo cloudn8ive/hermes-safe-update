@@ -120,6 +120,15 @@ func Execute(ctx context.Context, r *Run, stages []Stage) (err error) {
 			if errors.Is(err, apperr.ErrNotImplemented) {
 				return fmt.Errorf("stage %s: %w", s.Key, err)
 			}
+			if errors.Is(err, errUpToDate) {
+				// The extras (plugins, skills, tools, stale stable) look at the
+				// install whatever the Hermes verdict was; their rows join
+				// whichever card follows. They run here, on the run's own
+				// context, not in finally: finally's context ends after five
+				// minutes, which would cut a question and a plugin rebuild.
+				r.stateDBProbeRow(ctx)
+				r.runExtras(ctx)
+			}
 			return err
 		}
 	}
@@ -153,24 +162,30 @@ func (r *Run) finally(ctx context.Context, err error) error {
 	} else {
 		r.rescueGateway(fctx)
 	}
+	// A Hermes update that was cut short may have switched a plugin off too:
+	// the guard looks (report only; nobody is asked inside finally).
+	r.runGuard(fctx, false)
 
 	switch {
 	case errors.Is(err, errUpToDate):
 		err = nil
 		r.complete(true)
-		if why := r.Facts.FinishSkipped; why != "" && r.Facts.Previous != nil {
+		if r.Facts.Hold != nil {
+			// Waiting for stable: an up-to-date outcome (exit 0), not a stop
+			r.summary(r.holdCard())
+		} else if why := r.Facts.FinishSkipped; why != "" && r.Facts.Previous != nil {
 			// Not "up to date": an unfinished update was found and a run that
 			// asks nobody did not retry it. Nothing failed in this run, but the
 			// work is still owed: exit 1 ("needs attention"), so a scheduled
 			// task shows it.
 			err = fmt.Errorf("%w: %s", apperr.ErrNotRetried, why)
-			r.summary(ui.Card{Headline: "The last update did not finish, and it was not retried: nothing was changed", Rows: []ui.Row{
+			r.summary(ui.Card{Headline: "The last update did not finish, and it was not retried: nothing was changed", Rows: r.withExtras([]ui.Row{
 				{Key: "Last update", Value: r.previousWhat(), Verdict: ptr(ui.VerdictAttention)},
 				{Key: "Not retried", Value: why + "; a run that asks nobody tries once", Verdict: ptr(ui.VerdictAttention)},
 				{Key: "Finish it", Value: "run Hermes Safe Update from the Start menu or a terminal; it asks first"},
-				{Key: "Log", Value: r.LogPath}}})
+				{Key: "Log", Value: r.LogPath}})})
 		} else {
-			r.summary(ui.Card{OK: ptr(true), Headline: "Hermes is up to date", Rows: []ui.Row{{Key: "Log", Value: r.LogPath}}})
+			r.summary(ui.Card{OK: ptr(true), Headline: "Hermes is up to date", Rows: r.withExtras([]ui.Row{{Key: "Log", Value: r.LogPath}})})
 		}
 		if r.Mode == ModeCheck {
 			r.offerMirror(fctx)
@@ -186,6 +201,7 @@ func (r *Run) finally(ctx context.Context, err error) error {
 		if lr, ok := r.launcherRow(); ok {
 			rows = append(rows, lr)
 		}
+		rows = append(rows, r.extraRows()...)
 		r.summary(ui.Card{OK: ptr(false), Headline: "The update needs attention: it was interrupted.",
 			Rows: append(rows, ui.Row{Key: "Log", Value: r.LogPath})})
 	case err != nil:

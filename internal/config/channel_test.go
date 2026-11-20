@@ -64,3 +64,49 @@ func TestChannelFlagBeatsTheYaml(t *testing.T) {
 		t.Errorf("bad flag: %v", err)
 	}
 }
+
+func TestUpdateOlderReleaseDefaultAndValidation(t *testing.T) {
+	if got := Defaults().Update.OlderRelease; got != OlderReleaseWait {
+		t.Errorf("default = %q, want %q", got, OlderReleaseWait)
+	}
+	for _, v := range []string{OlderReleaseWait, OlderReleaseAsk} {
+		y := writeFile(t, t.TempDir(), "safe-update.yaml", "update:\n  older_release: \""+v+"\"\n")
+		cfg, err := Load(LoadOptions{YAMLPath: y, Getenv: noEnv})
+		if err != nil || cfg.Update.OlderRelease != v || cfg.Update.Channel != ChannelFollow {
+			t.Errorf("%q: got %q/%q, %v", v, cfg.Update.OlderRelease, cfg.Update.Channel, err)
+		}
+	}
+	for _, v := range []string{"always", "Wait", "rollback", ""} {
+		y := writeFile(t, t.TempDir(), "safe-update.yaml", "update:\n  older_release: \""+v+"\"\n")
+		_, err := Load(LoadOptions{YAMLPath: y, Getenv: noEnv})
+		if err == nil || !strings.Contains(err.Error(), "safe-update.yaml:2: update.older_release: must be one of wait, ask") {
+			t.Errorf("%q: error text %v", v, err)
+		}
+	}
+}
+
+func TestAllowRollbackFlagMeansAskForOneRun(t *testing.T) {
+	yes := true
+	cfg, err := Load(LoadOptions{Getenv: noEnv, Flags: Overrides{AllowRollback: &yes}})
+	if err != nil || cfg.Update.OlderRelease != OlderReleaseAsk {
+		t.Errorf("flag: %q, %v", cfg.Update.OlderRelease, err)
+	}
+	cfg, err = Load(LoadOptions{Getenv: noEnv})
+	if err != nil || cfg.Update.OlderRelease != OlderReleaseWait {
+		t.Errorf("no flag: %q, %v", cfg.Update.OlderRelease, err)
+	}
+}
+
+// --allow-rollback=false does not turn anything on, and never turns ask off.
+func TestAllowRollbackFalseChangesNothing(t *testing.T) {
+	no := false
+	cfg, err := Load(LoadOptions{Getenv: noEnv, Flags: Overrides{AllowRollback: &no}})
+	if err != nil || cfg.Update.OlderRelease != OlderReleaseWait {
+		t.Errorf("default + false: %q, %v", cfg.Update.OlderRelease, err)
+	}
+	y := writeFile(t, t.TempDir(), "safe-update.yaml", "update:\n  older_release: ask\n")
+	cfg, err = Load(LoadOptions{YAMLPath: y, Getenv: noEnv, Flags: Overrides{AllowRollback: &no}})
+	if err != nil || cfg.Update.OlderRelease != OlderReleaseAsk {
+		t.Errorf("ask + false: %q, %v", cfg.Update.OlderRelease, err)
+	}
+}

@@ -279,3 +279,17 @@ func TestE2EWorldNeverLooksUpARealProcess(t *testing.T) {
 		t.Skip("this OS cannot read creation times at all, so the test above proves nothing here")
 	}
 }
+
+// New commits that touch no dependency file, after an update that did not
+// finish: the dependency rows must not say a bare "unchanged" (the unfinished
+// update may have left the install of those dependencies owed).
+func TestE2EUnfinishedWithNewCommitsDoesNotClaimDepsUnchanged(t *testing.T) {
+	w := newWorld(t)
+	w.writeReceipt(killedReceipt)
+	before := w.storeBytes()
+	w.cli("--plain", "check")
+	w.transcript("unfinished-newcommits-check")
+	w.wantCode(apperr.OK)
+	w.wantFlat("unchanged in the new commits; the last update did not finish, so Hermes may still reinstall the Python packages")
+	w.nothingChanged(before)
+}

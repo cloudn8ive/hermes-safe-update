@@ -1,0 +1,16 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+updates: none, already up to date (GitHub API)
+Nothing to update (use --force to run anyway).
+== Plugins, skills and tools
+note: looking at plugins, skills and the bundled tools (read-only; up to about a minute)
+note: git: realized bytes do not match recorded digest — files in the tool's folder differ from what Hermes installed (often stray files another tool wrote into it); look at the folder, remove what is not Hermes', or reinstall the tool with `hermes pm install git`
+
+Hermes is up to date
+  Plugins      1 update: memory-demo (not applied: no one to ask; hermes plugins update <name>)
+  Skills       1 update: demo-skill (not applied: no one to ask; hermes skills update)
+  Tools        git: files changed since install (see log)
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

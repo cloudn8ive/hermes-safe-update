@@ -3,6 +3,7 @@ package update
 import (
 	"errors"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -592,7 +593,7 @@ func TestRepairOfferedWhenUpToDateAndRRepairsWithoutASecondQuestion(t *testing.T
 		t.Fatalf("err = %v\n%s", err, h.output())
 	}
 	h.mustContain("Hermes is up to date. Press R to repair this install: Hermes closes and the update steps run again (dependencies, builds, gateway restart), about",
-		"Any other key exits without changes (auto-exit in 2s",
+		"Any other key ends the run without repairing (it ends by itself in 2s",
 		"Repair finished and verified.", "unchanged; no new commits")
 	if strings.Contains(h.output(), "Press Y") {
 		t.Errorf("R already said yes, Y was asked again:\n%s", h.output())
@@ -795,5 +796,92 @@ func TestForceKeepsItsOwnWording(t *testing.T) {
 	h.mustContain("--force: running even though no update was found", "Hermes will close for the update. The update takes about", "Hermes is updated and verified.")
 	if strings.Contains(h.output(), "Repair") || strings.Contains(h.output(), "Unfinished") {
 		t.Errorf("force took the repair wording:\n%s", h.output())
+	}
+}
+
+// ---- the dependency rows after an update that did not finish ----
+
+const owedPy = "unchanged in the new commits; the last update did not finish, so Hermes may still reinstall the Python packages"
+const owedNode = "unchanged in the new commits; the last update did not finish, so Hermes may still rebuild the Node packages"
+
+func depsRowsHarness(t *testing.T, unfinished bool, py, npm *bool) *harness {
+	t.Helper()
+	h := newPreflightHarness(t)
+	if unfinished {
+		h.receipts = &fakeReceipts{prev: receiptDied()}
+	}
+	h.repo.diffPy, h.repo.diffNPM = py, npm
+	h.mode = ModeCheck
+	return h
+}
+
+func TestDepsRowsDoNotClaimUnchangedAfterAnUnfinishedUpdate(t *testing.T) {
+	no := false
+	h := depsRowsHarness(t, true, &no, &no)
+	if err := h.run(); err != nil {
+		t.Fatalf("err = %v\n%s", err, h.output())
+	}
+	// the pre-flight rows and the check summary
+	for _, want := range []string{"python deps", owedPy, "node packages", owedNode, "Python deps", "Node packages"} {
+		h.mustContain(want)
+	}
+	if n := strings.Count(h.output(), owedPy); n != 2 {
+		t.Errorf("owed python line appears %d times, want 2 (pre-flight row and check summary):\n%s", n, h.output())
+	}
+	if regexp.MustCompile(`(?mi)^ *(python deps|node packages):? +unchanged *$`).MatchString(h.output()) {
+		t.Errorf("a bare unchanged survived:\n%s", h.output())
+	}
+}
+
+func TestDepsRowsKeepTheirWordsWhenTheLastUpdateFinished(t *testing.T) {
+	no := false
+	h := depsRowsHarness(t, false, &no, &no)
+	h.receipts = &fakeReceipts{}
+	if err := h.run(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(h.output(), "did not finish") {
+		t.Errorf("unfinished wording on a clean install:\n%s", h.output())
+	}
+	h.mustContain("unchanged")
+}
+
+func TestDepsRowsAfterAnUnfinishedUpdateKeepChangedAndUnknown(t *testing.T) {
+	yes := true
+	h := depsRowsHarness(t, true, &yes, nil)
+	if err := h.run(); err != nil {
+		t.Fatal(err)
+	}
+	h.mustContain("changed, will be reinstalled")
+	if strings.Contains(h.output(), "may still") {
+		t.Errorf("a changed or unknown dependency row got the owed wording:\n%s", h.output())
+	}
+}
+
+func TestDepsRowsAreQualifiedByAStaleMarkerAlone(t *testing.T) {
+	no := false
+	h := depsRowsHarness(t, false, &no, &no)
+	h.receipts = &fakeReceipts{}
+	h.marker.stale = true
+	if err := h.run(); err != nil {
+		t.Fatal(err)
+	}
+	h.mustContain(owedPy)
+}
+
+// The release-channel rows qualify "unchanged" too, not only the main ones.
+func TestDepsRowsAfterAnUnfinishedUpdateOnAReleaseChannel(t *testing.T) {
+	no := false
+	h, _ := releaseHarnessWith(t, func(h *harness, m *fakeMirror) {
+		h.repo.relRef, h.repo.relSHA = "refs/tags/v0.22.1", relSHA
+		h.repo.diffPy, h.repo.diffNPM = &no, &no
+		h.receipts = &fakeReceipts{prev: receiptDied()}
+	})
+	h.mustContain("release v0.22.1 available")
+	// the pre-flight row and the check summary, for each of the two
+	for _, want := range []string{owedPy, owedNode} {
+		if n := strings.Count(h.output(), want); n != 2 {
+			t.Errorf("%q appears %d times, want 2:\n%s", want, n, h.output())
+		}
 	}
 }

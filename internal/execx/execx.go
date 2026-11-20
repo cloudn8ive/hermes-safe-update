@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +49,11 @@ type Cmd struct {
 	// Only the Timeout triggers it when the caller passes a context that is
 	// never cancelled (context.WithoutCancel).
 	KillTree func(pid int) error
+	// PromptQuiet, when set (Run only), cuts a child that has printed a
+	// question (a line ending in "[y/N]", "(y/n)", ...) and then nothing for
+	// this long: with no one at its stdin it would wait for the whole Timeout.
+	// The result is TimedOut with Stalled and Prompt set. 0 = off.
+	PromptQuiet time.Duration
 }
 
 // Result of a finished child.
@@ -55,6 +61,9 @@ type Result struct {
 	Code     int    // exit code; 124 timeout; 127 could not start
 	Output   string // stdout then stderr (Run) or merged lines (Stream)
 	TimedOut bool
+	// Stalled: the child was cut by PromptQuiet; Prompt is its last line.
+	Stalled  bool
+	Prompt   string
 	Duration time.Duration
 }
 
@@ -123,7 +132,17 @@ func (realRunner) prepare(ctx context.Context, c Cmd) (*exec.Cmd, context.Contex
 
 func finish(res *Result, cctx, parent context.Context, err error) {
 	var ee *exec.ExitError
+	if res.Stalled && err == nil {
+		// the child exited 0 (it answered itself, or finished as the watch fired): not a stall
+		res.Stalled, res.Prompt = false, ""
+	}
 	switch {
+	case res.Stalled:
+		res.Code, res.TimedOut = CodeTimeout, true
+		if res.Output != "" && !strings.HasSuffix(res.Output, "\n") {
+			res.Output += "\n"
+		}
+		res.Output += "cut: it asked a question and nobody can answer it here"
 	case cctx.Err() == context.DeadlineExceeded && parent.Err() == nil:
 		res.Code, res.TimedOut = CodeTimeout, true
 		if res.Output != "" && !strings.HasSuffix(res.Output, "\n") {
@@ -148,9 +167,20 @@ func (r realRunner) Run(ctx context.Context, c Cmd) (Result, error) {
 	defer cancel()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	var w *activity
+	if c.PromptQuiet > 0 {
+		w = &activity{}
+		cmd.Stdout, cmd.Stderr = w.wrap(&stdout), w.wrap(&stderr)
+	}
 	start := time.Now()
+	stopWatch := func() (bool, string) { return false, "" }
+	if w != nil {
+		w.touch()
+		stopWatch = w.watch(c.PromptQuiet, cancel)
+	}
 	err = cmd.Run()
-	res := Result{Duration: time.Since(start), Output: stdout.String() + stderr.String()}
+	stalled, prompt := stopWatch()
+	res := Result{Duration: time.Since(start), Output: stdout.String() + stderr.String(), Stalled: stalled, Prompt: prompt}
 	finish(&res, cctx, ctx, err)
 	if ctx.Err() != nil {
 		return res, ctx.Err()
@@ -211,4 +241,85 @@ func Tail(s string, n int) string {
 		out = string(r[len(r)-n:])
 	}
 	return out
+}
+
+// promptRe: a question left waiting on the same line (no newline after it).
+var promptRe = regexp.MustCompile(`(?i)(\[y/n\]|\(y/n\)|\[yes/no\]|\(yes/no\))[ \t]*:?[ \t]*$`)
+
+// LooksLikePrompt reports whether the last line of out is a yes/no question.
+func LooksLikePrompt(out string) bool {
+	return promptRe.MatchString(lastLineRaw(out))
+}
+
+// lastLineRaw is the text after the last line break (empty when out ends with one).
+func lastLineRaw(out string) string {
+	if i := strings.LastIndexAny(out, "\r\n"); i >= 0 {
+		return out[i+1:]
+	}
+	return out
+}
+
+// activity records when a child last wrote and the end of what it wrote.
+type activity struct {
+	mu     sync.Mutex
+	last   time.Time
+	recent []byte
+}
+
+func (a *activity) touch() {
+	a.mu.Lock()
+	a.last = time.Now()
+	a.mu.Unlock()
+}
+
+type activityWriter struct {
+	a *activity
+	w io.Writer
+}
+
+func (a *activity) wrap(w io.Writer) io.Writer { return activityWriter{a, w} }
+
+func (w activityWriter) Write(p []byte) (int, error) {
+	w.a.mu.Lock()
+	w.a.last = time.Now()
+	w.a.recent = append(w.a.recent, p...)
+	if len(w.a.recent) > 512 {
+		w.a.recent = append([]byte(nil), w.a.recent[len(w.a.recent)-512:]...)
+	}
+	w.a.mu.Unlock()
+	return w.w.Write(p)
+}
+
+// watch cancels the child once it is quiet for quiet after a question. The
+// returned stop ends the watcher and says whether it cut the child.
+func (a *activity) watch(quiet time.Duration, cancel context.CancelFunc) func() (bool, string) {
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	var cut bool
+	var prompt string
+	go func() {
+		defer close(finished)
+		tick := time.NewTicker(max(quiet/4, 10*time.Millisecond))
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-tick.C:
+				a.mu.Lock()
+				idle, text := time.Since(a.last), string(a.recent)
+				a.mu.Unlock()
+				if idle >= quiet && LooksLikePrompt(text) {
+					cut, prompt = true, strings.TrimSpace(lastLineRaw(text))
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return func() (bool, string) {
+		close(done)
+		<-finished
+		return cut, prompt
+	}
 }

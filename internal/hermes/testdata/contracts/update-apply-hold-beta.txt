@@ -1,0 +1,7 @@
+☤ Updating Hermes Agent...
+→ Update channel: beta
+→ Latest release: beta v0.23.0-beta.2 (fedcba987654)
+→ Fetching updates...
+→ This build is newer than the beta release fedcba987654: that release predates the gateway runtime your sessions use, so there is nothing to update to yet.
+  Hermes stays on abcdef012345 until a newer beta release ships. To follow every commit instead: `hermes update --set-channel main`.
+✓ Holding at this build until a newer beta release ships.

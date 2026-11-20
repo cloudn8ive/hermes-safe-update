@@ -774,3 +774,36 @@ func TestE2EMarkerFormatThroughTheRealWiring(t *testing.T) {
 		t.Errorf("ct %v differs from this process's creation time %v by %v s", ct, own, d)
 	}
 }
+
+// Hermes 21693bdf29 pins Electron and npm hoists it: the update moves the
+// package from apps/desktop/node_modules to the checkout root. The settings
+// stage runs after the update and must find it there, not at the place it was
+// located before the update.
+func TestE2ESettingsFindsElectronTheUpdateMoved(t *testing.T) {
+	w := newWorld(t)
+	old := w.electron
+	moved := filepath.Join(w.checkout, "node_modules", "electron", "dist", "electron.exe")
+	w.update = happyUpdate()
+	for i := range w.update {
+		if w.update[i].line == "→ Building the TUI…" {
+			w.update[i].do = func(w *e2eWorld) {
+				mkdir(w.t, filepath.Dir(moved))
+				writeFile(w.t, moved, "x")
+				writeFile(w.t, filepath.Join(w.checkout, "node_modules", "electron", "path.txt"), "electron.exe")
+				if err := os.RemoveAll(filepath.Join(w.checkout, "apps", "desktop", "node_modules")); err != nil {
+					w.t.Error(err)
+				}
+				w.mu.Lock()
+				w.electron = moved
+				w.mu.Unlock()
+			}
+		}
+	}
+	w.con.script(conStep{key: 'y'})
+	w.cli("--plain")
+	w.wantCode(apperr.OK)
+	w.wantScreen("migrated file:// -> " + targetOrigin)
+	if _, err := os.Stat(old); err == nil {
+		t.Error("the old Electron is still there; the test did not move it")
+	}
+}

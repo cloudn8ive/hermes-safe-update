@@ -27,6 +27,7 @@ func TestParseChannelCheckFixtures(t *testing.T) {
 		{"update-check-stable-uptodate.txt", VerdictUpToDate, "stable", "stable v0.22.0", "0123456789ab", ""},
 		{"update-check-stable-waits.txt", VerdictWaitsForNext, "stable", "stable v0.22.0", "", ""},
 		{"update-check-stable-rollback.txt", VerdictRollback, "stable", "stable v0.22.0", "0123456789ab", ""},
+		{"update-check-stable-holding.txt", VerdictRollback, "stable", "stable v0.22.0", "0123456789ab", ""},
 		{"update-check-stable-unresolved.txt", VerdictUnresolved, "stable", "", "",
 			"Connection to api.github.com failed (timed out) — check your connection, firewall or proxy."},
 	}
@@ -173,5 +174,19 @@ func TestUpdateChannelAndReleaseLines(t *testing.T) {
 	// "Update channel:" at the start of a main-channel check/apply
 	if u := ParseUpdateRelease("→ Update channel: main\n→ Found 2 new commit(s)\n"); u.Channel != "main" || u.Label() != "" {
 		t.Errorf("main with a channel line: %+v", u)
+	}
+}
+
+// N9 (v0.8.0): Hermes' own hold ("Holding at this build ... predates the gateway
+// runtime") is a release verdict, never "up to date" or unknown; the tail alone is enough.
+func TestParseChannelCheckHermesOwnHold(t *testing.T) {
+	out := readFixture(t, "update-check-stable-holding.txt")
+	got := ParseChannelCheck(out)
+	if got.Verdict != VerdictRollback || got.Release != "stable" || got.Version != "0.22.0" || got.SHA12 != "0123456789ab" {
+		t.Errorf("%+v", got)
+	}
+	tail := "  `hermes update` stays on this build; the next release that includes the runtime installs normally." + "\n"
+	if g := ParseChannelCheck("→ Holding at this build: x predates the gateway runtime your sessions use." + "\n" + tail); g.Verdict != VerdictRollback {
+		t.Errorf("tail only: %+v", g)
 	}
 }

@@ -1,0 +1,165 @@
+
+  [38;5;80m  ♦ [0m[1;38;5;80mHermes Safe Update[0m[38;5;245m · v1.2.3-test[0m                                                 [38;5;245mMon 28 Sep[0m
+[?25l[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;245m ○ [0m[38;5;245mStarting…[0m[K
+   [38;5;245m○ Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;245m ○ [0m[38;5;245mStarting…[0m[K
+   [38;5;245m○ Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m[K[4A[J  
+  [38;5;80;1m 1/5  [0m[38;5;80;1m◊ Check[0m [38;5;30m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;5;245m 9:47:21 AM[0m
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking disk, checkout and gateway[0m  0:00                                      [38;5;250m step 1 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;78m● [0m[38;5;110mdisk free      [0m[1m41.7 GB[0m (enough)
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking disk, checkout and gateway[0m  0:00                                      [38;5;250m step 1 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;78m● [0m[38;5;110mcheckout       [0mclean
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking disk, checkout and gateway[0m  0:00                                      [38;5;250m step 1 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;242m● [0m[38;5;110mversion        [0m[38;5;183m5d41402[0m (gateway on [38;5;183m5d41402abc[0m)
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking disk, checkout and gateway[0m  0:00                                      [38;5;250m step 1 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;78m● [0m[38;5;110mupdates        [0mnone, already up to date (GitHub API)
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     Nothing to update (use --force to run anyway).
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J  
+  [38;5;80;1m ▸ [0m[38;5;80;1mPlugins, skills and tools[0m [38;5;30m───────────────────────────────────────────────────────[0m[38;5;245m 9:47:21 AM[0m
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;80;1mi [0mlooking at plugins, skills and the bundled tools (read-only; up to about a minute)
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:00 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  skipping in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J  
+     [38;5;221;1m? [0m[1mUpdate memory-demo (your memory provider) 01234567 -> 89abcdef? [y/N] Hermes applies a[0m
+       [1mplugin update all or nothing and Safe Update changes no file itself; Hermes refuses one[0m
+       [1mthat adds dependencies or capabilities when it has no terminal (then run `hermes plugins[0m
+       [1mupdate memory-demo` yourself). Press Y to update, any other key to skip. (skipping in 10[0m
+       [1mmin)[0m
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  skipping in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:00 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  skipping in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:02 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:02 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     Updating plugin memory-demo ([38;5;183m01234567[0m -> [38;5;183m89abcdef[0m) ...
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:02 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     plugin memory-demo updated
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:02 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:02 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  skipping in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J  
+     [38;5;221;1m? [0m[1m1 update is waiting for hub skills: demo-skill. Update it now with `hermes skills update`?[0m
+       [1mSkills you edited are kept. Press Y to update, any other key to skip. (skipping in 10 min)[0m
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:02 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  skipping in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:02 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  skipping in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:04 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:04 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J     [38;5;80;1mi [0mgit: realized bytes do not match recorded digest — files in the tool's folder differ from what Hermes installed (often stray files another tool wrote into it); look at the folder, remove what is not Hermes', or reinstall the tool with `hermes pm install git`
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:04 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:04 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  ending in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[4A[J  
+     [38;5;221;1m? [0m[1mHermes is up to date. Press R to repair this install: Hermes closes and the update steps[0m
+       [1mrun again (dependencies, builds, gateway restart), about 6 min (rough: no earlier runs[0m
+       [1mlike this; uses defaults). Any other key ends the run without repairing (it ends by itself[0m
+       [1min 10 min).[0m
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:04 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  ending in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m                               0:04 elapsed · paused[0m[K
+  [38;5;221;1m ► [0m[38;5;221mWaiting for your answer[0m[38;5;250m  ending in 10 min[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:06 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;5;236m████████████████████████████████████[0m[1m    0%[0m[38;5;250m  0:06 elapsed · about 10 min left (rough) · 9:57 AM[0m[K
+  [38;5;80;1m ► [0m[1mChecking for updates[0m  0:00[38;5;245m  (usually 1:15)[0m                                     [38;5;250m step 2 of 19[0m[K
+   [38;5;80;1m► Check[0m[38;5;240m ── [0m[38;5;245m○ Close Hermes[0m[38;5;240m ── [0m[38;5;245m○ Update[0m[38;5;240m ── [0m[38;5;245m○ Build[0m[38;5;240m ── [0m[38;5;245m○ Finish[0m                     [38;5;250m stage 1 of 5[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;2;95;175;255m██████[0m[38;2;95;182;234m██████[0m[38;2;95;189;214m██████[0m[38;2;95;196;193m██████[0m[38;2;95;202;173m██████[0m[38;2;95;209;152m██████[0m[1m  100%[0m[38;5;250m                                        done in 0:06[0m[K
+  [38;5;78;1m √ [0mFinished[K
+   [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;240m· Close Hermes[0m[38;5;240m ── [0m[38;5;240m· Update[0m[38;5;240m ── [0m[38;5;240m· Build[0m[38;5;240m ── [0m[38;5;240m· Finish[0m                  [38;5;250m all stages done[0m[K[4A[J  
+     [38;5;78;1m√ Hermes is up to date[0m
+     [38;5;78m● [0m[38;5;110mPlugins        [0m[1m1[0m of [1m1[0m updated: memory-demo
+     [38;5;78m● [0m[38;5;110mSkills         [0m[1m1[0m update: demo-skill — updated
+     [38;5;221m● [0m[38;5;110mTools          [0mgit: files changed since install (see log)
+     [38;5;242m● [0m[38;5;110mLog            [0mC:\Users\you[0m\AppData\Local\hermes\logs\safe-update.log
+[?25l  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;2;95;175;255m██████[0m[38;2;95;182;234m██████[0m[38;2;95;189;214m██████[0m[38;2;95;196;193m██████[0m[38;2;95;202;173m██████[0m[38;2;95;209;152m██████[0m[1m  100%[0m[38;5;250m                                        done in 0:06[0m[K
+  [38;5;78;1m √ [0mFinished[K
+   [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;240m· Close Hermes[0m[38;5;240m ── [0m[38;5;240m· Update[0m[38;5;240m ── [0m[38;5;240m· Build[0m[38;5;240m ── [0m[38;5;240m· Finish[0m                  [38;5;250m all stages done[0m[K[?25l[4A[J  [K
+   [38;5;240m── [0m[38;5;245mHermes Safe Update[0m [38;5;240m────────────────────────────────────────────────────────[0m[38;5;245m started 9:47 AM[0m[K
+   [38;2;95;175;255m██████[0m[38;2;95;182;234m██████[0m[38;2;95;189;214m██████[0m[38;2;95;196;193m██████[0m[38;2;95;202;173m██████[0m[38;2;95;209;152m██████[0m[1m  100%[0m[38;5;250m                                        done in 0:06[0m[K
+  [38;5;78;1m √ [0mFinished[K
+   [38;5;78m√ Check[0m[38;5;240m ── [0m[38;5;240m· Close Hermes[0m[38;5;240m ── [0m[38;5;240m· Update[0m[38;5;240m ── [0m[38;5;240m· Build[0m[38;5;240m ── [0m[38;5;240m· Finish[0m                  [38;5;250m all stages done[0m[K
+[?25h[0m

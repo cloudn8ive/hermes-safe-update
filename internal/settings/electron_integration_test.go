@@ -30,10 +30,13 @@ func findElectron(t *testing.T) string {
 		return p
 	}
 	if runtime.GOOS == "windows" {
-		p := filepath.Join(os.Getenv("LOCALAPPDATA"), "hermes", "hermes-agent", "apps", "desktop",
-			"node_modules", "electron", "dist", "electron.exe")
-		if _, err := os.Stat(p); err == nil {
-			return p
+		// older Hermes: apps/desktop/node_modules; newer: hoisted to the checkout root
+		co := filepath.Join(os.Getenv("LOCALAPPDATA"), "hermes", "hermes-agent")
+		for _, pkg := range hermes.ElectronPackageDirs(co) {
+			p := filepath.Join(pkg, "dist", "electron.exe")
+			if _, err := os.Stat(p); err == nil {
+				return p
+			}
 		}
 	}
 	t.Skip("no Electron (set HSU_ELECTRON)")

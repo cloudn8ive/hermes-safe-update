@@ -22,6 +22,7 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/logx"
 	"github.com/cloudn8ive/hermes-safe-update/internal/mirror"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
+	"github.com/cloudn8ive/hermes-safe-update/internal/statedb"
 	"github.com/cloudn8ive/hermes-safe-update/internal/timings"
 	"github.com/cloudn8ive/hermes-safe-update/internal/ui"
 	"github.com/cloudn8ive/hermes-safe-update/internal/update"
@@ -52,7 +53,8 @@ type environment struct {
 	// test that runs on fake pids must set it: the real lookup would open a real
 	// process that happens to have the number.
 	created func(pid int) (time.Time, bool)
-	ver     string // tool version to show (tests pin it; "" = resolveVersion of the build)
+	ver     string          // tool version to show (tests pin it; "" = resolveVersion of the build)
+	statedb statedb.Service // session database probe and copy (nil = the real disk)
 }
 
 // toolVersion is the version the tool reports on screen, in --version and in
@@ -225,6 +227,7 @@ func loadConfig(o options, env *environment) (*config.Config, error) {
 	if o.set["channel"] {
 		f.Channel = &o.channel
 	}
+	f.AllowRollback = b("allow-rollback", &o.allowRoll)
 	cfg, err := config.Load(opt)
 	if err != nil {
 		return nil, err

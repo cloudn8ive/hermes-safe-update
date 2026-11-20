@@ -63,6 +63,11 @@ type Deps struct {
 	// Linux machine without a display ("" / nil = no such check).
 	GOOS   string
 	Getenv func(string) string
+	// FindElectron finds Hermes' bundled Electron now (hermes.FindElectron).
+	// The settings stage runs after `hermes update`, which can move the
+	// package (apps/desktop/node_modules -> node_modules), so the path
+	// located before the update must not be trusted. nil = Install.Electron.
+	FindElectron func() string
 
 	store storeIO // tests
 }
@@ -102,7 +107,11 @@ func (m *Manager) io() storeIO {
 	if m.store != nil {
 		return m.store
 	}
-	return &electronIO{runner: m.deps.Runner, electron: m.deps.Install.Electron, workDir: m.deps.WorkDir, timeout: m.deps.ElectronTimeout,
+	el := m.deps.Install.Electron
+	if m.deps.FindElectron != nil {
+		el = m.deps.FindElectron()
+	}
+	return &electronIO{runner: m.deps.Runner, electron: el, searched: hermes.ElectronPackageDirs(m.deps.Install.Checkout), workDir: m.deps.WorkDir, timeout: m.deps.ElectronTimeout,
 		goos: m.deps.GOOS, getenv: m.deps.Getenv}
 }
 

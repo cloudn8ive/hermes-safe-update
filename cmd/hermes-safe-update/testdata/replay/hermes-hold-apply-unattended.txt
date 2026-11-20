@@ -1,0 +1,46 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+Using the stable channel (Hermes' default for this checkout); asking Hermes whether a release is waiting.
+update --check (rc=0): → Update channel: stable | → Selected release available: stable v0.22.1 (abcdef012345) | Run `hermes update` to install it.
+updates: release v0.22.1 available, 7 commits (Hermes release check)
+python deps: unchanged
+node packages: changed, will be reinstalled (slower build)
+running: desktop, gateway, backend
+gateway pause check: OK (default (pid 8211))
+== 2/5 Close Hermes
+== Close
+closing desktop app (pid 4242)
+stopping leftover backend pid 5310
+== 3/5 Update
+command: hermes update --yes --keep-stash
+  | ☤ Updating Hermes Agent...
+  | → Update channel: stable
+  | → Latest release: stable v0.22.1 (abcdef012345)
+  | → Fetching updates...
+  | → This build is newer than the stable release abcdef012345: that release predates the gateway runtime your sessions use, so there is nothing to update to yet.
+  |   Hermes stays on 0123456789ab until a newer stable release ships. To follow every commit instead: `hermes update --set-channel main`.
+  |   → Updating dependencies…
+  | ✓ Holding at this build until a newer stable release ships.
+hermes update exit code: 0
+== 5/5 Finish
+== Verify
+gateway: running this build 5d41402abc
+desktop app: build verified
+RESULT: OK
+== Settings
+settings: migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-094742
+relaunched Hermes desktop
+== Dependency generation cleanup
+removed: removed 2 old dependency set(s), freed 612 MB
+
+Hermes did not update: it held this build (the stable release abcdef012345 predates the gateway runtime your sessions use).
+  Hermes held  Hermes kept this build: the stable release abcdef012345 predates the gateway runtime your sessions use, so there is nothing to update to yet. It stays here until a newer stable release ships; to follow every commit instead: hermes-safe-update channel set main
+  Channel      stable (Hermes default)
+  Time         0:18 until Hermes reopened  (estimate was 7:44)
+  Source       Hermes release check (channel stable)
+  Settings     migrated file:// -> http://127.0.0.1:47891 (add 8 | union 0 | old-wins 1 | keep-new 1 | new-wins 0 | same 0 | only-new 0 | 2 conflicts); backup settings-20260928-094742
+  Cleanup      removed 2 old dependency set(s), freed 612 MB
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

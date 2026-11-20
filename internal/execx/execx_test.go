@@ -42,6 +42,17 @@ func TestHelperProcess(t *testing.T) {
 	case "sleep":
 		time.Sleep(time.Minute)
 		os.Exit(0)
+	case "prompt": // a question without a line break, then silence
+		fmt.Print("  Grant these capabilities? [y/N] ")
+		time.Sleep(time.Minute)
+		os.Exit(0)
+	case "promptquick": // a question, answered by exiting at once
+		fmt.Print("  Grant these capabilities? [y/N] ")
+		os.Exit(3)
+	case "quiet": // silence that is not a question
+		fmt.Println("building...")
+		time.Sleep(time.Minute)
+		os.Exit(0)
 	}
 	os.Exit(99)
 }
@@ -191,5 +202,79 @@ func TestFakeRunnerMatchesAndRecords(t *testing.T) {
 	}
 	if len(f.Calls()) != 3 {
 		t.Errorf("calls = %v", f.Calls())
+	}
+}
+
+// v0.8.0: a child that prints a [y/N] question and then nothing is cut early.
+func TestRunCutsAChildWaitingAtAPrompt(t *testing.T) {
+	c := helper("prompt")
+	c.Timeout, c.PromptQuiet = time.Minute, 400*time.Millisecond
+	start := time.Now()
+	res, err := New().Run(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Stalled || !res.TimedOut || res.Code != CodeTimeout || !strings.Contains(res.Prompt, "[y/N]") {
+		t.Errorf("res = %+v", res)
+	}
+	if d := time.Since(start); d > 30*time.Second {
+		t.Errorf("took %v: not cut early", d)
+	}
+}
+
+func TestPromptQuietLeavesOtherChildrenAlone(t *testing.T) {
+	// silence without a question: only the plain timeout ends it, and it is not "stalled"
+	c := helper("quiet")
+	c.Timeout, c.PromptQuiet = 1500*time.Millisecond, 200*time.Millisecond
+	res, err := New().Run(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Stalled || !res.TimedOut {
+		t.Errorf("quiet child: %+v", res)
+	}
+	// a question that ends the child by itself is just its exit code
+	c = helper("promptquick")
+	c.Timeout, c.PromptQuiet = time.Minute, 5*time.Second
+	if res, err = New().Run(context.Background(), c); err != nil || res.Stalled || res.Code != 3 {
+		t.Errorf("quick: %+v %v", res, err)
+	}
+	// PromptQuiet off: the question alone does not cut
+	c = helper("prompt")
+	c.Timeout = 1200 * time.Millisecond
+	if res, _ = New().Run(context.Background(), c); res.Stalled {
+		t.Errorf("cut without PromptQuiet: %+v", res)
+	}
+}
+
+func TestLooksLikePrompt(t *testing.T) {
+	for in, want := range map[string]bool{
+		"  Grant these capabilities? [y/N] ": true,
+		"  Apply this update? [y/N]: ":       true,
+		"Update all 3? [Y/n]: ":              true,
+		"Proceed (y/n) ":                     true,
+		"done\n  Grant? [y/N] ":              true,
+		"  Grant? [y/N] \nanswer received\n": false,
+		"building [y/N] flags are parsed\n":  false,
+		"":                                   false,
+		"plain output without a question":    false,
+	} {
+		if got := LooksLikePrompt(in); got != want {
+			t.Errorf("LooksLikePrompt(%q) = %v", in, got)
+		}
+	}
+}
+
+// F3 item 5: a child that exited 0 is not a stall, whatever the watch saw.
+func TestFinishIgnoresStalledWhenTheChildExitedZero(t *testing.T) {
+	res := Result{Stalled: true, Prompt: "Continue? [y/N]", Output: "done"}
+	finish(&res, context.Background(), context.Background(), nil)
+	if res.Stalled || res.TimedOut || res.Code != 0 || res.Prompt != "" {
+		t.Errorf("res = %+v", res)
+	}
+	res = Result{Stalled: true, Prompt: "Continue? [y/N]"}
+	finish(&res, context.Background(), context.Background(), errors.New("killed"))
+	if !res.Stalled || !res.TimedOut || res.Code != CodeTimeout {
+		t.Errorf("a killed child must stay a stall: %+v", res)
 	}
 }

@@ -1,0 +1,49 @@
+{
+  "by-url": {
+    "pinned": false,
+    "revision": "1111111111111111111111111111111111111111",
+    "source": "https://example.invalid/by-url"
+  },
+  "by-url-ref": {
+    "pinned": true,
+    "revision": "2222222222222222222222222222222222222222",
+    "source": "https://example.invalid/by-url-ref"
+  },
+  "memory-demo": {
+    "catalog": {
+      "name": "memory-demo",
+      "pin": "0123456789abcdef0123456789abcdef01234567",
+      "repo": "https://example.invalid/memory-demo",
+      "sha": "0123456789abcdef0123456789abcdef01234567",
+      "tier": "community"
+    },
+    "pinned": true,
+    "revision": "0123456789abcdef0123456789abcdef01234567",
+    "source": "https://example.invalid/memory-demo",
+    "update_url": "https://example.invalid/memory-demo/feed.yml"
+  },
+  "notes-demo": {
+    "catalog": {
+      "name": "notes-demo",
+      "pin": "",
+      "repo": "https://example.invalid/notes-demo",
+      "sha": "89abcdef0123456789abcdef0123456789abcdef",
+      "tier": "community"
+    },
+    "pinned": true,
+    "revision": "89abcdef0123456789abcdef0123456789abcdef",
+    "source": "https://example.invalid/notes-demo"
+  },
+  "old-demo": {
+    "catalog": {
+      "name": "old-demo",
+      "pin": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo": "https://example.invalid/old-demo",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tier": "official"
+    },
+    "pinned": false,
+    "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source": "https://example.invalid/old-demo"
+  }
+}

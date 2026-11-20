@@ -228,7 +228,7 @@ func TestE2EChannelSetStableRollbackAttended(t *testing.T) {
 		w.cli("--plain", "channel", "set", "stable")
 		w.wantCode(apperr.OK)
 		w.wantScreen("This checkout is newer than the latest release (stable v0.22.0)",
-			"would move Hermes back to stable v0.22.0 (38 commits older)", "rollback guard will ask first", "Press Y to switch to stable anyway", "(auto-cancel in 10 min)")
+			"would move Hermes back to stable v0.22.0 (38 commits older)", "will wait on this build and never move Hermes back", "no such guard: it moves Hermes back without asking", "Press Y to switch to stable anyway", "(auto-cancel in 10 min)")
 		if !w.setCalled("stable") || w.recordNow() != "stable" {
 			t.Errorf("not switched: record %s", w.recordNow())
 		}

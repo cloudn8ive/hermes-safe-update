@@ -602,9 +602,19 @@ func trimPrefixFold(s, prefix string) string {
 	return s
 }
 
+// safe makes Hermes-derived text fit the console font (tabs, CR, glyphs) before
+// any width is measured.
+func (v *VT) safe(s string) string { return screenSafe(s, v.keepGlyphs()) }
+
+func (v *VT) safeRow(r Row) Row {
+	r.Key, r.Value = v.safe(r.Key), v.safe(r.Value)
+	return r
+}
+
 func (v *VT) Line(level Level, text string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	text = v.safe(text)
 	c, g := v.col(), v.th.Glyphs
 	var out, glyph string // glyph: the mark the continuation lines hang behind
 	switch level {
@@ -631,7 +641,7 @@ func (v *VT) Line(level Level, text string) {
 			out = "   " + v.st.sgr(g.Err+" "+t, c.Err, bold)
 		}
 	default:
-		v.printLocked(v.st.free(text, v.wrapWidth()))
+		v.printLocked(v.st.free(v.remark(text), v.wrapWidth()))
 		return
 	}
 	v.printLocked(v.wrapHung(out, 3+runeLen(glyph)+1))
@@ -652,7 +662,7 @@ func (v *VT) Rows(rows ...Row) {
 	defer v.mu.Unlock()
 	lines := make([]string, len(rows))
 	for i, r := range rows {
-		lines[i] = v.st.kv(r, v.wrapWidth())
+		lines[i] = v.st.kv(v.safeRow(r), v.wrapWidth())
 	}
 	v.printLocked(strings.Join(lines, "\n"))
 }
@@ -671,6 +681,17 @@ func (v *VT) marks() []mark {
 		{"⚠️", g.Warn, c.Warn}, {"⚠", g.Warn, c.Warn}, {"ℹ", g.Info, c.Dim},
 		{"☤", g.Command, c.Accent}, {"⚕", g.Command, c.Accent},
 	}
+}
+
+// remark swaps the marks Hermes prints (the check mark, the cross, ...) for the
+// glyphs of this tool's theme in a free-text line: the console font has no
+// U+2713, and it shows as a box. Display only; the log keeps the raw text.
+func (v *VT) remark(text string) string {
+	text = screenSafe(text, v.keepGlyphs())
+	for _, m := range v.marks() {
+		text = strings.ReplaceAll(text, m.src, m.dst)
+	}
+	return text
 }
 
 func hiddenOutput(line string) bool {
@@ -695,7 +716,7 @@ func (v *VT) Output(line string) {
 	defer v.mu.Unlock()
 	c, g := v.col(), v.th.Glyphs
 	marks := v.marks()
-	body := strings.TrimRight(line, "\r\n")
+	body := screenSafeAt(strings.TrimRight(line, "\r\n"), v.keepGlyphs(), 3+runeLen(g.Gutter)+1)
 	for _, m := range marks {
 		if strings.Contains(body, m.src) && !strings.HasPrefix(strings.TrimLeft(body, " |"), m.src) {
 			body = strings.ReplaceAll(body, m.src, m.dst)
@@ -785,7 +806,7 @@ func (v *VT) Prompt(ctx context.Context, p PromptSpec) (Answer, error) {
 	}
 	v.mu.Lock()
 	c := v.col()
-	lines := wrapWords(p.Text, maxInt(20, v.width()-5))
+	lines := wrapWords(v.safe(p.Text), maxInt(20, v.width()-5))
 	out := []string{""}
 	for i, t := range lines {
 		if i == 0 {
@@ -870,9 +891,9 @@ func (v *VT) Summary(card Card) {
 	case card.OK != nil:
 		m, col = g.Err, c.Err
 	}
-	lines := []string{"", v.wrapHung("   "+v.st.sgr(m+" "+card.Headline, col, bold), 3+runeLen(m)+1)}
+	lines := []string{"", v.wrapHung("   "+v.st.sgr(m+" "+v.safe(card.Headline), col, bold), 3+runeLen(m)+1)}
 	for _, r := range card.Rows {
-		lines = append(lines, v.st.kv(r, v.wrapWidth()))
+		lines = append(lines, v.st.kv(v.safeRow(r), v.wrapWidth()))
 	}
 	v.printLocked(strings.Join(lines, "\n"))
 }

@@ -13,10 +13,12 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/config"
 	"github.com/cloudn8ive/hermes-safe-update/internal/cua"
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
+	"github.com/cloudn8ive/hermes-safe-update/internal/extras"
 	"github.com/cloudn8ive/hermes-safe-update/internal/gc"
 	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
 	"github.com/cloudn8ive/hermes-safe-update/internal/mirror"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
+	"github.com/cloudn8ive/hermes-safe-update/internal/statedb"
 	"github.com/cloudn8ive/hermes-safe-update/internal/ui"
 	"github.com/cloudn8ive/hermes-safe-update/internal/update"
 )
@@ -89,6 +91,11 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger, route *
 		d.GC = gc.New(gc.Deps{Runner: r, Python: in.Python, PythonNow: managedPython, Home: in.Home, Checkout: in.Checkout, Applicable: p.OS == "windows"})
 		d.CUA = cua.New(cua.Deps{Runner: r, Launcher: in.Launcher, Autostart: p.Autostart, Home: in.Home,
 			Log: func(s string) { log.Info(s) }})
+		d.Extras = extras.New(extras.Deps{Runner: r, Launcher: in.Launcher, Home: in.Home, Now: env.now, Log: log, Git: in.Git, Checkout: in.Checkout, KillTree: treeKiller(p.Procs)})
+		d.StateDB = statedb.Service(statedb.Real{})
+		if env.statedb != nil {
+			d.StateDB = env.statedb
+		}
 		d.Mirror = newMirror(cfg, env, in, log, route)
 		d.ManagedPython = managedPython
 		d.Hooks = &update.ExecHooks{Runner: r, Hooks: cfg.Hooks, Dir: in.Home, Procs: p.Procs}
@@ -99,6 +106,19 @@ func wireInstall(cfg *config.Config, env *environment, log *slog.Logger, route *
 		d.TimingsPath = filepath.Join(in.Home, "logs", "safe-update-timings.json")
 		d.Settings = newSettings(cfg, env, in)
 		_ = p.Console.SetIdentity(appUserModelID, []string{in.Desktop, filepath.Join(in.Checkout, "apps", "desktop", "assets", "icon.ico")})
+	}
+}
+
+// treeKiller stops a process and everything it started. The extras use it for
+// every Hermes child they start: `hermes` is a launcher that hands the work to
+// a Python child, so a timeout that killed only the launcher would leave the
+// update or rebuild running (and able to publish after Safe Update gave up).
+// The pid is our own just-started child, so no identity check is needed.
+func treeKiller(procs platform.Procs) func(int) error {
+	return func(pid int) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		return procs.KillTree(ctx, platform.Process{PID: pid})
 	}
 }
 

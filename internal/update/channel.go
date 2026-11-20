@@ -195,10 +195,21 @@ func (r *Run) remoteRelease(ctx context.Context, plan hermes.Plan, pre *releaseC
 	}
 
 	yes, no := true, false
+	hold := r.holdApplies()
 	switch ch.Verdict {
 	case hermes.VerdictAvailable:
 		c.Behind = &yes
 		info := r.predictRelease(ctx, &c, ch)
+		if hold {
+			// only a release proven to contain this build is updated to
+			rel := r.holdFromGit(ctx, ch, info)
+			if rel.state != holdContains {
+				return r.waitForStable(ctx, c, ch, rel)
+			}
+			r.noteCheck(c)
+			r.reportRelease(c, ch, name)
+			return nil
+		}
 		// Hermes before v0.22.0 words a release that is OLDER than the
 		// checkout as "available" too, so git decides, not the wording.
 		dir := r.releaseDirection(ctx, ch, info)
@@ -215,11 +226,29 @@ func (r *Run) remoteRelease(ctx context.Context, plan hermes.Plan, pre *releaseC
 		return r.rollbackGuard(ctx, ch, dir)
 	case hermes.VerdictRollback:
 		c.Behind = &yes
+		if hold {
+			return r.waitForStable(ctx, c, ch, r.holdFromHermes(ctx, ch))
+		}
 		r.noteCheck(c)
 		r.reportRelease(c, ch, name)
 		return r.rollbackGuard(ctx, ch, r.rollbackCount(ctx, ch))
 	case hermes.VerdictUpToDate, hermes.VerdictWaitsForNext:
 		c.Behind = &no
+		// Defence in depth (the hold's own proof, not Hermes' code): "up to
+		// date" and "waits for the next release" end in verdict(), which can
+		// still run `hermes update` (finish an unfinished update, repair,
+		// --force, the R offer). That is harmless while Hermes keeps to its
+		// rule that "waits for the next release" exists only without a
+		// persisted channel record (hermes_cli/update_channel.py:192-200
+		// rides_default_channel, hermes_cli/source_releases.py:81-96 `ahead`;
+		// with a record Hermes rolls back with no prompt instead and says so,
+		// which is the Rollback verdict above). When Safe Update itself read
+		// a record, these two verdicts therefore cannot be trusted to mean
+		// "nothing moves", and any such path is held back unless the release
+		// is proven to contain this build.
+		if err := r.holdBeforeUpdatePaths(ctx, plan, c, ch); err != nil {
+			return err
+		}
 		r.noteCheck(c)
 		r.reportRelease(c, ch, name)
 		nothing := fmt.Sprintf("Nothing to update: already at the latest release (%s).", ch.Label())
@@ -266,8 +295,8 @@ func (r *Run) reportRelease(c hermes.UpdateCheck, ch hermes.ChannelCheck, name s
 	switch ch.Verdict {
 	case hermes.VerdictAvailable:
 		r.rows(ui.Row{Key: "updates", Value: releaseAvailableText(ch, c.Commits) + " (" + via + ")"},
-			ui.Row{Key: "python deps", Value: kindText(c.PyDeps, "changed, will be reinstalled")},
-			ui.Row{Key: "node packages", Value: kindText(c.NPM, "changed, will be reinstalled (slower build)")})
+			ui.Row{Key: "python deps", Value: r.depsText(c.PyDeps, "changed, will be reinstalled", "reinstall the Python packages")},
+			ui.Row{Key: "node packages", Value: r.depsText(c.NPM, "changed, will be reinstalled (slower build)", "rebuild the Node packages")})
 	case hermes.VerdictRollback:
 		r.rows(ui.Row{Key: "updates", Value: fmt.Sprintf("checkout is newer than release %s; updating would move it back (%s)", label, via)})
 	case hermes.VerdictWaitsForNext:

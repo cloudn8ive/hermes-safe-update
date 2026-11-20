@@ -1,0 +1,8 @@
+network request failed (HTTP Error 504: Gateway Timeout); retrying in 1s (attempt 2/4)
+agent-browser    1.0.0 → 1.4.1
+bws              no source
+ffmpeg           9.0.1: newer artifacts for linux-x64, win32-x64
+git              2.53.0+3 → 2.56.0+4
+python           resolve failed: HTTP Error 504: Gateway Time-out
+ripgrep          15.2.0 up to date
+pm update: resolution failed for python; no changes applied

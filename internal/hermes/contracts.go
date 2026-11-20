@@ -1,6 +1,9 @@
 package hermes
 
 import (
+	"encoding/json"
+	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -505,6 +508,19 @@ var VersionMethodRe = regexp.MustCompile(`(?m)^Install method:[ \t]*(.+?)[ \t\r]
 // platform leaf of the Electron executable.
 const ElectronPathFile = "path.txt"
 
+// ElectronPackageDirs lists where npm may have put the `electron` package
+// of a Hermes checkout, in the order Node resolves `require("electron")`
+// from apps/desktop: the desktop app's own node_modules first, then the
+// checkout root's. Older Hermes installs it in apps/desktop only; since
+// "pin Electron 44.9.3" (21693bdf29) npm hoists it to the root and the
+// desktop folder has none.
+func ElectronPackageDirs(checkout string) []string {
+	return []string{
+		filepath.Join(checkout, "apps", "desktop", "node_modules", "electron"),
+		filepath.Join(checkout, "node_modules", "electron"),
+	}
+}
+
 // ---- Release channels (Hermes v0.21.6+; Safe Update v0.3.0) ----
 //
 // What `hermes update --check` and `hermes update` print on a release
@@ -524,6 +540,14 @@ var (
 	checkWaitsRe      = regexp.MustCompile(`No newer release:[ \t]*([a-z0-9][a-z0-9-]*) v([^\s;()]+)`)
 	checkRollbackRe   = regexp.MustCompile(`This checkout is newer than the selected release:[ \t]*([a-z0-9][a-z0-9-]*) v(\S+) \(([0-9a-f]{7,40})\)`)
 	checkRollbackTail = "moves it back to that release"
+	// "→ Holding at this build: stable v0.22.0 (abc...) predates the gateway
+	// runtime your sessions use." (update_cmd_check.py, Hermes 0.22+): Hermes
+	// itself holds the checkout, because the release is older than the gateway
+	// runtime a state.db already uses. For Safe Update this is the same
+	// outcome as "newer than the selected release": the release is not
+	// something to move to, so the run waits (the hold) and never runs the update.
+	checkHoldingRe    = regexp.MustCompile(`Holding at this build:[ 	]*([a-z0-9][a-z0-9-]*) v(\S+) \(([0-9a-f]{7,40})\)`)
+	checkHoldingTail  = "predates the gateway runtime"
 	checkUnresolvedRe = regexp.MustCompile(`(?m)Could not resolve the (\S+) source channel:[ \t]*(.*?)[ \t\r]*$`)
 )
 
@@ -610,6 +634,11 @@ func ParseChannelCheck(out string) ChannelCheck {
 		c.Verdict = VerdictRollback
 		c.label(checkRollbackRe.FindStringSubmatch(out))
 	case strings.Contains(out, checkRollbackTail):
+		c.Verdict = VerdictRollback
+	case checkHoldingRe.MatchString(out):
+		c.Verdict = VerdictRollback
+		c.label(checkHoldingRe.FindStringSubmatch(out))
+	case strings.Contains(out, checkHoldingTail):
 		c.Verdict = VerdictRollback
 	case checkWaitsRe.MatchString(out):
 		c.Verdict = VerdictWaitsForNext
@@ -701,6 +730,139 @@ func ReleaseTag(version string) string {
 		return tag
 	}
 	return ""
+}
+
+// ---- Apply-time hold by Hermes (Hermes v0.22.7 and v0.23.0; Safe Update v0.8.1) ----
+//
+// `hermes update` itself can hold instead of updating (update_cmd.py
+// hold_channel_release_behind_runtime, update_cmd_check.py): the channel's
+// release predates the gateway runtime the sessions use, so moving there
+// would be a downgrade. It prints two lines, finishes the "already up to
+// date" tail (dependency sync, gateway) on the SAME code and exits 0:
+//
+//	→ This build is newer than the <ch> release <sha12>: that release predates the gateway runtime your sessions use, so there is nothing to update to yet.
+//	  Hermes stays on <head12> until a newer <ch> release ships. To follow every commit instead: `hermes update --set-channel main`.
+//	✓ Holding at this build until a newer <ch> release ships.
+//
+// The channel is any release channel name. Like the other patterns the lines
+// are matched on their ASCII text; the leading glyph may be mangled (0-4
+// non-space characters, then a blank) and CRLF is tolerated. The final "✓
+// Holding ..." line is the one that proves the hold happened (the "→" line
+// alone is also printed before a refusal). The "✓ Holding" line is normally
+// there; when this run's local changes were stashed and not restored, Hermes
+// (update_cmd.py _complete_source_update) replaces that completion line with
+//
+//	⚠ hermes update stashed <n> local modification(s) and did NOT restore them.
+//	  Stash ref: <ref>
+//
+// and only the "→ This build is newer ... nothing to update to yet" line is
+// left, so that line alone counts as the hold too (the caller still wants
+// exit 0, no "Update complete!" and an unmoved HEAD). The check-path line
+// "→ Holding at this build: ..." never matches.
+var (
+	applyHoldRe     = regexp.MustCompile(`(?m)^[ \t]*(?:\S{1,4}[ \t]+)?Holding at this build until a newer ([a-z0-9][a-z0-9-]*) release ships\.?[ \t\r]*$`)
+	applyStashRe    = regexp.MustCompile(`(?m)^[ \t]*(?:\S{1,4}[ \t]+)?hermes update stashed ([0-9]{1,6}) local modification\(s\) and did NOT restore them\.?[ \t\r]*$`)
+	applyStashRefRe = regexp.MustCompile(`(?m)^[ \t]*Stash ref: ([A-Za-z0-9@{}:/._-]{1,80})[ \t\r]*$`)
+	applyHoldWhyRe  = regexp.MustCompile(`(?m)^[ \t]*(?:\S{1,4}[ \t]+)?This build is newer than the ([a-z0-9][a-z0-9-]*) release ([0-9a-f]{7,40}): that release predates the gateway runtime your sessions use, so there is nothing to update to yet\.?[ \t\r]*$`)
+)
+
+// ApplyHold is a hold printed by `hermes update`.
+type ApplyHold struct {
+	Channel string // the release channel named in the "Holding" line
+	SHA12   string // the release Hermes did not move to (empty when its "→" line is absent)
+	// StashFiles/StashRef: Hermes stashed local changes this run and did not
+	// restore them (0/empty: no such notice).
+	StashFiles int
+	StashRef   string
+}
+
+// Why is the reason for the card, in Safe Update's words.
+func (h ApplyHold) Why() string {
+	rel := h.Channel + " release"
+	if h.SHA12 != "" {
+		rel += " " + h.SHA12
+	}
+	return "the " + rel + " predates the gateway runtime your sessions use"
+}
+
+// ParseApplyHold reads the hold out of `hermes update` output (ok=false:
+// no hold). It says nothing about whether the checkout moved: the caller
+// compares HEAD.
+func ParseApplyHold(out string) (ApplyHold, bool) {
+	w := applyHoldWhyRe.FindStringSubmatch(out)
+	var h ApplyHold
+	if m := applyHoldRe.FindStringSubmatch(out); m != nil {
+		h.Channel = m[1]
+		if w != nil && w[1] == h.Channel {
+			h.SHA12 = w[2][:min(12, len(w[2]))]
+		}
+	} else if w != nil {
+		// the unrestored-stash notice replaced the "✓ Holding" line
+		h.Channel, h.SHA12 = w[1], w[2][:min(12, len(w[2]))]
+	} else {
+		return ApplyHold{}, false
+	}
+	if s := applyStashRe.FindStringSubmatch(out); s != nil {
+		h.StashFiles, _ = strconv.Atoi(s[1])
+		if ref := applyStashRefRe.FindStringSubmatch(out); ref != nil {
+			h.StashRef = ref[1]
+		}
+	}
+	return h, true
+}
+
+// ---- New-catalog plugin notice (Hermes v0.23.0; Safe Update v0.8.1) ----
+//
+// At the end of `hermes update`, per profile with catalog plugins left on an
+// old pin (plugins_auto_update.py report_catalog_updates_after_hermes_update):
+//
+//	→ 2 plugin update(s) from the new catalog in this profile: a, b
+//	  apply: hermes plugins update   (or turn on: hermes plugins auto-update on)
+//
+// The label is "this profile" for the active home, else a sibling profile's
+// label. Plugins installed with --ref are not counted. Only the first line is
+// read; the "apply:" line is Hermes' advice, not something to match.
+var catalogNoticeRe = regexp.MustCompile(`(?m)^[ \t]*(?:\S{1,4}[ \t]+)?(\d+) plugin update\(s\) from the new catalog in (.+?): (\S[^\r\n]*?)[ \t\r]*$`)
+
+// ThisProfileLabel is the label Hermes gives the active profile.
+const ThisProfileLabel = "this profile"
+
+// CatalogNotice is one profile's line of that notice.
+type CatalogNotice struct {
+	Label string   // "this profile" or a sibling profile's label
+	Count int      // the number Hermes printed
+	Names []string // plugin names that are safe to show and to compare
+	// Dropped counts names that were not a plausible plugin name; they are
+	// neither shown nor used.
+	Dropped int
+}
+
+// ParseCatalogNotices reads every profile's notice line of `hermes update`
+// output, in order. A line whose count or names cannot be read is skipped.
+func ParseCatalogNotices(out string) []CatalogNotice {
+	var res []CatalogNotice
+	for _, m := range catalogNoticeRe.FindAllStringSubmatch(out, -1) {
+		n, err := strconv.Atoi(m[1])
+		if err != nil || n <= 0 {
+			continue
+		}
+		c := CatalogNotice{Label: strings.TrimSpace(m[2]), Count: n}
+		for _, name := range strings.Split(m[3], ",") {
+			name = strings.TrimSpace(name)
+			switch {
+			case name == "":
+			case SafePluginName(name):
+				c.Names = append(c.Names, name)
+			default:
+				c.Dropped++
+			}
+		}
+		if len(c.Names) == 0 {
+			continue
+		}
+		res = append(res, c)
+	}
+	return res
 }
 
 // SetChannelDoneRe reads the confirmation `hermes update --set-channel X`
@@ -978,3 +1140,597 @@ var receiptStageNext = map[string]string{
 // the name of the last stage its receipt recorded ("" = none recorded yet).
 // An unknown name gives "" (nothing is guessed).
 func ReceiptStopStep(lastRecorded string) string { return receiptStageNext[lastRecorded] }
+
+// ---- extras (v0.7.0): catalog plugins, hub skills and the bundled tools ----
+//
+// A reworded line must show up as "could not read", never as "all fine".
+// Fixtures: testdata/contracts/extras-*.
+//
+//	hermes plugins check-updates --json   JSON list (structured, no scraping)
+//	hermes skills check                   box table + a count footer
+//	hermes pm doctor                      "v name ver" / "x name: reason" lines
+//	hermes pm update --check              "name old -> new" lines (listing only)
+
+// PluginArgvCheck, PluginArgvUpdate and the other argv tails are what the
+// stage runs after the launcher. None of them passes --force or --yes: the
+// security scan of Hermes asks (and, with nobody to ask, refuses).
+var (
+	PluginsCheckArgv   = []string{"plugins", "check-updates", "--json"}
+	SkillsCheckArgv    = []string{"skills", "check"}
+	SkillsUpdateArgv   = []string{"skills", "update"}
+	PMDoctorArgv       = []string{"pm", "doctor"}
+	PMUpdateCheckArgv  = []string{"pm", "update", "--check"}
+	pluginUpdateHead   = []string{"plugins", "update"}
+	pluginEnableHead   = []string{"plugins", "enable"}
+	pluginsUpdatable   = map[string]bool{"catalog": true, "git": true}
+	pluginNameSafeRe   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	evictionNoticeRe   = regexp.MustCompile(`Disabled plugin '([^']+)' in `)
+	skillCountFooterRe = regexp.MustCompile(`(\d+) update\(s\) available across (\d+) checked skill\(s\)`)
+	doctorLineRe       = regexp.MustCompile(`^(✓|✗|\?|-) (\S+?)(?::| )\s*(.*)$`)
+	pmUpdateLineRe     = regexp.MustCompile(`^(\S+)\s+(\S+) → (\S+)\s*$`)
+)
+
+// NoHubSkillsText: `hermes skills check` with nothing to check.
+const NoHubSkillsText = "No hub-installed skills to check"
+
+// Words in `hermes plugins update <name>` output that say nothing changed
+// because the plugin was current already, and the ones of `hermes skills
+// update` for "not updated" and "kept your edits".
+var (
+	PluginCurrentTexts = []string{"already up to date", "is already at catalog pin"}
+	SkillsNotUpdated   = "Not updated:"
+	SkillsKeptEdits    = "kept your local edits"
+)
+
+// Words in `hermes plugins update <name>` output that mean it did not apply.
+var pluginUpdateRefusals = []string{"Blocked:", "Security scan flagged", "not applied", "Error:"}
+
+// PluginUpdateArgv is the argv tail that updates one plugin.
+func PluginUpdateArgv(name string) []string {
+	return append(append([]string{}, pluginUpdateHead...), name)
+}
+
+// PluginEnableArgv is the argv tail that re-admits one plugin.
+func PluginEnableArgv(name string) []string {
+	return append(append([]string{}, pluginEnableHead...), name)
+}
+
+// SafePluginName: a plugin name that may be put on a command line and in a
+// path. Anything else is never passed on.
+func SafePluginName(name string) bool { return pluginNameSafeRe.MatchString(name) }
+
+// PluginRow is one row of `hermes plugins check-updates --json`.
+type PluginRow struct {
+	Name        string  `json:"name"`
+	Class       string  `json:"class"`
+	Current     *string `json:"current"`
+	Latest      *string `json:"latest"`
+	Update      *bool   `json:"update_available"`
+	NeedsFixing *string `json:"needs_fixing"`
+	Reason      string  `json:"reason"`
+}
+
+// Updatable: Hermes has an update path for this row (catalog re-pin or git
+// pull) and an update is waiting.
+func (p PluginRow) Updatable() bool {
+	return p.Update != nil && *p.Update && p.NeedsFixing == nil && pluginsUpdatable[p.Class] && SafePluginName(p.Name)
+}
+
+// Short is the commit/version text of a pin, 8 characters.
+func Short(s *string) string {
+	if s == nil || *s == "" {
+		return "-"
+	}
+	return (*s)[:min(8, len(*s))]
+}
+
+// ParsePluginRows reads the JSON of `plugins check-updates --json`. The
+// launcher may print notices before the JSON; the list starts at the first
+// line that is "[".
+func ParsePluginRows(out string) ([]PluginRow, error) {
+	i := strings.Index(out, "\n[")
+	switch {
+	case strings.HasPrefix(out, "["):
+		i = 0
+	case i >= 0:
+		i++
+	default:
+		return nil, fmt.Errorf("no JSON list in the output")
+	}
+	var rows []PluginRow
+	dec := json.NewDecoder(strings.NewReader(out[i:]))
+	if err := dec.Decode(&rows); err != nil {
+		return nil, fmt.Errorf("unreadable JSON: %w", err)
+	}
+	for _, r := range rows {
+		if r.Name == "" {
+			return nil, fmt.Errorf("a row without a name")
+		}
+	}
+	return rows, nil
+}
+
+// SkillRow is one row of the `hermes skills check` table.
+type SkillRow struct{ Name, Source, Status string }
+
+// SkillCheck is the parsed `hermes skills check`.
+type SkillCheck struct {
+	Rows    []SkillRow
+	Updates int  // update_available rows
+	Empty   bool // "No hub-installed skills to check."
+}
+
+// ParseSkillCheck reads the table. ok=false when neither the footer nor the
+// "no skills" line is there (reworded output): the caller says "could not
+// read", it does not call that "up to date".
+func ParseSkillCheck(out string) (SkillCheck, bool) {
+	var sc SkillCheck
+	if strings.Contains(out, NoHubSkillsText) {
+		sc.Empty = true
+		return sc, true
+	}
+	footer := skillCountFooterRe.FindStringSubmatch(out)
+	if footer == nil {
+		return sc, false
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "│") {
+			continue
+		}
+		cells := strings.Split(strings.Trim(line, "│"), "│")
+		if len(cells) != 3 {
+			continue
+		}
+		r := SkillRow{strings.TrimSpace(cells[0]), strings.TrimSpace(cells[1]), strings.TrimSpace(cells[2])}
+		if r.Name == "Name" && r.Status == "Status" || r.Name == "" {
+			continue
+		}
+		sc.Rows = append(sc.Rows, r)
+		if r.Status == "update_available" {
+			sc.Updates++
+		}
+	}
+	var n int
+	_, _ = fmt.Sscan(footer[1], &n)
+	if n > sc.Updates { // a wrapped name or status hid rows from the table scan
+		sc.Updates = n
+	}
+	return sc, true
+}
+
+// SkillUpdateNames are the skills with an update waiting.
+func (s SkillCheck) UpdateNames() []string {
+	var out []string
+	for _, r := range s.Rows {
+		if r.Status == "update_available" {
+			out = append(out, r.Name)
+		}
+	}
+	return out
+}
+
+// DoctorFault is one failing package of `hermes pm doctor`.
+type DoctorFault struct{ Name, Reason string }
+
+// DoctorReport is the parsed `hermes pm doctor`.
+type DoctorReport struct {
+	OK   int
+	Soft int // "? name: not installed" optional packages
+	NA   int // "- name: n/a on ..."
+	// Installed are the names with a check-mark line: a tool is installed here.
+	Installed []string
+	Faults    []DoctorFault
+	Unknown   int // lines that matched none of the four shapes
+}
+
+// ParseDoctor reads the per-package lines. ok=false when no line was
+// understood at all.
+func ParseDoctor(out string) (DoctorReport, bool) {
+	var d DoctorReport
+	seen := 0
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r ")
+		if line == "" {
+			continue
+		}
+		m := doctorLineRe.FindStringSubmatch(line)
+		if m == nil {
+			d.Unknown++
+			continue
+		}
+		seen++
+		switch m[1] {
+		case "✓":
+			d.OK++
+			d.Installed = append(d.Installed, m[2])
+		case "?":
+			d.Soft++
+		case "-":
+			d.NA++
+		case "✗":
+			d.Faults = append(d.Faults, DoctorFault{Name: m[2], Reason: m[3]})
+		}
+	}
+	return d, seen > 0
+}
+
+// DigestFault is the doctor line for a tool whose files differ from the
+// digest Hermes recorded (stray files written into the tool folder are the
+// usual cause on this PC: git-bash's "/" is the git tool folder).
+func (f DoctorFault) DigestFault() bool {
+	return strings.Contains(f.Reason, "do not match recorded digest")
+}
+
+// Advice is what to do about a fault, only where Hermes has a command that
+// fixes that class of fault (pm/cli.py): "not installed", "outdated" and
+// "legacy fact" are fixed by `hermes pm install`. A digest mismatch is not a
+// missing file Hermes can restore without a reinstall of the tool, and the
+// cause is usually a stray file: no command is promised.
+func (f DoctorFault) Advice() string {
+	r := f.Reason
+	switch {
+	case f.DigestFault():
+		return "files in the tool's folder differ from what Hermes installed (often stray files another tool wrote into it); look at the folder, remove what is not Hermes', or reinstall the tool with `hermes pm install " + f.Name + "`"
+	case r == "not installed" || r == "outdated" || strings.HasPrefix(r, "legacy fact"):
+		return "`hermes pm install " + f.Name + "` installs it"
+	case strings.HasPrefix(r, "installed but failed verification"):
+		return "`hermes pm install " + f.Name + "` reinstalls it"
+	}
+	return "see `hermes pm doctor`"
+}
+
+// ToolUpdate is one "name old -> new" line of `hermes pm update --check`.
+type ToolUpdate struct{ Name, From, To string }
+
+// Present: the tool is installed here (a check-mark line) or installed and
+// failing (a cross line other than "not installed"): a newer version of it
+// matters.
+func (d DoctorReport) Present(name string) bool {
+	for _, n := range d.Installed {
+		if n == name {
+			return true
+		}
+	}
+	for _, f := range d.Faults {
+		if f.Name == name && f.Reason != "not installed" {
+			return true
+		}
+	}
+	return false
+}
+
+// ParsePMUpdateCheck lists the tools that have a newer version. Lines for
+// tools without a source, up to date, failed to resolve or only newer for
+// other platforms are not updates for this PC. Never an action: the command
+// that applies them rewrites Hermes' core files.
+func ParsePMUpdateCheck(out string) []ToolUpdate {
+	var ups []ToolUpdate
+	for _, line := range strings.Split(out, "\n") {
+		if m := pmUpdateLineRe.FindStringSubmatch(strings.TrimRight(line, "\r")); m != nil {
+			ups = append(ups, ToolUpdate{m[1], m[2], m[3]})
+		}
+	}
+	return ups
+}
+
+// EvictionLines are Hermes' own "Disabled plugin '<n>' in <home>: <why>" lines
+// of a command's output, trimmed, for the log and the card.
+func EvictionLines(out string) []string {
+	var lines []string
+	for _, l := range strings.Split(out, "\n") {
+		if evictionNoticeRe.MatchString(l) {
+			lines = append(lines, strings.TrimSpace(l))
+		}
+	}
+	return lines
+}
+
+// ConfigSetProviderArgv is the argv tail that sets memory.provider through
+// Hermes (it writes its own config; Safe Update never edits config.yaml).
+func ConfigSetProviderArgv(name string) []string {
+	return []string{"config", "set", "memory.provider", name}
+}
+
+// PluginUpdateRefused: the output of `plugins update <name>` says the update
+// did not apply (scan block, consent needed, error).
+func PluginUpdateRefused(out string) bool {
+	for _, w := range pluginUpdateRefusals {
+		if strings.Contains(out, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// ---- Session database size and compaction (Safe Update v0.9.0) ----
+//
+// Hermes' pre-update snapshot (hermes_cli/update_cmd_maint.py,
+// _PRE_UPDATE_SNAPSHOT_MAX_FILE_SIZE) leaves out any state.db over 1 GiB and
+// prints, per profile:
+//
+//	! Snapshot: skipping state.db (1.2 GB exceeds 1.0 GB limit)
+//	! Skipping snapshot prune: DB file(s) skipped for size: state.db
+//
+// `hermes sessions optimize-storage` (hermes_cli/sessions_cmd.py) rebuilds the
+// full-text index in the compact layout and runs VACUUM. It refuses while any
+// process has the database open: "Refusing `hermes sessions optimize-storage`:
+// another process is using <path>." followed by the holders.
+
+// SnapshotMaxFileSize is Hermes' limit for one file in its pre-update snapshot.
+const SnapshotMaxFileSize int64 = 1 << 30
+
+// CompactMinVersion is the oldest Hermes Safe Update lets compact: 0.23.0.
+// The subcommand exists earlier (v0.21.6 on), but the search-index code was
+// largely rewritten for 0.23, and an older install is not offered it.
+const (
+	CompactMinMajor = 0
+	CompactMinMinor = 23
+)
+
+var versionCoreRe = regexp.MustCompile(`^[vV]?(\d+)\.(\d+)(?:\.(\d+))?`)
+
+// CompactCapable reports whether a Hermes of this version (`hermes
+// --version`, e.g. "v0.23.1", "v0.23.0+5.gabc1234") may be offered the
+// compaction. An empty or unreadable version is not capable. A version
+// derived from an older release ("v0.22.7+300.g...") counts as that release.
+func CompactCapable(version string) bool {
+	m := versionCoreRe.FindStringSubmatch(strings.TrimSpace(version))
+	if m == nil {
+		return false
+	}
+	major, err1 := strconv.Atoi(m[1])
+	minor, err2 := strconv.Atoi(m[2])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return major > CompactMinMajor || (major == CompactMinMajor && minor >= CompactMinMinor)
+}
+
+// snapshotSkipRe reads "Snapshot: skipping <name> (<size> exceeds <limit> limit)".
+var snapshotSkipRe = regexp.MustCompile(`(?mi)Snapshot: skipping (\S*state\.db) \(([^()\r\n]*?) exceeds ([^()\r\n]*?) limit\)`)
+
+// pruneSkipRe reads the companion line.
+var pruneSkipRe = regexp.MustCompile(`(?mi)Skipping snapshot prune: DB file\(s\) skipped for size:[ \t]*([^\r\n]*)`)
+
+// SnapshotSkip is one file Hermes said it left out of its snapshot.
+type SnapshotSkip struct {
+	File  string // "state.db"
+	Size  string // as printed, "1.2 GB"
+	Limit string // as printed, "1.0 GB"
+}
+
+// ParseSnapshotSkips reads the skip lines of `hermes update` output, in
+// order (one per profile that has an oversized database, the profile is not
+// named). The second line (prune skipped) is returned as pruneSkipped.
+func ParseSnapshotSkips(out string) (skips []SnapshotSkip, pruneSkipped bool) {
+	for _, m := range snapshotSkipRe.FindAllStringSubmatch(out, -1) {
+		skips = append(skips, SnapshotSkip{File: m[1], Size: strings.TrimSpace(m[2]), Limit: strings.TrimSpace(m[3])})
+	}
+	return skips, pruneSkipRe.MatchString(out)
+}
+
+// OptimizeStorageArgv is the argv (after the launcher) of the compaction for
+// a profile; "" or "default" is the Hermes home's own database. --yes only
+// answers its own "Proceed?"; --force is never passed (it would go past a
+// holder).
+func OptimizeStorageArgv(profile string) []string {
+	args := []string{"sessions", "optimize-storage", "--yes"}
+	if profile != "" && profile != "default" {
+		args = append([]string{"-p", profile}, args...)
+	}
+	return args
+}
+
+// OptimizeStorageHelpArgv asks whether this Hermes has the subcommand.
+func OptimizeStorageHelpArgv() []string {
+	return []string{"sessions", "optimize-storage", "--help"}
+}
+
+// HasOptimizeStorage reads the `--help` answer: the subcommand exists when
+// the command exited 0 and the text names it.
+func HasOptimizeStorage(code int, out string) bool {
+	return code == 0 && strings.Contains(out, "optimize-storage")
+}
+
+var optimizeRefusedRe = regexp.MustCompile("(?m)^[ \\t]*(?:\\S{1,4}[ \\t]+)?Refusing `hermes sessions optimize-storage`")
+
+// OptimizeRefusal returns Hermes' refusal text (the "Refusing ..." line and
+// what follows it: the holder list) from the output, or "".
+func OptimizeRefusal(out string) string {
+	loc := optimizeRefusedRe.FindStringIndex(out)
+	if loc == nil {
+		return ""
+	}
+	return strings.TrimSpace(out[loc[0]:])
+}
+
+// OptimizeVacuumSkipped: the index was rebuilt but Hermes did not VACUUM, so
+// the freed space was not returned. Hermes prints one of two lines and still
+// exits 0 (hermes_cli/sessions_cmd.py, end of _cmd_optimize_storage):
+//
+//	(VACUUM skipped: another process is using the database. Re-run ...)
+//	(VACUUM was skipped or failed — run `hermes sessions optimize` later ...)
+//
+// OptimizeVacuumSkipped returns that line ("" = the VACUUM ran, or the text
+// is not Hermes').
+func OptimizeVacuumSkipped(out string) string {
+	return strings.TrimSpace(optimizeVacuumSkippedRe.FindString(out))
+}
+
+var optimizeVacuumSkippedRe = regexp.MustCompile(`(?m)^[ \t]*\(VACUUM (?:skipped: [^\r\n]*|was skipped or failed[^\r\n]*)`)
+
+// profileIDRe is Hermes' PROFILE_ID_RE (hermes_constants.py; used by
+// hermes_cli/profiles.py to accept a profile folder): a profile folder with
+// any other name is not a profile.
+var profileIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// ValidProfileID reports whether a folder name under profiles/ is a Hermes
+// profile id.
+func ValidProfileID(name string) bool { return profileIDRe.MatchString(name) }
+
+// OptimizeAlreadyCompact: Hermes had nothing to do.
+func OptimizeAlreadyCompact(out string) bool {
+	return strings.Contains(out, "already on the compact layout")
+}
+
+// OptimizeNoDisk: Hermes' own disk preflight said no.
+func OptimizeNoDisk(out string) bool {
+	return strings.Contains(out, "Not enough free disk")
+}
+
+// ---- Does compaction have work to do? (Safe Update v0.9.1) ----
+//
+// Hermes offers `hermes sessions optimize-storage` only when
+// SessionDB.fts_optimize_available() is true (v0.23.1,
+// hermes_state_search.py:592-604; in v0.23.3 the same terms live in
+// persistence/sqlite/admin/_maintenance.py:388-402, see probeVerifiedRe).
+// Safe Update mirrors that check, read-only, so it asks the compaction
+// question only for a database where Hermes would do something. The pieces,
+// with their v0.23.1 locations (unchanged in v0.23.2):
+//
+//   - FTS enabled: messages_fts exists (hermes_state.py:743, a SELECT probe)
+//     and no fts_stale marker (hermes_state_schema.py:963);
+//   - _db_needs_fts_storage_upgrade = fts_layout_drift (hermes_state_fts.py:93-103,
+//     267-270): a stored FTS definition from an older release;
+//   - state_meta fts_rebuild_high_water present (search.py:601, _meta_row :176):
+//     an optimize that was interrupted;
+//   - _has_fts_trash (hermes_state_fts.py:426-434): a table named
+//     fts_v22_trash_% awaits its teardown;
+//   - _fts_external_index_empty_with_messages (search.py:521-529): messages has
+//     rows and messages_fts_docsize has none.
+//
+// v0.23.0 differs by one more term: a CJK backfill (fts_cjk_* markers) on a
+// host that loads the CJK tokenizer. That cannot be known from outside, so
+// those markers make the answer "unknown".
+const (
+	FTSBaseTable        = "messages_fts"               // hermes_state_fts.py:15
+	FTSTrigramTable     = "messages_fts_trigram"       // hermes_state_fts.py:15
+	FTSDocsizeTable     = "messages_fts_docsize"       // hermes_state_search.py:528
+	FTSTrashPrefix      = "fts_v22_trash_"             // hermes_state_fts.py:426
+	StateMetaTable      = "state_meta"                 // hermes_state_search.py:178
+	MessagesTable       = "messages"                   // hermes_state_search.py:526
+	FTSRebuildHighWater = "fts_rebuild_high_water"     // hermes_state_search.py:601
+	FTSStaleKey         = "fts_stale"                  // hermes_state_common.py:1147
+	FTSCJKHighWater     = "fts_cjk_rebuild_high_water" // v0.23.0 hermes_state_search.py:672
+	FTSCJKStaleKey      = "fts_cjk_stale"              // v0.23.0 hermes_state_common.py:1134
+)
+
+// probeVerifiedRe matches exactly the releases the mirrored check was read
+// from: core 0.23.0, 0.23.1, 0.23.2 and 0.23.3, optionally with a +canary.*
+// build suffix. 0.23.2 was added after a source diff against v0.23.1:
+// hermes_state_fts.py and hermes_state_search.py (fts_optimize_available at
+// :592-604) are byte-identical, and hermes_state_common.py changed only outside
+// the FTS keys (a resumable_subagents table, a prompt_cache_clock column, a
+// preview trim, path_is_under).
+//
+// 0.23.3 moved the session store into a persistence/ package and deleted
+// hermes_state_fts.py / hermes_state_search.py, so it was re-read term by term
+// (.work/v0.9.1/probe-0.23.3-contract.md). The live check is
+// persistence/sqlite/admin/_maintenance.py:388-402
+// (_FtsStorageOptimizer.fts_optimize_available; the definition at :698-700
+// only delegates to it; hermes_cli/sessions_cmd.py:1140 asks it on a writable
+// admin). Its terms are the same: _db_needs_fts_storage_upgrade ->
+// fts_layout_drift (persistence/sqlite/_schema_ddl.py:975, registry :926,
+// FTS_STORAGE_VERSION :90 is not part of the decision), fts_rebuild_high_water
+// (_schema.py:55 _meta_row), _has_fts_trash (_schema.py:1703, prefix :1700),
+// _fts_external_index_empty_with_messages (_schema.py:1794), FTS_STALE_KEY
+// (_schema_ddl.py:822). The CJK backfill is retired there (_schema.py:1712-1760
+// deletes the fts_cjk_* markers on open), so those markers stay "unknown" here
+// only out of caution. A derived git build (`0.23.1+12.gabc1234`) is
+// unreleased main code and does not match.
+var probeVerifiedRe = regexp.MustCompile(`^[vV]?0\.23\.[0123](?:\+canary\.[0-9A-Za-z.]+)?$`)
+
+// ProbeVerified reports whether a Hermes of this version (`hermes --version`)
+// is one the mirrored check was read from. A "nothing to do" answer is trusted
+// only for those; any other version (0.23.3+, newer lines, derived builds) may
+// have changed the rules, so it is "unknown".
+func ProbeVerified(version string) bool {
+	return probeVerifiedRe.MatchString(strings.TrimSpace(version))
+}
+
+// FTSVtableLayouts is every stored definition a released Hermes has created for
+// the two index tables, oldest first; the last entry is the compact layout
+// v0.23.1 creates (hermes_state_fts.py:44-61, FTS_VTABLE_LAYOUTS). The inline
+// pre-v23 form (`fts5(content)`) is the second entry of each list; the
+// trigram form that still carries tool_calls is the third.
+var FTSVtableLayouts = map[string][]string{
+	FTSBaseTable: {
+		"CREATE VIRTUAL TABLE messages_fts USING fts5(content,content=messages,content_rowid=id)",
+		"CREATE VIRTUAL TABLE messages_fts USING fts5(content)",
+		"CREATE VIRTUAL TABLE messages_fts USING fts5(content,tool_name,tool_calls,content='messages'," +
+			"content_rowid='id')",
+		"CREATE VIRTUAL TABLE messages_fts USING fts5(content,tool_name,tool_calls," +
+			"content='messages_fts_src',content_rowid='id')",
+	},
+	FTSTrigramTable: {
+		"CREATE VIRTUAL TABLE messages_fts_trigram USING fts5(content,content=messages,content_rowid=id," +
+			"tokenize='trigram')",
+		"CREATE VIRTUAL TABLE messages_fts_trigram USING fts5(content,tokenize='trigram')",
+		"CREATE VIRTUAL TABLE messages_fts_trigram USING fts5(content,tool_name,tool_calls," +
+			"content='messages_fts_trigram_src',content_rowid='id',tokenize='trigram')",
+		"CREATE VIRTUAL TABLE messages_fts_trigram USING fts5(content,tool_name," +
+			"content='messages_fts_trigram_src',content_rowid='id',tokenize='trigram')",
+	},
+}
+
+var (
+	storedFormPunctRe = regexp.MustCompile(`\s*([(),])\s*`)
+	storedFormNameRe  = regexp.MustCompile(`^CREATE (VIRTUAL TABLE|VIEW) "([^"]+)"`)
+)
+
+// FTSStoredForm is sqlite_master.sql as Hermes compares it (_stored_form,
+// hermes_state_fts.py:19-24): whitespace collapsed, none around ( ) and commas,
+// the object name unquoted.
+func FTSStoredForm(sql string) string {
+	collapsed := storedFormPunctRe.ReplaceAllString(strings.Join(strings.Fields(sql), " "), "${1}")
+	return storedFormNameRe.ReplaceAllString(collapsed, "CREATE ${1} ${2}")
+}
+
+// ftsOlderLayout mirrors _is_older_layout (hermes_state_fts.py:71-79).
+func ftsOlderLayout(table, stored string) bool {
+	layouts := FTSVtableLayouts[table]
+	for _, l := range layouts[:len(layouts)-1] {
+		if stored == l {
+			return true
+		}
+	}
+	if table == FTSBaseTable {
+		return !strings.Contains(stored, "tool_name")
+	}
+	return strings.Contains(strings.ToLower(stored), "tool_calls")
+}
+
+// FTSLayoutDrift mirrors fts_layout_drift (hermes_state_fts.py:93-103): the
+// index tables whose stored definition (sqlite_master.sql, raw) is from an
+// older release and that only optimize-storage replaces. A base index that
+// reads the wrong source is realigned by Hermes on its next open and is not
+// work. unrecognised lists tables whose definition is neither in the registry
+// nor shaped like an old one (a newer release's, or something else): Hermes
+// leaves those alone, Safe Update cannot vouch for them.
+func FTSLayoutDrift(stored map[string]string) (drift, unrecognised []string) {
+	for _, table := range []string{FTSBaseTable, FTSTrigramTable} {
+		raw, ok := stored[table]
+		if !ok {
+			continue
+		}
+		form := FTSStoredForm(raw)
+		if ftsOlderLayout(table, form) {
+			realigned := table == FTSBaseTable && strings.Contains(form, "tool_name") && !strings.Contains(form, "messages_fts_src")
+			if !realigned {
+				drift = append(drift, table)
+			}
+			continue
+		}
+		known := false
+		for _, l := range FTSVtableLayouts[table] {
+			if form == l {
+				known = true
+			}
+		}
+		if !known {
+			unrecognised = append(unrecognised, table)
+		}
+	}
+	return drift, unrecognised
+}

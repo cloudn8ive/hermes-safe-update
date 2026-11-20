@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
+	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
 )
 
 // argOf returns the value of --name= in argv.
@@ -180,5 +181,41 @@ func TestElectronFailureSurfacesMigratorLineFirst(t *testing.T) {
 	_, err := e.Dump(context.Background(), t.TempDir(), []string{"file://"})
 	if err == nil || !strings.Contains(err.Error(), "exited 2: migrator: Error: Path must be absolute") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// The settings stage runs after `hermes update`, which can move the electron
+// package (apps/desktop/node_modules -> checkout root). The Manager must look
+// again instead of trusting the path found before the update.
+func TestManagerLooksForElectronAgain(t *testing.T) {
+	root := t.TempDir()
+	checkout := filepath.Join(root, "hermes-agent")
+	stale := filepath.Join(checkout, "apps", "desktop", "node_modules", "electron", "dist", "electron.exe")
+	moved := filepath.Join(checkout, "node_modules", "electron", "dist", "electron.exe")
+	must(t, os.MkdirAll(filepath.Dir(moved), 0o755))
+	must(t, os.WriteFile(moved, []byte("x"), 0o755))
+	in := hermes.Install{Home: root, Checkout: checkout, Electron: stale} // located before the update
+
+	m := New(Deps{Install: in, Runner: &execx.Fake{}, WorkDir: filepath.Join(root, "work"),
+		FindElectron: func() string { return moved }})
+	if err := m.ready(); err != nil {
+		t.Errorf("ready with the package moved to the root: %v", err)
+	}
+	if got := m.io().(*electronIO).electron; got != moved {
+		t.Errorf("electron = %q, want %q", got, moved)
+	}
+
+	// found nowhere now: the stale pre-update path must not be used, and the
+	// message names both places that were searched
+	m = New(Deps{Install: in, Runner: &execx.Fake{}, WorkDir: filepath.Join(root, "work"),
+		FindElectron: func() string { return "" }})
+	err := m.ready()
+	if !errors.Is(err, ErrElectronMissing) {
+		t.Fatalf("err = %v, want ErrElectronMissing", err)
+	}
+	for _, want := range hermes.ElectronPackageDirs(checkout) {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("err %q does not name %q", err, want)
+		}
 	}
 }

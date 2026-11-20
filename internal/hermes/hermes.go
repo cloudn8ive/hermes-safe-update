@@ -39,7 +39,7 @@ type Install struct {
 	LauncherPrefix []string
 	Python         string // Hermes' managed Python ("" = not found: D7 degrade)
 	Git            string // bundled git, else PATH git (D4); "" = none
-	Electron       string // apps/desktop/node_modules/electron/dist/<leaf>
+	Electron       string // <node_modules>/electron/dist/<leaf>, see ElectronPackageDirs
 	Desktop        string // source-built desktop executable
 	UserData       string // Electron userData of the desktop app
 	// StepAside is the user-facing advice when Kind != KindCheckout

@@ -1,0 +1,12 @@
+☤ Updating Hermes Agent...
+→ Update channel: stable
+→ Latest release: stable v0.22.0 (0123456789ab)
+→ Fetching updates...
+→ This build is newer than the stable release 0123456789ab: that release predates the gateway runtime your sessions use, so there is nothing to update to yet.
+  Hermes stays on abcdef012345 until a newer stable release ships. To follow every commit instead: `hermes update --set-channel main`.
+  → Updating dependencies…
+  ✓ Updating dependencies
+⚠ hermes update stashed 3 local modification(s) and did NOT restore them.
+  Stash ref: stash@{0}
+  Review with: git stash show --stat stash@{0}
+  Re-apply with: git stash show -p stash@{0} | git apply --3way

@@ -1,0 +1,8 @@
+              Skill Updates               
+┌────────────────┬──────────┬────────────┐
+│ Name           │ Source   │ Status     │
+├────────────────┼──────────┼────────────┤
+│ demo-skill     │ official │ up_to_date │
+└────────────────┴──────────┴────────────┘
+0 update(s) available across 1 checked skill(s)
+

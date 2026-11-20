@@ -16,11 +16,13 @@ import (
 	"github.com/cloudn8ive/hermes-safe-update/internal/config"
 	"github.com/cloudn8ive/hermes-safe-update/internal/cua"
 	"github.com/cloudn8ive/hermes-safe-update/internal/execx"
+	"github.com/cloudn8ive/hermes-safe-update/internal/extras"
 	"github.com/cloudn8ive/hermes-safe-update/internal/gc"
 	"github.com/cloudn8ive/hermes-safe-update/internal/hermes"
 	"github.com/cloudn8ive/hermes-safe-update/internal/mirror"
 	"github.com/cloudn8ive/hermes-safe-update/internal/platform"
 	"github.com/cloudn8ive/hermes-safe-update/internal/settings"
+	"github.com/cloudn8ive/hermes-safe-update/internal/statedb"
 	"github.com/cloudn8ive/hermes-safe-update/internal/timings"
 	"github.com/cloudn8ive/hermes-safe-update/internal/ui"
 )
@@ -42,9 +44,15 @@ type Deps struct {
 	Repo     hermes.Repo
 	Verifier hermes.Verifier
 
-	Mirror   mirror.Service
-	GC       gc.Collector
-	CUA      cua.Refresher
+	Mirror mirror.Service
+	GC     gc.Collector
+	CUA    cua.Refresher
+	// Extras looks after catalog plugins, hub skills and the bundled tools
+	// (nil = the stage is skipped).
+	Extras extras.Service
+	// StateDB probes the session databases and copies an oversized one (nil =
+	// the stage is skipped).
+	StateDB  statedb.Service
 	Settings settings.Service
 	Hooks    HookRunner
 
@@ -198,12 +206,37 @@ type Facts struct {
 	// row only). Again says why an update run goes on.
 	NothingNew bool
 	Again      Again
+	// Hold is set when the run ended by waiting for stable (the release is
+	// not newer than this build and update.older_release is wait).
+	Hold *Hold
+	// HermesHeld is set when `hermes update` itself held this build (its
+	// own "Holding at this build" wording) and HEAD did not move: Hermes
+	// ran its "already up to date" tail on the same code and did not update.
+	HermesHeld *hermes.ApplyHold
+	// CatalogNotices are the end-of-update "N plugin update(s) from the new
+	// catalog" lines of `hermes update` (Hermes v0.23.0), one per profile.
+	CatalogNotices []hermes.CatalogNotice
+	// SD is the session-database stage (statedb.go).
+	SD StateDBFacts
 	// Confirmed: the user already said yes (R on the up-to-date screen), so
 	// the Y prompt is not asked a second time.
 	Confirmed bool
 
 	// DesktopNotVerified: the desktop app verify ran and failed.
 	DesktopNotVerified bool
+
+	// ExtraRows are the card rows of the extras stage (plugins, skills,
+	// tools, stale stable).
+	ExtraRows []ui.Row
+	// ExtrasRan: the stage ran in this run.
+	ExtrasRan bool
+	// PluginUpdateRan: `hermes plugins update` was started in this run, so
+	// the plugin snapshot of the pre-flight is stale.
+	PluginUpdateRan bool
+	// PluginsBefore is plugins.enabled, plugins.disabled and memory.provider
+	// as the pre-flight read them, before anything was closed (nil: not read).
+	// The guard compares it with the state after the Hermes update.
+	PluginsBefore *extras.State
 }
 
 // Again says why an update run goes on although no commit is waiting.
@@ -266,6 +299,18 @@ type Run struct {
 	arm64Rep  *hermes.ARM64Report
 	// lockNotProbedLogged: the "checkout lock: not probed" line was written.
 	lockNotProbedLogged bool
+	// extrasDone: the extras stage has run (or was decided against) in this run.
+	extrasDone bool
+	// guardDone: the plugin guard has looked at the Hermes update of this run.
+	guardDone bool
+	// pluginsRefreshed: the plugin snapshot was retaken before the update.
+	pluginsRefreshed bool
+	// extrasAbsent: one extras question timed out with no key at all, so
+	// nobody is at the console; the other questions are not asked.
+	extrasAbsent bool
+	// noticeFolded: the catalog notice of `hermes update` was put into a
+	// Plugins row (so the summary does not add a second one).
+	noticeFolded bool
 }
 
 // Stage is one step of the flow. Key matches a timings.Step key (the footer

@@ -14,9 +14,9 @@ mirror and fetch new commits and `v*` tags into the checkout's git data
 |---|---|---|---|
 | 0 | install check | Is this a managed source checkout with a `hermes` launcher? Packaged installs get advice instead. If there is no working launcher, `run` and `check` try to run Hermes through its managed Python (see "The launcher" below). | exit 5; exit 2 when no way to run Hermes is found (no launcher, and the managed Python route fails too) |
 | 1 | local | Running elevated (administrator)? Is another update's marker held by a live process? Does a process hold Hermes' checkout lock (an update running, or a child a killed update left behind)? Can your account open Hermes' `tools\` entries (an elevated install leaves some it cannot)? Free disk at least `min_free_gb`? Dirty checkout (information only)? Current commit. Did the last update finish (a `last update` row; see "An update that did not finish" below)? All of these only read; see "Pre-flight stops" below and `preflight` in configuration.md. | exit 4 |
-| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back and the rollback guard asks). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). On Windows ARM64 (Hermes' managed Python is the `win32-arm64` one), when Python dependencies are expected to change (or cannot be told), it also looks for the ARM64 C++ tools and `clang.exe` the way Hermes does (also when the run goes on without new commits), and warns (or stops, `preflight.arm64_toolchain: stop`) if they are missing. Before the repair offer it only looks: with `stop` and the tools missing no repair is offered; the warning of `warn` mode comes after the `R`. | up to date and nothing unfinished: exit 0 (an interactive run first offers `R` to repair; an unfinished update is finished instead of ending here). Check failed, release not resolvable, a stable request on a Hermes without channels, an update that would move Hermes back to an older release (rollback guard; asks first when attended), or missing ARM64 build tools with `arm64_toolchain: stop` on a run that goes ahead: exit 4 |
+| 2 | remote | Which channel (see below), then: is there an update? On main: local mirror, then GitHub API, then `hermes update --check --branch main`. On a release channel: Hermes' own `hermes update --check` (the release it names; a checkout already newer than the release waits for the next one only if stable is Hermes' unchosen default, otherwise the update would move it back, so Safe Update waits for stable by default and the rollback guard asks only with `update.older_release: ask`). Predicts Python and Node dependency reinstalls (against the release commit on a release channel). On Windows ARM64 (Hermes' managed Python is the `win32-arm64` one), when Python dependencies are expected to change (or cannot be told), it also looks for the ARM64 C++ tools and `clang.exe` the way Hermes does (also when the run goes on without new commits), and warns (or stops, `preflight.arm64_toolchain: stop`) if they are missing. Before the repair offer it only looks: with `stop` and the tools missing no repair is offered; the warning of `warn` mode comes after the `R`. | up to date and nothing unfinished: exit 0 (an interactive run first offers `R` to repair; an unfinished update is finished instead of ending here). Check failed, release not resolvable, a stable request on a Hermes without channels, an update that would move Hermes back to an older release (only with `update.older_release: ask`: the rollback guard, which asks first when attended; by default the run waits for stable and exits 0), `repair`, `--force` or finishing an unfinished update while waiting for stable (refused), or missing ARM64 build tools with `arm64_toolchain: stop` on a run that goes ahead: exit 4 |
 | 3 | procs | Classify running processes: desktop, gateway, backend, kernel. On Windows, probe whether Hermes' own gateway pause would work. | |
-| 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`; it waits `confirm_timeout_s`, default 600 s, and if the answer comes more than a minute after the prompt the busy-session check runs once more and a busy chat sends the run back to waiting for idle). Right before the close stage, in every mode (also after `F`, with `--yes`, `--unattended`, after a long idle wait), the checkout lock is probed again when the last probe is more than a minute old; a lock now held ends the run with exit 4 before anything closes. | exit 3 |
+| 4 | wait | If anything will be stopped: sessions busy in the last `idle_window_s` (default 180 s) make it wait. Attended: `A` aborts, `F` goes on. Unattended: waits up to `idle_wait_max_s`. Then the `Y` confirmation (skipped by `--yes` and `--unattended`; it waits `confirm_timeout_s`, default 600 s, and if the answer comes more than a minute after the prompt the busy-session check runs once more and a busy chat sends the run back to waiting for idle). Right before the close stage, in every mode (also after `F`, with `--yes`, `--unattended`, after a long idle wait), the checkout lock is probed again when the last probe is more than a minute old; a lock now held ends the run with exit 4 before anything closes. On a release channel the checkout's commit is read once more at the same point: if it is not the commit the pre-flight saw (the stable hold and the rollback guard decided from that one), the run stops with exit 4 before anything closes. | exit 3 (exit 4 for a held lock or a changed checkout) |
 | 5 | close | `pre-close` hooks, graceful close with `graceful_close_s` to finish, force only after that, stop leftover backends and kernels, then claim the update-in-progress marker. | exit 3 if the app will not exit |
 | 6 | update | `hermes update --yes --keep-stash` plus `--branch main` (main), `--channel stable` (`update.channel: stable`) or nothing (a release channel Hermes chose), capped at `update_timeout_s`. Progress follows Hermes' own output lines. When it ends, the `hermes` launcher is looked up again (the update can replace it). | |
 | 7 | verify | If a gateway ran before the update: its `code_sha` equals the checkout commit and it is alive (started if it is down, restarted once if it runs the old code; see Verification). No gateway before: none required, none started. `desktop_update_verify` passes. | result "problem": exit 1 |
@@ -56,7 +56,25 @@ end the run with exit 0 (nothing to do, unless an update that did not finish is 
 channel` (GitHub unreachable) is a pre-flight stop with Hermes' reason; text
 that matches nothing is a warning and a stop, never a silent success.
 
-### Rollback guard
+### Stable hold (the default) and the rollback guard
+
+On the stable channel, with `update.older_release: wait` (the default), Safe
+Update never moves Hermes back. Stage 2 works out how the release Hermes named
+stands against the installed commit (Hermes' "newer than the selected release",
+then git: `merge-base --is-ancestor` both ways, with a shallow clone counting as
+no proof; when the release commit is not in the checkout, GitHub's compare of
+`HEAD...tag`). Only a release that contains the installed commit is updated to.
+An older, diverged or unproven release ends the run like an up-to-date one:
+exit 0, a card "Waiting for stable: this build (...) is N commits newer than
+stable vX; Safe Update stays on it until a stable release includes it.", nothing
+closed or changed, also for `--unattended` and `check`, and no repair offer.
+`repair`, `--force` and finishing an unfinished update are refused with exit 4
+while it waits, because they would run `hermes update` for the stable channel
+and Hermes moves back with no question; the message names `--channel main` for
+one run and says that this also updates Hermes to the newest main commits. `update.older_release: ask` (or `--allow-rollback` for one run) restores
+the guard below.
+
+### Rollback guard (`update.older_release: ask`)
 
 If Hermes says the checkout is newer than the selected release, or git does
 (`git merge-base --is-ancestor <release> HEAD`; Hermes v0.21.6 and v0.21.7
@@ -129,6 +147,24 @@ A run is a success only when:
 1. the gateway reports the checkout's new commit and is alive (only if a
    gateway was running before the update), and
 2. Hermes' desktop-build check passes with no output.
+
+### When `hermes update` holds the build
+
+Hermes can hold on its own at apply time (v0.22.7, v0.23.0): when the channel's
+release predates the gateway runtime your sessions use, it prints "This build is
+newer than the <channel> release ...: ... nothing to update to yet" and "Holding
+at this build until a newer <channel> release ships", finishes its "already up
+to date" steps on the same code, and exits 0. If that wording is in the output,
+the exit code is 0 and HEAD did not move, the run is reported as "Hermes did not
+update: it held this build (...)": no Version row, a `Hermes held` row, exit 0
+(not a problem, and not an update). The checks above still run, because Hermes
+did its dependency and gateway steps; settings, cleanup, the cua refresh, the
+plugin guard and the extras run as usual and Hermes is reopened. `post-update`
+hooks do not run (nothing was updated); `post-relaunch` hooks do, because Hermes was closed and reopened. If HEAD moved
+anyway, or the exit code was not 0, or "Update complete!" is there too, the
+output of the update decides and the hold wording is only logged (a WARN when
+HEAD moved). In a repair or an unfinished-update run the headline stays
+"Repair finished and verified" and the `Hermes held` row is added.
 
 `hermes update` should exit 0. Two exit-1 cases still count as OK, each only
 when both checks above pass:

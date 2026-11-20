@@ -1,0 +1,3 @@
+→ Update channel: stable
+→ Holding at this build: stable v0.22.0 (0123456789ab) predates the gateway runtime your sessions use.
+  `hermes update` stays on this build; the next release that includes the runtime installs normally (`hermes update --set-channel main` follows every commit).

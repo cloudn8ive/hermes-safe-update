@@ -1,0 +1,14 @@
+Hermes Safe Update · v1.2.3-test
+== 1/5 Check
+disk free: 41.7 GB (enough)
+checkout: clean
+version: 5d41402 (gateway on 5d41402abc)
+Using the stable channel (set in Hermes); asking Hermes whether a release is waiting.
+update --check (rc=0): → Update channel: stable | → Selected release available: stable v0.22.1 (abcdef012345) | Run `hermes update` to install it.
+release stable v0.22.1 is not in the checkout yet and GitHub could not compare it: commit count and package changes are unknown
+updates: none, could not confirm that stable v0.22.1 contains this build; waiting for stable (Hermes release check)
+
+Waiting for stable: Safe Update could not confirm that stable v0.22.1 contains this build (v0.21.5): the release commit is not in the checkout and could not be compared through GitHub either. It does not risk moving Hermes back, so it stays on this build until a stable release is confirmed to include it.
+  Channel      stable (set in Hermes)
+  Move back    To move Hermes back to the stable release on purpose, set update.older_release: ask in safe-update.yaml (or run with --allow-rollback for one run); Safe Update then asks first. To follow main instead, set update.channel: main.
+  Log          C:\Users\you\AppData\Local\hermes\logs\safe-update.log

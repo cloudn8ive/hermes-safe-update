@@ -184,9 +184,22 @@ update:
   #   "stable"  always the latest published release (needs a Hermes with release
   #             channels, v0.21.6 or newer); a checkout that is ahead of it waits
   #   "main"    always the tip of main (`--branch main`), as before channels existed
-  # A run that would move the checkout back to an older release stops and asks
-  # first (--unattended refuses).
+  # A run that would move the checkout back to an older release is controlled
+  # by older_release below.
   channel: "follow"
+  # What a run on the stable channel does when the latest release is not newer
+  # than your build (older than it, diverged from it, or not provable to
+  # contain it: a shallow clone, GitHub unable to compare):
+  #   "wait"  stay on your build until a stable release includes it. Nothing is
+  #           changed, nothing is asked, the run ends like an up-to-date one
+  #           (exit 0, "Waiting for stable: ...", also with --unattended and
+  #           --check). repair, --force and finishing an unfinished update are
+  #           refused meanwhile (exit 4), because they would pass the stable
+  #           update to Hermes, which moves back with no question. Default.
+  #   "ask"   the older behaviour: an attended run asks for an explicit Y
+  #           before moving back, --unattended and --check stop (exit 4).
+  # --allow-rollback is "ask" for one run. Only the stable channel is affected.
+  older_release: "wait"
 
 preflight:
   # Checks that run before Hermes is closed. A "stop" ends the run (exit 4)
@@ -208,6 +221,76 @@ preflight:
 # Running Safe Update from an administrator terminal also stops before closing
 # anything (an elevated update leaves files in tools\ that your normal account
 # cannot update). --allow-elevated overrides that for one run.
+
+extras:
+  # The parts of a Hermes install that do not depend on the Hermes version:
+  # catalog plugins, hub-installed skills and the bundled tools. Safe Update
+  # looks at them (through Hermes' own check commands, in parallel, a few
+  # seconds; Safe Update writes nothing itself) after the Hermes
+  # verdict of every run, "up to date" or "waiting for stable" included, and
+  # shows one row each on the card; the full detail goes to the log. It never
+  # touches Hermes' own checkout, and never updates the tools: `hermes pm
+  # update` rewrites Hermes' core files.
+  #
+  # plugins: catalog and git plugins with an update (`hermes plugins
+  #   check-updates`). Plugins you copied in by hand have no source and are
+  #   never touched.
+  #   "ask"     list them and, on an attended run, ask for each plugin
+  #             (y/N, default no; the memory provider is named and goes last)
+  #             before `hermes plugins update <name>`. Hermes applies that
+  #             all or nothing and Safe Update writes no file around it; it
+  #             only checks afterwards that the plugin is still enabled and
+  #             memory.provider unchanged. The eviction that can really happen
+  #             is inside `hermes update` (a dependency rebuild that no longer
+  #             builds a plugin switches it off and clears memory.provider):
+  #             Safe Update compares the plugin settings before and after that
+  #             update, warns on the card, and on an attended run asks once to
+  #             put it back with `hermes plugins enable <name>` and `hermes
+  #             config set memory.provider <name>`. --unattended, --yes and
+  #             check only report (and print the commands). Hermes' own
+  #             security scan still applies; Safe Update never passes --force.
+  #   "report"  list only   "off"  do not look (this includes that comparison)
+  plugins: "ask"
+  # skills: hub-installed skills with an update (`hermes skills check`);
+  # applied with `hermes skills update` after a yes. Skills you edited are
+  # kept (Hermes skips them).   "ask" (default) | "report" | "off"
+  skills: "ask"
+  # tools: faults `hermes pm doctor` finds (shown as one row, advice in the
+  # log) and, in check only, newer tool versions from `hermes pm update
+  # --check` (listing only; that command needs the network and takes a
+  # minute).   "report" (default) | "off"
+  tools: "report"
+  # On a release channel: show a row when the latest stable release is older
+  # than this many days, or when commits with CVE-, GHSA- or "security" in
+  # their subject are waiting on main since that release. The row names the
+  # one-time way out (`hermes-safe-update --channel main`); nothing happens
+  # by itself. 0 turns the row off.
+  stale_days: 14
+
+statedb:
+  # Hermes' own pre-update snapshot leaves out any state.db (your session
+  # history; one per profile) over 1 GiB, so an update of such an install runs
+  # with no copy of it. Safe Update looks at the sizes in every run (`check`
+  # too: one row) and, in an update, deals with it once Hermes is closed.
+  #
+  # compact: offer `hermes sessions optimize-storage` (rebuilds the search
+  #   index in Hermes' compact layout and runs VACUUM). Only on an attended
+  #   run, only with Hermes 0.23 or newer, and only after a Y: it needs the
+  #   gateway stopped (it is restarted as after any update) and takes roughly
+  #   12 min per GB. A refusal, failure, timeout or Ctrl+C never loses data and
+  #   never stops the update. --unattended, --yes and `check` never compact.
+  #   "ask" | "off".
+  compact: "ask"
+  # backup: Safe Update's own verified copy of every state.db that is still
+  #   over 1 GiB when the update starts (SQLite online read, works while Hermes
+  #   has the file open; checked with PRAGMA quick_check; the newest one per
+  #   profile is kept, in <hermes home>\backups\safe-update-statedb). Attended
+  #   and unattended alike: a copy changes nothing. "on" | "off".
+  backup: "on"
+  # min_free_gb: free space (decimal GB, at least 1) that must remain on the
+  #   Hermes drive after a copy or a compaction; otherwise it is skipped and
+  #   the card says why.
+  min_free_gb: 10
 
 # Hooks: your own commands at fixed points of the flow.
 #   when: "pre-close"      before Hermes is closed (after the confirmation)

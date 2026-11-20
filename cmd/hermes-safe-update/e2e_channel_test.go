@@ -134,6 +134,7 @@ func TestE2EStableReleaseInTheCheckoutIsPredictedByGit(t *testing.T) {
 func TestE2EStableNewerReleasePublishedDuringTheRun(t *testing.T) {
 	t.Run("a newer release", func(t *testing.T) {
 		w := stableWorld(t, "update-check-stable-available.txt")
+		w.relCompare = "ahead"
 		w.latest = `{"tag_name":"v0.22.2","draft":false,"prerelease":false}`
 		w.latestCmp, w.latestN = "ahead", 4
 		w.con.script(conStep{key: 'y'})
@@ -144,6 +145,7 @@ func TestE2EStableNewerReleasePublishedDuringTheRun(t *testing.T) {
 	})
 	t.Run("main moved but no release did", func(t *testing.T) {
 		w := stableWorld(t, "update-check-stable-available.txt")
+		w.relCompare = "ahead"
 		w.latest = `{"tag_name":"v0.22.1","draft":false,"prerelease":false}`
 		w.latestCmp = "identical"
 		w.newerMode, w.newerN = "ahead", 90 // main is far ahead: not news on a release channel
@@ -156,6 +158,7 @@ func TestE2EStableNewerReleasePublishedDuringTheRun(t *testing.T) {
 	})
 	t.Run("the API is down", func(t *testing.T) {
 		w := stableWorld(t, "update-check-stable-available.txt")
+		w.releaseLocal = true // git proves the release contains HEAD; only the end-of-run API look is down
 		w.con.script(conStep{key: 'y'})
 		w.cli("--plain")
 		w.wantCode(apperr.OK)
@@ -167,6 +170,7 @@ func TestE2EStableNewerReleasePublishedDuringTheRun(t *testing.T) {
 func TestE2EStableChannelFromYamlPassesChannelFlag(t *testing.T) {
 	w := newWorld(t)
 	w.yaml += "update:\n  channel: \"stable\"\n"
+	w.relCompare = "ahead"
 	w.releaseOut = readContract(t, "update-check-stable-available.txt")
 	w.applyArgv = []string{"update", "--yes", "--keep-stash", "--channel", "stable"}
 	w.update = stableUpdate()
@@ -182,6 +186,7 @@ func TestE2EStableChannelFromYamlPassesChannelFlag(t *testing.T) {
 
 func TestE2ECheckStableAvailable(t *testing.T) {
 	w := stableWorld(t, "update-check-stable-available.txt")
+	w.askBeforeRollback() // GitHub cannot compare the release here; under the default (wait) that is "unproven" and waits (hold goldens)
 	w.busySession()
 	before := w.storeBytes()
 	w.cli("--plain", "check")
@@ -226,6 +231,7 @@ const rollbackCheck = "→ Update channel: stable\n" +
 
 func rollbackWorld(t *testing.T) *e2eWorld {
 	w := newWorld(t)
+	w.askBeforeRollback()
 	w.record = "stable"
 	w.releaseOut = rollbackCheck
 	w.applyArgv = []string{"update", "--yes", "--keep-stash"}

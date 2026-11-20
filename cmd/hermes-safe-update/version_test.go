@@ -207,3 +207,49 @@ func TestDevVersionScripts(t *testing.T) {
 		}
 	}
 }
+
+// v0.8.0: a CHANGELOG whose top heading is "## [x.y.z] - Unreleased" gives
+// vX.Y.Z-dev builds (no tag needed), counted from the commit that added the
+// heading; both scripts agree.
+func TestDevVersionScriptsUnreleasedHeading(t *testing.T) {
+	for name, derive := range derivers(t) {
+		for _, n := range []int{0, 3} {
+			root, _ := devRepo(t, 0, false)
+			git, _ := exec.LookPath("git")
+			g := func(args ...string) {
+				t.Helper()
+				cmd := exec.Command(git, args...)
+				cmd.Dir = root
+				cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid",
+					"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid", "GIT_CONFIG_GLOBAL=", "GIT_CONFIG_SYSTEM=")
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git %v: %v\n%s", args, err, out)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(root, "CHANGELOG.md"), []byte("# Changelog\n\n## [0.2.0] - Unreleased\n\n- thing\n\n## [0.1.2] - 2026-10-11\n\n- old\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			g("add", "-A")
+			g("commit", "-q", "-m", "start 0.2.0")
+			for i := 0; i < n; i++ {
+				if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(strings.Repeat("y", i+1)), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				g("add", "-A")
+				g("commit", "-q", "-m", "more")
+			}
+			out, err := exec.Command(git, "-C", root, "rev-parse", "--short=7", "HEAD").Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			sha := strings.TrimSpace(string(out))
+			want := "v0.2.0-dev"
+			if n > 0 {
+				want = "v0.2.0-dev+3." + sha
+			}
+			if got := derive(root); got != want {
+				t.Errorf("%s / %d commits after the heading: got %q, want %q", name, n, got, want)
+			}
+		}
+	}
+}

@@ -19,6 +19,8 @@ type File struct {
 	Desktop   Desktop   `yaml:"desktop"`
 	Update    Update    `yaml:"update"`
 	Preflight Preflight `yaml:"preflight"`
+	Extras    Extras    `yaml:"extras"`
+	StateDB   StateDB   `yaml:"statedb"`
 	Hooks     []Hook    `yaml:"hooks"`
 	Logging   Logging   `yaml:"logging"`
 }
@@ -187,9 +189,22 @@ const (
 	ChannelMain = "main"
 )
 
+// What a run on the stable channel does when the latest release is not newer
+// than the checkout (Update.OlderRelease, --allow-rollback).
+const (
+	// OlderReleaseWait stays on the checkout (exit 0) while the release is
+	// older than it, diverged from it, or cannot be proven to contain it:
+	// Safe Update never moves Hermes back. The default.
+	OlderReleaseWait = "wait"
+	// OlderReleaseAsk offers the move back: an attended run asks first, an
+	// unattended one and check stop (exit 4).
+	OlderReleaseAsk = "ask"
+)
+
 // Update configures which Hermes update channel a run follows.
 type Update struct {
-	Channel string `yaml:"channel"` // follow | stable | main
+	Channel      string `yaml:"channel"`       // follow | stable | main
+	OlderRelease string `yaml:"older_release"` // wait | ask
 }
 
 // Pre-flight check modes (Preflight.ACLCheck, Preflight.ARM64Toolchain).
@@ -212,6 +227,64 @@ type Preflight struct {
 	// rebuilt and clang or the ARM64 C++ tools are missing. warn (default) |
 	// stop | off.
 	ARM64Toolchain string `yaml:"arm64_toolchain"`
+}
+
+// What Safe Update does about one kind of extra (Extras.Plugins, Extras.Skills,
+// Extras.Tools). The extras are the parts of a Hermes install that do not
+// depend on the Hermes version: catalog plugins, hub skills, the bundled tools.
+const (
+	// ExtrasAsk lists what is outdated and, on an attended run, asks before
+	// updating it (plugins and skills only).
+	ExtrasAsk = "ask"
+	// ExtrasReport lists what is outdated and never changes anything.
+	ExtrasReport = "report"
+	// ExtrasOff does not look.
+	ExtrasOff = "off"
+)
+
+// Extras configures the stage that looks after the non-Hermes parts of the
+// install after the Hermes verdict.
+type Extras struct {
+	// Plugins: catalog and git plugins that have an update. ask (default) |
+	// report | off.
+	Plugins string `yaml:"plugins"`
+	// Skills: hub-installed skills that have an update. ask (default) |
+	// report | off.
+	Skills string `yaml:"skills"`
+	// Tools: faults `hermes pm doctor` finds in the bundled tools, and (check
+	// only) tool versions `hermes pm update --check` lists. report (default) |
+	// off. Never changes anything.
+	Tools string `yaml:"tools"`
+	// StaleDays: on a release channel, the latest stable release older than
+	// this many days (or with security fixes waiting on main) gets a row. 0
+	// turns the row off.
+	StaleDays int `yaml:"stale_days"`
+}
+
+// What Safe Update does about a session database (state.db) that is larger
+// than Hermes' pre-update snapshot takes (1 GiB).
+const (
+	// StateDBCompactAsk offers `hermes sessions optimize-storage` on an
+	// attended run (Hermes 0.23 or newer only), once Hermes is closed.
+	StateDBCompactAsk = "ask"
+	// StateDBCompactOff never offers it.
+	StateDBCompactOff = "off"
+	StateDBBackupOn   = "on"
+	StateDBBackupOff  = "off"
+)
+
+// StateDB configures the size probe, the compaction offer and Safe Update's
+// own copy of an oversized session database.
+type StateDB struct {
+	// Compact: ask (default) | off. Unattended runs, --yes and --check never
+	// compact whatever this says.
+	Compact string `yaml:"compact"`
+	// Backup: on (default) | off. A verified copy of every state.db that
+	// Hermes' own snapshot would skip, in backups/safe-update-statedb.
+	Backup string `yaml:"backup"`
+	// MinFreeGB: free space (decimal GB) that must remain on the Hermes home
+	// drive after a copy or a compaction. 0 is not allowed below 1.
+	MinFreeGB float64 `yaml:"min_free_gb"`
 }
 
 // HookWhen names the point in the flow at which a hook runs.

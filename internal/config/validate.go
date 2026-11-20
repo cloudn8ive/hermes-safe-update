@@ -145,6 +145,12 @@ func (f File) Validate() error {
 		add("update.channel", "must be one of follow, stable, main (got %q)", f.Update.Channel)
 	}
 
+	switch f.Update.OlderRelease {
+	case OlderReleaseWait, OlderReleaseAsk:
+	default:
+		add("update.older_release", "must be one of wait, ask (got %q)", f.Update.OlderRelease)
+	}
+
 	switch f.Preflight.ACLCheck {
 	case PreflightStop, PreflightWarn, PreflightOff:
 	default:
@@ -154,6 +160,37 @@ func (f File) Validate() error {
 	case PreflightStop, PreflightWarn, PreflightOff:
 	default:
 		add("preflight.arm64_toolchain", "must be one of stop, warn, off (got %q)", f.Preflight.ARM64Toolchain)
+	}
+
+	switch f.Extras.Plugins {
+	case ExtrasAsk, ExtrasReport, ExtrasOff:
+	default:
+		add("extras.plugins", "must be one of ask, report, off (got %q)", f.Extras.Plugins)
+	}
+	switch f.Extras.Skills {
+	case ExtrasAsk, ExtrasReport, ExtrasOff:
+	default:
+		add("extras.skills", "must be one of ask, report, off (got %q)", f.Extras.Skills)
+	}
+	switch f.Extras.Tools {
+	case ExtrasReport, ExtrasOff:
+	default:
+		add("extras.tools", "must be one of report, off (got %q)", f.Extras.Tools)
+	}
+	nonNeg("extras.stale_days", f.Extras.StaleDays)
+
+	switch f.StateDB.Compact {
+	case StateDBCompactAsk, StateDBCompactOff:
+	default:
+		add("statedb.compact", "must be one of ask, off (got %q)", f.StateDB.Compact)
+	}
+	switch f.StateDB.Backup {
+	case StateDBBackupOn, StateDBBackupOff:
+	default:
+		add("statedb.backup", "must be one of on, off (got %q)", f.StateDB.Backup)
+	}
+	if f.StateDB.MinFreeGB < 1 {
+		add("statedb.min_free_gb", "must be at least 1 (got %v)", f.StateDB.MinFreeGB)
 	}
 
 	names := map[string]bool{}

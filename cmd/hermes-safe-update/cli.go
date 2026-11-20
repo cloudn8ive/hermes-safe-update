@@ -31,6 +31,7 @@ type options struct {
 	noElevate  bool
 	allowElev  bool   // run, check: go on although this process is elevated
 	channel    string // run, check: follow | stable | main (beats update.channel)
+	allowRoll  bool   // run, repair, check: update.older_release: ask for this run
 
 	// subcommand flags
 	dryRun     bool   // migrate-settings
@@ -75,6 +76,7 @@ func newFlagSet(o *options) *flag.FlagSet {
 	fs.BoolVar(&o.noElevate, "no-elevate", false, "")
 	fs.BoolVar(&o.allowElev, "allow-elevated", false, "")
 	fs.StringVar(&o.channel, "channel", "", "")
+	fs.BoolVar(&o.allowRoll, "allow-rollback", false, "")
 	fs.BoolVar(&o.dryRun, "dry-run", false, "")
 	fs.StringVar(&o.origin, "origin", "", "")
 	fs.StringVar(&o.backupID, "backup", "", "")
@@ -158,6 +160,9 @@ func parseArgs(args []string) (options, error) {
 	if o.set["allow-elevated"] && o.command != "run" && o.command != "check" && o.command != "repair" {
 		return o, usageError("--allow-elevated applies to run, repair and check only, not %s", o.command)
 	}
+	if o.set["allow-rollback"] && o.command != "run" && o.command != "check" && o.command != "repair" {
+		return o, usageError("--allow-rollback applies to run, repair and check only, not %s", o.command)
+	}
 	if o.set["delay"] && o.delay <= 0 {
 		return o, usageError("--delay must be greater than 0")
 	}
@@ -232,6 +237,10 @@ Flags:
                        run: follow (default; whatever Hermes uses for this
                        install), stable (latest release) or main (every commit);
                        beats update.channel in safe-update.yaml
+  --allow-rollback     run, repair, check: update.older_release: ask for this run. On
+                       the stable channel Safe Update by default stays on a build
+                       that is newer than the latest release (it never moves Hermes
+                       back); with this flag it offers the move back, as before
 
 Exit codes:
   0  done (updated and verified, check finished, or already up to date)

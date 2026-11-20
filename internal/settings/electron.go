@@ -44,7 +44,8 @@ type storeIO interface {
 type electronIO struct {
 	runner   execx.Runner
 	electron string
-	workDir  string // private scratch dir for scripts and outputs
+	searched []string // package folders looked in; named when electron is ""
+	workDir  string   // private scratch dir for scripts and outputs
 	timeout  time.Duration
 	// goos and getenv make the Linux display check testable; "" / nil skip it.
 	goos   string
@@ -53,6 +54,9 @@ type electronIO struct {
 
 func (e *electronIO) check() error {
 	if e.electron == "" {
+		if len(e.searched) > 0 {
+			return fmt.Errorf("%w in %s (is the desktop app built?)", ErrElectronMissing, strings.Join(e.searched, " or "))
+		}
 		return fmt.Errorf("%w (no Electron path; is the desktop app built?)", ErrElectronMissing)
 	}
 	if st, err := os.Stat(e.electron); err != nil || st.IsDir() {

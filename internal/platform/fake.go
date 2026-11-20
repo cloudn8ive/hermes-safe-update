@@ -215,6 +215,9 @@ type FakeConsole struct {
 	// TypeAhead are keys typed before the prompt was shown: ReadKey hands them
 	// out first, until DrainInput throws them away.
 	TypeAhead []Key
+	// BeforeRead, when set, runs at the start of every ReadKey (a test hook: something
+	// changes while the prompt is up, after the probes have finished).
+	BeforeRead func()
 
 	mu      sync.Mutex
 	Titles  []string
@@ -251,6 +254,9 @@ func (c *FakeConsole) DrainInput() {
 }
 
 func (c *FakeConsole) ReadKey(ctx context.Context) (Key, error) {
+	if c.BeforeRead != nil {
+		c.BeforeRead()
+	}
 	c.mu.Lock()
 	if len(c.TypeAhead) > 0 {
 		k := c.TypeAhead[0]

@@ -106,8 +106,10 @@ func Defaults() File {
 			},
 		},
 		Desktop:   Desktop{Relaunch: RelaunchAuto},
-		Update:    Update{Channel: ChannelFollow},
+		Update:    Update{Channel: ChannelFollow, OlderRelease: OlderReleaseWait},
 		Preflight: Preflight{ACLCheck: PreflightStop, ARM64Toolchain: PreflightWarn},
+		Extras:    Extras{Plugins: ExtrasAsk, Skills: ExtrasAsk, Tools: ExtrasReport, StaleDays: 14},
+		StateDB:   StateDB{Compact: StateDBCompactAsk, Backup: StateDBBackupOn, MinFreeGB: 10},
 		Logging:   Logging{Level: "info", MaxSizeMB: 5, Keep: 3},
 	}
 }

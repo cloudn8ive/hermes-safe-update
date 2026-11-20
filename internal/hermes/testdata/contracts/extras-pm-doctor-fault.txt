@@ -1,0 +1,7 @@
+✓ agent-browser 1.0.0
+? bws: not installed
+✓ chromium 1000+1.0.0.0
+- dmgbuild: n/a on win32-x64 (DMG creation requires macOS)
+✗ git: realized bytes do not match recorded digest
+✗ ripgrep: not installed
+✓ node 1.2.3

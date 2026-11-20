@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,8 +42,10 @@ func Flow(mode Mode) []Stage {
 			{Key: "remote", Run: stageRemote},
 			{Key: "procs", Run: stageProcs},
 			{Key: "sessions", Run: stageSessions},
+			{Key: "statedb", Run: stageStateDBCheck, Skip: noBigStateDB},
 			{Key: "gc_preview", Run: stageGCPreview, Skip: func(r *Run) bool { return r.GC == nil }},
 			{Key: "cua_status", Run: stageCUAStatus, Skip: func(r *Run) bool { return r.CUA == nil }},
+			{Key: "extras", Run: stageExtras, Skip: extrasSkip},
 			{Key: "summary", Run: stageCheckSummary},
 		}
 	}
@@ -53,7 +56,9 @@ func Flow(mode Mode) []Stage {
 		{Key: "remote", Run: stageRemote},
 		{Key: "procs", Run: stageProcs},
 		{Key: "wait", Run: stageWait},
+		{Key: "statedb_pre", Run: stageStateDBPre, Skip: noBigStateDB},
 		{Key: "close", Run: stageClose},
+		{Key: "statedb", Run: stageStateDB, Skip: noStateDBCompaction},
 		{Key: "gateway_stop", Run: stageUpdate},
 		{Key: "verify", Run: stageVerify},
 		{Key: "settings", Run: stageSettings, Skip: func(r *Run) bool {
@@ -63,6 +68,8 @@ func Flow(mode Mode) []Stage {
 		{Key: "relaunch", Run: stageRelaunch, Skip: func(r *Run) bool { return !r.relaunchDue() }},
 		{Key: "cleanup", Run: stageCleanup, Skip: func(r *Run) bool { return r.GC == nil }},
 		{Key: "cua", Run: stageCUA, Skip: func(r *Run) bool { return notVerified(r) || r.CUA == nil }},
+		{Key: "plugin_guard", Run: stageGuard, Skip: func(r *Run) bool { return !r.guardPending() }},
+		{Key: "extras", Run: stageExtras, Skip: extrasSkip},
 		{Key: "summary", Run: stageUpdateSummary},
 	}
 }
@@ -169,6 +176,7 @@ func stageLocal(ctx context.Context, r *Run) error {
 	}
 	r.rows(ui.Row{Key: "version", Value: versionValue(r.Facts.HeadShort, sha)})
 	r.Facts.VersionBefore = hermes.CurrentVersion(ctx, r.Runner, r.Facts.Install.Launcher)
+	r.snapshotPlugins(ctx)
 	r.startEarly(ctx)
 	r.startChannelProbe(ctx)
 	return nil
@@ -291,6 +299,13 @@ func (r *Run) verdict(ctx context.Context, c hermes.UpdateCheck, nothing string)
 		r.info("%s (use --force to run anyway).", strings.TrimSuffix(nothing, "."))
 		early, _ := r.joinEarly(ctx) // never leave the side job running
 		if r.repairCanBeAsked() {
+			// Plugin, skill and tool questions come first: the repair offer
+			// ends the run (any other key finishes it), so nothing may be
+			// asked after it. A cancelled run (signal) skips the offer.
+			r.runExtras(ctx)
+			if ctx.Err() != nil {
+				return errUpToDate
+			}
 			if why := r.repairBlocker(ctx, early); why != "" {
 				r.info("A repair is not offered: %s", strings.TrimSuffix(why, ".")+".")
 				return errUpToDate
@@ -382,11 +397,11 @@ func (r *Run) noCommitPlan() *timings.Estimator {
 func (r *Run) offerRepair(ctx context.Context) (bool, error) {
 	tun := r.Config.Tunables
 	plan := r.noCommitPlan()
-	text := fmt.Sprintf("Hermes is up to date. Press R to repair this install: Hermes closes and the update steps run again (dependencies, builds, gateway restart), %s. Any other key exits without changes (auto-exit in %s).",
+	text := fmt.Sprintf("Hermes is up to date. Press R to repair this install: Hermes closes and the update steps run again (dependencies, builds, gateway restart), %s. Any other key ends the run without repairing (it ends by itself in %s).",
 		withRough(fmt.Sprintf("about %d min", minutes(plan.PlannedTotal("close"))), plan.RoughNote("close")), ui.CountdownText(tun.ConfirmTimeoutS))
 	r.drainInput()
 	// every key but R ends the window, as the text says
-	a, err := r.askSpec(ctx, ui.PromptSpec{Text: text, Keys: []rune{'r'}, Timeout: tun.ConfirmTimeout(), CountdownLabel: "auto-exit in", AbortOnCtrlC: true, AnyKey: true}, text, true)
+	a, err := r.askSpec(ctx, ui.PromptSpec{Text: text, Keys: []rune{'r'}, Timeout: tun.ConfirmTimeout(), CountdownLabel: "ending in", AbortOnCtrlC: true, AnyKey: true}, text, true)
 	if err != nil {
 		return false, err
 	}
@@ -409,6 +424,21 @@ func kindText(v *bool, changed string) string {
 	return "unchanged"
 }
 
+// depsText is kindText for the dependency rows of a run that has new commits.
+// The check compares the checkout's dependency files with the target's, so
+// "unchanged" only says the new commits do not touch them. When the last
+// update did not finish (any of the unfinished signals), it may have left
+// work owed that this comparison cannot see (a failed install, an unbuilt
+// app), so the line says that instead of a bare "unchanged". Safe Update does
+// not know which step stopped from the comparison; it says only what it
+// knows. what is what Hermes may redo, e.g. "reinstall the Python packages".
+func (r *Run) depsText(v *bool, changed, what string) string {
+	if v != nil && !*v && r.Facts.Previous != nil {
+		return "unchanged in the new commits; the last update did not finish, so Hermes may still " + what
+	}
+	return kindText(v, changed)
+}
+
 func (r *Run) reportCheck(c hermes.UpdateCheck, via string) {
 	if c.Behind != nil && *c.Behind {
 		n := "new commits"
@@ -416,8 +446,8 @@ func (r *Run) reportCheck(c hermes.UpdateCheck, via string) {
 			n = fmt.Sprintf("%d new commit(s)", *c.Commits)
 		}
 		r.rows(ui.Row{Key: "updates", Value: fmt.Sprintf("%s on main (%s)", n, via)},
-			ui.Row{Key: "python deps", Value: kindText(c.PyDeps, "changed, will be reinstalled")},
-			ui.Row{Key: "node packages", Value: kindText(c.NPM, "changed, will be reinstalled (slower build)")})
+			ui.Row{Key: "python deps", Value: r.depsText(c.PyDeps, "changed, will be reinstalled", "reinstall the Python packages")},
+			ui.Row{Key: "node packages", Value: r.depsText(c.NPM, "changed, will be reinstalled (slower build)", "rebuild the Node packages")})
 		return
 	}
 	r.rows(ui.Row{Key: "updates", Value: fmt.Sprintf("none, already up to date (%s)", via)})
@@ -716,7 +746,38 @@ func stageWait(ctx context.Context, r *Run) error {
 	}
 	// The close stage is next, in every mode (F, --yes and --unattended
 	// included): the lock is looked at once more when the last look is old.
-	return r.recheckLockBeforeClose(ctx)
+	if err := r.recheckLockBeforeClose(ctx); err != nil {
+		return err
+	}
+	return r.recheckHeadBeforeClose(ctx)
+}
+
+// recheckHeadBeforeClose looks at the checkout's HEAD once more before
+// Hermes is closed. On a release channel the stable hold (and the rollback
+// guard) decided from the HEAD read in the pre-flight, and the confirm prompt
+// or the wait for idle sessions can take minutes: a manual `hermes update
+// --branch main` or `git pull` that finishes in that window moves HEAD past
+// the release, and the release argv would then move Hermes back with no
+// question. A HEAD that is not the pre-flight one (or cannot be read) stops
+// the run before anything is closed (exit 4); running it again decides anew.
+// Stopping is the simpler of the two correct answers: re-deciding here would
+// mean redoing the whole remote stage after the user answered a prompt about
+// the old state, and a changed checkout is rare.
+func (r *Run) recheckHeadBeforeClose(ctx context.Context) error {
+	if r.Repo == nil || !r.Facts.Channel.Plan.Release || r.Facts.HeadFull == "" {
+		return nil
+	}
+	_, full, err := r.Repo.Head(ctx)
+	if err == nil && full == r.Facts.HeadFull {
+		return nil
+	}
+	why := "its current commit could not be read"
+	if err == nil {
+		why = "its commit is no longer the one this run checked"
+	}
+	r.Log.Warn("checkout HEAD changed before closing Hermes", slog.String("was", short(r.Facts.HeadFull, 12)), slog.String("now", short(full, 12)), slog.Bool("read_failed", err != nil))
+	r.stop("The Hermes checkout changed while Safe Update waited (%s). Nothing was changed. Run Safe Update again.", why)
+	return fmt.Errorf("%w: the Hermes checkout changed while waiting", apperr.ErrPreflightStop)
 }
 
 // lockRecheckAfter is how old the last checkout-lock probe may be when the
@@ -1003,10 +1064,47 @@ func stageUpdate(ctx context.Context, r *Run) error {
 	}
 	r.Facts.UpdateRC, r.Facts.UpdateOutput = rc, out
 	r.Facts.Channel.Applied = hermes.ParseUpdateRelease(out)
+	r.noteSnapshotSkips(out)
 	if m := hermes.UpdateCompleteRe.FindStringSubmatch(out); m != nil {
 		r.Facts.Versions = [2]string{m[1], m[2]}
 	}
+	r.readApplyOutput(ctx, rc, out)
 	return nil
+}
+
+// readApplyOutput takes the two v0.8.1 messages out of the output of `hermes
+// update`: Hermes' own hold, and the end-of-update catalog plugin notice.
+// Neither changes how the update is verified.
+func (r *Run) readApplyOutput(ctx context.Context, rc int, out string) {
+	for _, n := range hermes.ParseCatalogNotices(out) {
+		r.Facts.CatalogNotices = append(r.Facts.CatalogNotices, n)
+		r.Log.Info("hermes update: plugin catalog notice", slog.String("profile", n.Label), slog.Int("count", n.Count),
+			slog.String("plugins", strings.Join(n.Names, ",")), slog.Int("dropped_names", n.Dropped))
+	}
+	h, ok := hermes.ParseApplyHold(out)
+	if !ok {
+		return
+	}
+	r.Log.Info("hermes update: Hermes printed its own hold", slog.String("channel", h.Channel), slog.String("release", h.SHA12), slog.Int("rc", rc))
+	switch {
+	case rc != 0:
+		r.Log.Info("hermes update: the hold is not taken as a hold because the update did not exit 0")
+	case r.Facts.Versions[0] != "":
+		r.warn("`hermes update` printed a hold and also \"Update complete!\"; going by the output of the update, not the hold")
+	case r.Repo == nil || r.Facts.HeadFull == "":
+		r.Log.Info("hermes update: the hold is not taken as a hold because HEAD before the update is not known")
+	default:
+		_, full, err := r.Repo.Head(ctx)
+		switch {
+		case err != nil || len(full) != 40:
+			r.warn("Hermes printed a hold but HEAD after the update could not be read; not treated as a hold")
+		case full != r.Facts.HeadFull:
+			r.warn("`hermes update` said it held this build, but HEAD moved from %s to %s; going by HEAD", short(r.Facts.HeadFull, 10), short(full, 10))
+		default:
+			r.Facts.HermesHeld = &h
+			r.Log.Info("hermes update: held this build; HEAD did not move", slog.String("head", short(full, 10)))
+		}
+	}
 }
 
 // nothingChanged: HEAD is still the pre-flight HEAD and the updater never
@@ -1080,6 +1178,7 @@ func displayLine(line string) string {
 
 func (r *Run) runUpdate(ctx context.Context) (int, string, error) {
 	r.Facts.UpdateStarted = true
+	r.refreshPluginSnapshot(ctx)
 	argv := append([]string{r.Facts.Install.Launcher}, r.updateArgs()...)
 	cmdline := "hermes " + strings.Join(r.updateArgs(), " ")
 	r.UI.Command(cmdline)
@@ -1285,7 +1384,7 @@ func stageVerify(ctx context.Context, r *Run) error {
 		}
 	}
 	if !noGateway {
-		r.rows(ui.Row{Key: "gateway", Value: gatewayText(head, st, alive)})
+		r.rows(ui.Row{Key: "gateway", Value: gatewayText(head, st, alive, r.heldNoUpdate())})
 	}
 	vok, vout := false, "no verifier"
 	if r.Verifier != nil {
@@ -1331,8 +1430,11 @@ func short(s string, n int) string {
 	return s[:min(n, len(s))]
 }
 
-func gatewayText(head string, st hermes.GatewayState, alive bool) string {
+func gatewayText(head string, st hermes.GatewayState, alive, held bool) string {
 	if head != "" && st.CodeSHA == head && alive {
+		if held {
+			return "running this build " + short(head, 10)
+		}
 		return "running the new code " + short(head, 10)
 	}
 	return fmt.Sprintf("code %s, expected %s, alive %t", short(st.CodeSHA, 10), short(head, 10), alive)
@@ -1389,6 +1491,7 @@ func (r *Run) relaunchDue() bool {
 func stageRelaunch(ctx context.Context, r *Run) error {
 	r.relaunch(ctx)
 	if r.Facts.Relaunched {
+		// Runs on a hold too: pre-close ran and Hermes was closed and reopened.
 		r.runHooks(ctx, config.HookPostRelaunch, resultWord(r))
 	}
 	return nil
@@ -1483,10 +1586,38 @@ func resultWord(r *Run) string {
 // Hermes still closed, before the relaunch stage. post-relaunch hooks run
 // at the end of stageRelaunch.
 func stageHooks(ctx context.Context, r *Run) error {
+	if r.heldNoUpdate() {
+		// Hooks react to new code (merge bundled skills, rebuild a tool).
+		// Hermes held this build, so there is none.
+		r.Log.Info("post-update hooks skipped: Hermes held this build, nothing was updated")
+		return nil
+	}
 	if r.Facts.Verified {
 		r.runHooks(ctx, config.HookPostUpdate, resultWord(r))
 	}
 	return nil
+}
+
+// heldNoUpdate: Hermes held this build and the run was not one that sets out
+// to repair or finish something (then the steps it ran were the point).
+func (r *Run) heldNoUpdate() bool {
+	return r.Facts.HermesHeld != nil && r.Facts.Again == AgainNone
+}
+
+// heldRow is the "Hermes held" row of the card.
+func (r *Run) heldRow() ui.Row {
+	h := r.Facts.HermesHeld
+	text := "Hermes kept this build: " + h.Why() + ", so there is nothing to update to yet. It stays here until a newer " + h.Channel + " release ships; to follow every commit instead: hermes-safe-update channel set main"
+	if r.Facts.Again != AgainNone {
+		text += ". The steps of the " + string(r.Facts.Again) + " ran on this build"
+	}
+	if h.StashFiles > 0 {
+		text += ". Hermes also stashed " + strconv.Itoa(h.StashFiles) + " local modification(s) this run and did NOT restore them"
+		if h.StashRef != "" {
+			text += " (stash ref " + h.StashRef + "; review with: git stash show --stat " + h.StashRef + ", in the Hermes checkout)"
+		}
+	}
+	return ui.Row{Key: "Hermes held", Value: text}
 }
 
 // absOrEmpty is p when it is an absolute path, else "": a hook gets a path it
@@ -1751,6 +1882,7 @@ func addRow(rows []ui.Row, k, v string) []ui.Row {
 
 func stageUpdateSummary(ctx context.Context, r *Run) error {
 	f := r.Facts
+	r.noticeFallback()
 	if r.Facts.TReopen.IsZero() {
 		r.Facts.TReopen = r.Clock.Now()
 	}
@@ -1764,6 +1896,13 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 		done = "Repair finished and verified"
 	}
 	headline := done + "."
+	heldNoUpdate := r.heldNoUpdate()
+	if heldNoUpdate {
+		// Hermes ran its "already up to date" tail on the same code. Nothing
+		// was updated, so the card must not say it was.
+		done = "Hermes did not update: it held this build (" + f.HermesHeld.Why() + ")"
+		headline = done + "."
+	}
 	switch {
 	case !f.Verified:
 		headline = "The update needs attention: see RESULT above."
@@ -1773,6 +1912,9 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 		headline = fmt.Sprintf("%s, but %d steps did not finish.", done, len(unfinished))
 	}
 	var rows []ui.Row
+	if f.HermesHeld != nil {
+		rows = append(rows, r.heldRow())
+	}
 	if f.Versions[0] != "" {
 		v := f.Versions[0] + " → " + f.Versions[1]
 		if note := r.versionNote(ctx); note != "" {
@@ -1827,6 +1969,7 @@ func stageUpdateSummary(ctx context.Context, r *Run) error {
 	if f.CUA != nil {
 		rows = addRow(rows, "cua-driver", f.CUA.Line)
 	}
+	rows = append(rows, r.extraRows()...)
 	rows = addRow(rows, "Gateway", f.GateLine)
 	rows = append(rows, r.gatewayRows()...)
 	if lr, ok := r.launcherRow(); ok {
@@ -1927,8 +2070,8 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 		avail = fmt.Sprintf("%d new commit(s)", *f.Check.Commits)
 	}
 	rows = addRow(rows, "Available", avail)
-	rows = addRow(rows, "Python deps", kindText(f.Check.PyDeps, "changed, will be reinstalled"))
-	rows = addRow(rows, "Node packages", kindText(f.Check.NPM, "changed, will be reinstalled (slower build)"))
+	rows = addRow(rows, "Python deps", r.depsText(f.Check.PyDeps, "changed, will be reinstalled", "reinstall the Python packages"))
+	rows = addRow(rows, "Node packages", r.depsText(f.Check.NPM, "changed, will be reinstalled (slower build)", "rebuild the Node packages"))
 	rows = addRow(rows, "Checked via", r.sourceLine())
 	var hist []timings.Record
 	r.withEst(func(e *timings.Estimator) { hist = e.History })
@@ -1974,6 +2117,7 @@ func stageCheckSummary(ctx context.Context, r *Run) error {
 	if f.CUAStatus != nil {
 		rows = addRow(rows, "cua-driver", f.CUAStatus.Text)
 	}
+	rows = append(rows, r.extraRows()...)
 	if st := f.MirrorState; st != nil {
 		if st.OK {
 			var tail string

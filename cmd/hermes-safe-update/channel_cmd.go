@@ -106,16 +106,38 @@ func (s channelState) safeUpdateText(mode string) string {
 	return fmt.Sprintf("safe-update.yaml forces %s%s. A run uses %s whatever Hermes says. To follow Hermes again, set update.channel: follow.", mode, differs, mode)
 }
 
-const channelExplain = `  stable  only published, tested releases: fewer updates. By default a checkout
-          that is ahead of the latest release waits for the next release; if you
-          pick stable yourself, the next update moves back to the release (Safe
-          Update asks first).
+const channelExplain = `  stable  only published, tested releases: fewer updates. A checkout that is
+          ahead of the latest release waits for the next release. Safe Update
+          waits too when you pick stable yourself (update.older_release: wait,
+          the default): it never moves Hermes back, and says "Waiting for
+          stable". Hermes' own "hermes update" with a stable record in Hermes
+          does move back to the release, with no question.
   main    every change the day it lands: the newest fixes, more risk.
 `
+
+// olderReleaseText says what a stable run does when the latest release is not
+// newer than this build; "" when the run is not known to be on the stable
+// channel (a plan that stops, or one still waiting for Hermes' answer, has no
+// effective channel).
+func (s channelState) olderReleaseText(setting string) string {
+	if s.plan.Effective != config.ChannelStable {
+		return ""
+	}
+	if setting == config.OlderReleaseAsk {
+		return "ask (update.older_release). If the latest stable release is older than this build, a run asks before moving Hermes back " +
+			"(--unattended and check refuse, exit 4). Set update.older_release: wait to stay on this build instead."
+	}
+	return "wait (update.older_release). If the latest stable release is older than this build, diverged from it, or cannot be proven to contain it, " +
+		"a run stays on this build and says \"Waiting for stable\" (exit 0); it never moves Hermes back. " +
+		"Set update.older_release: ask (or run with --allow-rollback) to be asked before moving back."
+}
 
 func printChannelState(env *environment, cfg *config.Config, s channelState) {
 	fmt.Fprintf(env.stdout, "Hermes channel:      %s\n", s.hermesText())
 	fmt.Fprintf(env.stdout, "Safe Update:         %s\n", s.safeUpdateText(cfg.Update.Channel))
+	if t := s.olderReleaseText(cfg.Update.OlderRelease); t != "" {
+		fmt.Fprintf(env.stdout, "Older release:       %s\n", t)
+	}
 }
 
 func channelShow(ctx context.Context, _ options, cfg *config.Config, env *environment, log *slog.Logger) error {
@@ -170,7 +192,7 @@ func channelSet(ctx context.Context, o options, cfg *config.Config, env *environ
 	// Switching to stable while the checkout is ahead of the latest release
 	// makes the next update move Hermes back: say so before it is written.
 	if target == config.ChannelStable {
-		if warn := stableWarning(ctx, env, s); warn != "" {
+		if warn := stableWarning(ctx, env, cfg, s); warn != "" {
 			if err := confirmSwitch(ctx, cfg, env, warn); err != nil {
 				return err
 			}
@@ -212,7 +234,7 @@ func channelSet(ctx context.Context, o options, cfg *config.Config, env *environ
 // stableWarning runs the read-only release check and returns the warning a
 // switch to stable needs ("" when it would not move Hermes back). When the
 // check cannot run it says so: the user still has to confirm.
-func stableWarning(ctx context.Context, env *environment, s channelState) string {
+func stableWarning(ctx context.Context, env *environment, cfg *config.Config, s channelState) string {
 	// The version is only read for the message, but it is a Python start-up
 	// like the check itself: ask for both at once.
 	version := make(chan string, 1)
@@ -236,13 +258,25 @@ func stableWarning(ctx context.Context, env *environment, s channelState) string
 		if ch.Verdict == hermes.VerdictWaitsForNext {
 			msg += " Today Hermes waits for the next release only because stable is its default; a stable you set yourself does not wait."
 		}
-		return msg + " Safe Update's rollback guard will ask first."
+		return msg + rollbackGuardText(cfg.Update.OlderRelease)
 	case hermes.VerdictAvailable, hermes.VerdictUpToDate:
 		return ""
 	case hermes.VerdictUnresolved:
 		return "The rollback check could not run (Hermes could not resolve the stable release: " + strings.TrimRight(ch.Reason, ". ") + "), so it is not known whether the next update would move Hermes back to an older release."
 	}
 	return fmt.Sprintf("The rollback check gave an answer this tool does not recognise (exit %d), so it is not known whether the next update would move Hermes back to an older release.", res.Code)
+}
+
+// rollbackGuardText says what protects the checkout once stable is set, and
+// what does not: Hermes' own `hermes update` (by hand, or from the desktop app)
+// has no such guard and moves a newer checkout back to the release without a
+// question.
+func rollbackGuardText(setting string) string {
+	const outside = " Hermes' own `hermes update` (run by hand or from the desktop app) has no such guard: it moves Hermes back without asking."
+	if setting == config.OlderReleaseAsk {
+		return " Safe Update's rollback guard will ask first (update.older_release: ask)." + outside
+	}
+	return " Safe Update will wait on this build and never move Hermes back (update.older_release: wait), until a stable release includes it." + outside
 }
 
 // confirmSwitch asks for an explicit Y. --yes goes ahead (the warning is
